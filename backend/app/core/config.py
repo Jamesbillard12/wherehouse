@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     pairing_session_ttl_minutes: int = 10
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=("../.env", ".env"),
         env_prefix="",
         case_sensitive=False,
         extra="ignore",

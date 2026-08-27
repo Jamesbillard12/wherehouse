@@ -65,6 +65,35 @@ wherehouse/
 - [MVP](docs/mvp.md)
 - [Authentication and pairing](docs/authentication.md)
 
+## Run locally
+
+With Node 22 selected through nvm, install everything once:
+
+```bash
+nvm use
+./setup.sh
+```
+
+Start PostgreSQL, apply migrations, and run the API and web app:
+
+```bash
+./dev.sh
+```
+
+The web app is available at `http://localhost:5173`, the API at
+`http://localhost:8000`, and API documentation at `http://localhost:8000/api/docs`.
+
+In another terminal, start the Expo companion:
+
+```bash
+nvm use
+./mobile.sh
+```
+
+For a physical phone, set `PUBLIC_BASE_URL` in `.env` to a URL the phone can reach, such as the
+computer's LAN address. To run the complete containerized deployment at `http://localhost:8080`,
+use `./docker-up.sh`. Run `./stop.sh` to stop Docker services.
+
 ## Status
 
 Early architecture and product design. Implementation scaffold is next.
