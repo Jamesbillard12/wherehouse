@@ -2,6 +2,7 @@
   "expo": {
     "name": "WhereHouse Companion",
     "slug": "wherehouse-companion",
+    "scheme": "wherehouse",
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",

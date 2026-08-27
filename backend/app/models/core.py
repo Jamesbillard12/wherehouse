@@ -4,7 +4,16 @@ import enum
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import Boolean, CheckConstraint, Enum, ForeignKey, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Enum,
+    ForeignKey,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -57,6 +66,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     households: Mapped[list[HouseholdUser]] = relationship(back_populates="user")
 
@@ -167,7 +177,10 @@ class Item(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "items"
 
     household_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False, index=True
+        PGUUID(as_uuid=True),
+        ForeignKey("households.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

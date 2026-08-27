@@ -63,6 +63,7 @@ wherehouse/
 - [Architecture](docs/architecture.md)
 - [Domain model](docs/domain-model.md)
 - [MVP](docs/mvp.md)
+- [Authentication and pairing](docs/authentication.md)
 
 ## Status
 
