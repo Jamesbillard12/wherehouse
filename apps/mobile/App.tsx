@@ -1,3 +1,4 @@
+import { CameraView, useCameraPermissions } from 'expo-camera'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect, useState } from 'react'
 import {
@@ -24,6 +25,8 @@ export default function App() {
   const [pairedServer, setPairedServer] = useState<PairedServer | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(true)
+  const [scanning, setScanning] = useState(false)
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions()
 
   useEffect(() => {
     void loadPairedServer().then(setPairedServer).finally(() => setBusy(false))
@@ -52,6 +55,50 @@ export default function App() {
     await forgetPairedServer()
     setPairedServer(null)
     setBusy(false)
+  }
+
+  async function openScanner() {
+    setError(null)
+    if (!cameraPermission?.granted) {
+      const permission = await requestCameraPermission()
+      if (!permission.granted) {
+        setError('Camera access is required to scan a pairing code.')
+        return
+      }
+    }
+    setScanning(true)
+  }
+
+  if (scanning) {
+    return (
+      <View style={styles.scannerScreen}>
+        <CameraView
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          onBarcodeScanned={({ data }) => {
+            if (!data.startsWith('wherehouse://pair?')) {
+              setError('That QR code is not a WhereHouse pairing code.')
+              setScanning(false)
+              return
+            }
+            setPairingUri(data)
+            setError(null)
+            setScanning(false)
+          }}
+          style={StyleSheet.absoluteFill}
+        />
+        <SafeAreaView style={styles.scannerOverlay}>
+          <View style={styles.scannerHeader}>
+            <Text style={styles.scannerTitle}>Scan pairing code</Text>
+            <Pressable onPress={() => setScanning(false)} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>Close</Text>
+            </Pressable>
+          </View>
+          <View style={styles.finder} />
+          <Text style={styles.scannerHelp}>Center the QR code shown in WhereHouse web.</Text>
+        </SafeAreaView>
+        <StatusBar style="light" />
+      </View>
+    )
   }
 
   return (
@@ -85,6 +132,9 @@ export default function App() {
               value={pairingUri}
             />
             {error ? <Text style={styles.error}>{error}</Text> : null}
+            <Pressable onPress={() => void openScanner()} style={styles.scanButton}>
+              <Text style={styles.scanButtonText}>Scan QR code</Text>
+            </Pressable>
             <Pressable
               disabled={!pairingUri.trim()}
               onPress={() => void pair()}
@@ -117,4 +167,14 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontWeight: '700' },
   secondaryButton: { marginTop: 20, paddingVertical: 10 },
   secondaryButtonText: { color: '#166534', fontWeight: '700' },
+  scanButton: { marginTop: 16, padding: 14, borderWidth: 1, borderColor: '#166534', borderRadius: 10, alignItems: 'center' },
+  scanButtonText: { color: '#166534', fontWeight: '700' },
+  scannerScreen: { flex: 1, backgroundColor: '#07120c' },
+  scannerOverlay: { flex: 1, justifyContent: 'space-between', padding: 24, backgroundColor: 'rgba(4, 15, 9, 0.28)' },
+  scannerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  scannerTitle: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  closeButton: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: 'rgba(0, 0, 0, 0.45)' },
+  closeButtonText: { color: '#fff', fontWeight: '700' },
+  finder: { alignSelf: 'center', width: 260, height: 260, borderWidth: 3, borderColor: '#d5e85b', borderRadius: 24, backgroundColor: 'transparent' },
+  scannerHelp: { alignSelf: 'center', maxWidth: 300, color: '#fff', fontSize: 16, lineHeight: 23, textAlign: 'center', fontWeight: '600' },
 })

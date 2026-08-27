@@ -19,14 +19,24 @@ if [[ "$node_major" != "22" ]]; then
   exit 1
 fi
 
+if [[ -z "${PUBLIC_BASE_URL:-}" ]]; then
+  local_ip="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
+  if [[ -n "$local_ip" ]]; then
+    export PUBLIC_BASE_URL="http://${local_ip}:8000"
+  else
+    export PUBLIC_BASE_URL="http://localhost:8000"
+    echo "Could not detect a LAN address. Physical-phone pairing requires PUBLIC_BASE_URL." >&2
+  fi
+fi
+
 echo "Starting PostgreSQL..."
 docker compose up -d --wait postgres
 
 echo "Applying database migrations..."
 (cd backend && uv run alembic upgrade head)
 
-echo "Starting API at http://localhost:8000..."
-(cd backend && exec uv run uvicorn app.main:app --reload) &
+echo "Starting API at http://localhost:8000 (pairing URL: ${PUBLIC_BASE_URL})..."
+(cd backend && exec uv run uvicorn app.main:app --reload --host 0.0.0.0) &
 api_pid=$!
 
 cleanup() {
