@@ -2,7 +2,7 @@
   "name": "@wherehouse/mobile",
   "private": true,
   "version": "0.0.1",
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@wherehouse/api-client": "workspace:*",
     "expo": "^54.0.0",
     "expo-secure-store": "~15.0.7",
     "expo-sqlite": "~16.0.8",

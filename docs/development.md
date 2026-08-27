@@ -18,6 +18,9 @@ pnpm dev:web
 
 The web app runs on `http://localhost:5173` and proxies `/api` requests to the local FastAPI server.
 
+The root `./dev.sh` command combines PostgreSQL startup, migrations, the API, and the web app for
+normal development. See the root README for all convenience commands.
+
 ## API
 
 ```bash

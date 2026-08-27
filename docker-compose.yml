@@ -1,6 +1,8 @@
 services:
   postgres:
     image: postgres:17-alpine
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: wherehouse
       POSTGRES_USER: wherehouse
@@ -21,6 +23,7 @@ services:
       WHEREHOUSE_ENV: local
       DATABASE_URL: postgresql+asyncpg://wherehouse:wherehouse@postgres:5432/wherehouse
       UPLOAD_DIR: /data/uploads
+      PUBLIC_BASE_URL: http://localhost:8080
     depends_on:
       postgres:
         condition: service_healthy
@@ -32,6 +35,7 @@ services:
       WHEREHOUSE_ENV: local
       DATABASE_URL: postgresql+asyncpg://wherehouse:wherehouse@postgres:5432/wherehouse
       UPLOAD_DIR: /data/uploads
+      PUBLIC_BASE_URL: http://localhost:8080
     volumes:
       - wherehouse-uploads:/data/uploads
     depends_on:

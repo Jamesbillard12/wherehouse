@@ -1,3 +1,11 @@
+from app.models.auth import (
+    AppInstance,
+    Device,
+    DeviceType,
+    InstanceType,
+    PairingSession,
+    UserSession,
+)
 from app.models.core import (
     Area,
     Container,
@@ -14,16 +22,22 @@ from app.models.core import (
 )
 
 __all__ = [
+    "AppInstance",
     "Area",
     "Container",
     "ContainerPlacement",
     "ContainerRelationship",
     "ContainerType",
+    "Device",
+    "DeviceType",
     "Household",
     "HouseholdRelationship",
     "HouseholdUser",
+    "InstanceType",
     "Item",
     "ItemPlacement",
+    "PairingSession",
     "User",
+    "UserSession",
     "Zone",
 ]

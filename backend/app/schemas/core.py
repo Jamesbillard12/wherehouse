@@ -122,7 +122,7 @@ class ContainerPlacementRead(ORMModel):
 class ItemCreate(BaseModel):
     name: str = Field(min_length=1, max_length=300)
     description: str | None = None
-    quantity: Decimal = Field(default=Decimal("1"), gt=0)
+    quantity: Decimal = Field(default=Decimal(1), gt=0)
     unit: str | None = Field(default=None, max_length=50)
     manufacturer: str | None = Field(default=None, max_length=200)
     model: str | None = Field(default=None, max_length=200)
@@ -160,7 +160,9 @@ class ItemPlacementCreate(BaseModel):
         if target_count != 1:
             raise ValueError("exactly one of area_id, zone_id, or container_id is required")
         if self.container_id is None and self.relationship_type is not None:
-            raise ValueError("relationship_type is only valid when placing an item in/on a container")
+            raise ValueError(
+                "relationship_type is only valid when placing an item in/on a container"
+            )
         return self
 
 

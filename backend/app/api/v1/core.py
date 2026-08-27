@@ -1,15 +1,16 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_db_session
+from app.api.dependencies import PrincipalDep, SessionDep, require_household_access
 from app.models import (
     Area,
     Container,
     ContainerPlacement,
     Household,
+    HouseholdRelationship,
     HouseholdUser,
     Item,
     ItemPlacement,
@@ -31,8 +32,6 @@ from app.schemas.core import (
     ItemPlacementCreate,
     ItemPlacementRead,
     ItemRead,
-    UserCreate,
-    UserRead,
     ZoneCreate,
     ZoneRead,
 )
@@ -49,28 +48,35 @@ async def require(session: AsyncSession, model: type, entity_id: UUID, label: st
 
 @router.post("/households", response_model=HouseholdRead, status_code=status.HTTP_201_CREATED)
 async def create_household(
-    payload: HouseholdCreate, session: AsyncSession = Depends(get_db_session)
+    payload: HouseholdCreate, principal: PrincipalDep, session: SessionDep
 ) -> Household:
     household = Household(name=payload.name)
     session.add(household)
+    await session.flush()
+    session.add(
+        HouseholdUser(
+            household_id=household.id,
+            user_id=principal.user.id,
+            relationship_type=HouseholdRelationship.OWNER,
+        )
+    )
     await session.commit()
     await session.refresh(household)
     return household
 
 
 @router.get("/households", response_model=list[HouseholdRead])
-async def list_households(session: AsyncSession = Depends(get_db_session)) -> list[Household]:
-    result = await session.scalars(select(Household).order_by(Household.name))
+async def list_households(principal: PrincipalDep, session: SessionDep) -> list[Household]:
+    query = (
+        select(Household)
+        .join(HouseholdUser)
+        .where(HouseholdUser.user_id == principal.user.id)
+        .order_by(Household.name)
+    )
+    if principal.device_household_id is not None:
+        query = query.where(Household.id == principal.device_household_id)
+    result = await session.scalars(query)
     return list(result)
-
-
-@router.post("/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def create_user(payload: UserCreate, session: AsyncSession = Depends(get_db_session)) -> User:
-    user = User(email=payload.email.lower(), display_name=payload.display_name)
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
 
 
 @router.post(
@@ -81,9 +87,10 @@ async def create_user(payload: UserCreate, session: AsyncSession = Depends(get_d
 async def add_household_user(
     household_id: UUID,
     payload: HouseholdUserCreate,
-    session: AsyncSession = Depends(get_db_session),
+    principal: PrincipalDep,
+    session: SessionDep,
 ) -> HouseholdUser:
-    await require(session, Household, household_id, "Household")
+    await require_household_access(household_id, principal, session, owner=True)
     await require(session, User, payload.user_id, "User")
     membership = HouseholdUser(
         household_id=household_id,
@@ -104,9 +111,10 @@ async def add_household_user(
 async def create_area(
     household_id: UUID,
     payload: AreaCreate,
-    session: AsyncSession = Depends(get_db_session),
+    principal: PrincipalDep,
+    session: SessionDep,
 ) -> Area:
-    await require(session, Household, household_id, "Household")
+    await require_household_access(household_id, principal, session)
     area = Area(household_id=household_id, **payload.model_dump())
     session.add(area)
     await session.commit()
@@ -116,21 +124,21 @@ async def create_area(
 
 @router.get("/households/{household_id}/areas", response_model=list[AreaRead])
 async def list_areas(
-    household_id: UUID, session: AsyncSession = Depends(get_db_session)
+    household_id: UUID, principal: PrincipalDep, session: SessionDep
 ) -> list[Area]:
+    await require_household_access(household_id, principal, session)
     result = await session.scalars(
         select(Area).where(Area.household_id == household_id).order_by(Area.name)
     )
     return list(result)
 
 
-@router.post(
-    "/areas/{area_id}/zones", response_model=ZoneRead, status_code=status.HTTP_201_CREATED
-)
+@router.post("/areas/{area_id}/zones", response_model=ZoneRead, status_code=status.HTTP_201_CREATED)
 async def create_zone(
-    area_id: UUID, payload: ZoneCreate, session: AsyncSession = Depends(get_db_session)
+    area_id: UUID, payload: ZoneCreate, principal: PrincipalDep, session: SessionDep
 ) -> Zone:
-    await require(session, Area, area_id, "Area")
+    area = await require(session, Area, area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
     zone = Zone(area_id=area_id, **payload.model_dump())
     session.add(zone)
     await session.commit()
@@ -139,16 +147,19 @@ async def create_zone(
 
 
 @router.get("/areas/{area_id}/zones", response_model=list[ZoneRead])
-async def list_zones(area_id: UUID, session: AsyncSession = Depends(get_db_session)) -> list[Zone]:
+async def list_zones(area_id: UUID, principal: PrincipalDep, session: SessionDep) -> list[Zone]:
+    area = await require(session, Area, area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
     result = await session.scalars(select(Zone).where(Zone.area_id == area_id).order_by(Zone.name))
     return list(result)
 
 
 @router.post("/containers", response_model=ContainerRead, status_code=status.HTTP_201_CREATED)
 async def create_container(
-    payload: ContainerCreate, session: AsyncSession = Depends(get_db_session)
+    payload: ContainerCreate, principal: PrincipalDep, session: SessionDep
 ) -> Container:
     area = await require(session, Area, payload.area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
     if payload.zone_id is not None:
         zone = await require(session, Zone, payload.zone_id, "Zone")
         if zone.area_id != area.id:
@@ -162,8 +173,10 @@ async def create_container(
 
 @router.get("/areas/{area_id}/containers", response_model=list[ContainerRead])
 async def list_containers(
-    area_id: UUID, session: AsyncSession = Depends(get_db_session)
+    area_id: UUID, principal: PrincipalDep, session: SessionDep
 ) -> list[Container]:
+    area = await require(session, Area, area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
     result = await session.scalars(
         select(Container)
         .where(Container.area_id == area_id, Container.is_archived.is_(False))
@@ -176,12 +189,30 @@ async def list_containers(
 async def place_container(
     container_id: UUID,
     payload: ContainerPlacementCreate,
-    session: AsyncSession = Depends(get_db_session),
+    principal: PrincipalDep,
+    session: SessionDep,
 ) -> ContainerPlacement:
     container = await require(session, Container, container_id, "Container")
+    area = await require(session, Area, container.area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
     parent = await require(session, Container, payload.parent_container_id, "Parent container")
     if container.area_id != parent.area_id:
-        raise HTTPException(status_code=400, detail="Nested containers must belong to the same area")
+        raise HTTPException(
+            status_code=400, detail="Nested containers must belong to the same area"
+        )
+    ancestor_id = parent.id
+    visited: set[UUID] = set()
+    while ancestor_id not in visited:
+        if ancestor_id == container.id:
+            raise HTTPException(status_code=400, detail="Container placement would create a cycle")
+        visited.add(ancestor_id)
+        ancestor_id = await session.scalar(
+            select(ContainerPlacement.parent_container_id).where(
+                ContainerPlacement.container_id == ancestor_id
+            )
+        )
+        if ancestor_id is None:
+            break
     placement = await session.scalar(
         select(ContainerPlacement).where(ContainerPlacement.container_id == container_id)
     )
@@ -201,9 +232,12 @@ async def place_container(
 async def set_container_space(
     container_id: UUID,
     is_out_of_space: bool,
-    session: AsyncSession = Depends(get_db_session),
+    principal: PrincipalDep,
+    session: SessionDep,
 ) -> Container:
     container = await require(session, Container, container_id, "Container")
+    area = await require(session, Area, container.area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
     container.is_out_of_space = is_out_of_space
     await session.commit()
     await session.refresh(container)
@@ -218,9 +252,10 @@ async def set_container_space(
 async def create_item(
     household_id: UUID,
     payload: ItemCreate,
-    session: AsyncSession = Depends(get_db_session),
+    principal: PrincipalDep,
+    session: SessionDep,
 ) -> Item:
-    await require(session, Household, household_id, "Household")
+    await require_household_access(household_id, principal, session)
     item = Item(household_id=household_id, **payload.model_dump())
     session.add(item)
     await session.commit()
@@ -230,8 +265,9 @@ async def create_item(
 
 @router.get("/households/{household_id}/items", response_model=list[ItemRead])
 async def list_items(
-    household_id: UUID, session: AsyncSession = Depends(get_db_session)
+    household_id: UUID, principal: PrincipalDep, session: SessionDep
 ) -> list[Item]:
+    await require_household_access(household_id, principal, session)
     result = await session.scalars(
         select(Item)
         .where(Item.household_id == household_id, Item.is_archived.is_(False))
@@ -244,9 +280,11 @@ async def list_items(
 async def place_item(
     item_id: UUID,
     payload: ItemPlacementCreate,
-    session: AsyncSession = Depends(get_db_session),
+    principal: PrincipalDep,
+    session: SessionDep,
 ) -> ItemPlacement:
     item = await require(session, Item, item_id, "Item")
+    await require_household_access(item.household_id, principal, session)
 
     if payload.area_id is not None:
         area = await require(session, Area, payload.area_id, "Area")
@@ -261,7 +299,9 @@ async def place_item(
         household_id = area.household_id
 
     if household_id != item.household_id:
-        raise HTTPException(status_code=400, detail="Item and destination must belong to the same household")
+        raise HTTPException(
+            status_code=400, detail="Item and destination must belong to the same household"
+        )
 
     placement = await session.scalar(select(ItemPlacement).where(ItemPlacement.item_id == item_id))
     values = payload.model_dump()

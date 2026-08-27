@@ -74,6 +74,9 @@ Pairing establishes:
 
 Credentials are stored in secure device storage, not SQLite.
 
+The pairing and credential lifecycle is documented in
+[Authentication, devices, and pairing](authentication.md).
+
 ## Offline architecture
 
 PostgreSQL is canonical. SQLite is the mobile replica/cache.
