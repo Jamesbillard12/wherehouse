@@ -1,0 +1,29 @@
+[project]
+name = "wherehouse-api"
+version = "0.0.1"
+description = "WhereHouse FastAPI backend"
+requires-python = ">=3.13"
+dependencies = [
+  "alembic>=1.16",
+  "asyncpg>=0.30",
+  "fastapi>=0.116",
+  "pydantic-settings>=2.10",
+  "sqlalchemy[asyncio]>=2.0.43",
+  "uvicorn[standard]>=0.35",
+]
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28",
+  "pytest>=8.4",
+  "pytest-asyncio>=1.1",
+  "ruff>=0.12",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

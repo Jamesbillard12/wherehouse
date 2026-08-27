@@ -1,0 +1,11 @@
+{
+  "name": "wherehouse",
+  "private": true,
+  "packageManager": "pnpm@10.15.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @wherehouse/web dev",
+    "build:web": "pnpm --filter @wherehouse/web build",
+    "dev:mobile": "pnpm --filter @wherehouse/mobile start",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

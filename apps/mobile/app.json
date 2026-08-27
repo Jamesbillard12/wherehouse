@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "WhereHouse Companion",
+    "slug": "wherehouse-companion",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.wherehouse.companion"
+    },
+    "android": {
+      "package": "app.wherehouse.companion"
+    }
+  }
+}
