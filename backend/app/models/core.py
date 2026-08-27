@@ -11,6 +11,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
+def enum_values(enum_cls: type[enum.Enum]) -> list[str]:
+    return [member.value for member in enum_cls]
+
+
 class HouseholdRelationship(str, enum.Enum):
     OWNER = "owner"
     BORROWER = "borrower"
@@ -68,7 +72,12 @@ class HouseholdUser(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     relationship_type: Mapped[HouseholdRelationship] = mapped_column(
-        Enum(HouseholdRelationship, name="household_relationship"), nullable=False
+        Enum(
+            HouseholdRelationship,
+            name="household_relationship",
+            values_callable=enum_values,
+        ),
+        nullable=False,
     )
 
     household: Mapped[Household] = relationship(back_populates="users")
@@ -116,7 +125,7 @@ class Container(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     container_type: Mapped[ContainerType] = mapped_column(
-        Enum(ContainerType, name="container_type"), nullable=False
+        Enum(ContainerType, name="container_type", values_callable=enum_values), nullable=False
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_movable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -141,7 +150,12 @@ class ContainerPlacement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         PGUUID(as_uuid=True), ForeignKey("containers.id", ondelete="CASCADE"), nullable=False
     )
     relationship_type: Mapped[ContainerRelationship] = mapped_column(
-        Enum(ContainerRelationship, name="container_relationship"), nullable=False
+        Enum(
+            ContainerRelationship,
+            name="container_relationship",
+            values_callable=enum_values,
+        ),
+        nullable=False,
     )
     position: Mapped[int | None] = mapped_column(nullable=True)
 
@@ -190,7 +204,12 @@ class ItemPlacement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         PGUUID(as_uuid=True), ForeignKey("containers.id", ondelete="CASCADE"), nullable=True
     )
     relationship_type: Mapped[ContainerRelationship | None] = mapped_column(
-        Enum(ContainerRelationship, name="item_container_relationship"), nullable=True
+        Enum(
+            ContainerRelationship,
+            name="item_container_relationship",
+            values_callable=enum_values,
+        ),
+        nullable=True,
     )
 
     item: Mapped[Item] = relationship()
