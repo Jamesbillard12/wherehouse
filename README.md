@@ -64,6 +64,7 @@ wherehouse/
 - [Domain model](docs/domain-model.md)
 - [MVP](docs/mvp.md)
 - [Authentication and pairing](docs/authentication.md)
+- [UI direction](docs/ui-direction.md)
 
 ## Run locally
 
@@ -90,9 +91,11 @@ nvm use
 ./mobile.sh
 ```
 
-For a physical phone, set `PUBLIC_BASE_URL` in `.env` to a URL the phone can reach, such as the
-computer's LAN address. To run the complete containerized deployment at `http://localhost:8080`,
-use `./docker-up.sh`. Run `./stop.sh` to stop Docker services.
+`./dev.sh` automatically uses the Mac's LAN address in new pairing codes so a physical phone on
+the same Wi-Fi network can reach the API. If detection fails or a different hostname is required,
+set `PUBLIC_BASE_URL` in `.env`, for example `http://192.168.1.20:8000`. Generate a new pairing code
+after changing this value. To run the complete containerized deployment at
+`http://localhost:8080`, use `./docker-up.sh`. Run `./stop.sh` to stop Docker services.
 
 ## Status
 

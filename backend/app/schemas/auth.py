@@ -14,7 +14,7 @@ class ORMModel(BaseModel):
 class RegisterRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     display_name: str = Field(min_length=1, max_length=200)
-    password: str = Field(min_length=12, max_length=1024)
+    password: str = Field(min_length=10, max_length=1024)
 
 
 class LoginRequest(BaseModel):

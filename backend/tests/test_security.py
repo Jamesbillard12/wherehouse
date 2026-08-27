@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from app.core.security import hash_password, new_token, token_hash, verify_password
 from app.main import app
 from app.schemas.auth import PairingConsume, RegisterRequest
@@ -36,6 +39,22 @@ def test_auth_payloads_enforce_minimum_password_and_device_identity() -> None:
 
     assert registration.email == "owner@example.com"
     assert pairing.device_type.value == "phone"
+
+
+def test_registration_password_requires_ten_characters() -> None:
+    registration = RegisterRequest(
+        email="owner@example.com",
+        display_name="Owner",
+        password="1234567890",
+    )
+    assert registration.password == "1234567890"
+
+    with pytest.raises(ValidationError):
+        RegisterRequest(
+            email="owner@example.com",
+            display_name="Owner",
+            password="123456789",
+        )
 
 
 def test_auth_and_pairing_routes_are_exposed() -> None:

@@ -3,6 +3,14 @@
     "name": "WhereHouse Companion",
     "slug": "wherehouse-companion",
     "scheme": "wherehouse",
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow WhereHouse to scan companion pairing QR codes."
+        }
+      ]
+    ],
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
