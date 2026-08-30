@@ -126,13 +126,15 @@ export type ContainerPlacement = {
 }
 
 type ApiOptions = Omit<RequestInit, 'body'> & {
+  baseUrl?: string
   body?: unknown
   token?: string
 }
 
 async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
-  const { body, headers, token, ...requestOptions } = options
-  const response = await fetch(`/api/${API_VERSION}${path}`, {
+  const { baseUrl, body, headers, token, ...requestOptions } = options
+  const apiBase = baseUrl ? `${baseUrl.replace(/\/$/, '')}/api/${API_VERSION}` : `/api/${API_VERSION}`
+  const response = await fetch(`${apiBase}${path}`, {
     ...requestOptions,
     headers: {
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
@@ -288,6 +290,23 @@ export function setContainerSpace(
     method: 'PATCH',
     token,
   })
+}
+
+export function createRemoteClient(baseUrl: string, token: string) {
+  const authenticatedRequest = <T>(path: string, options: ApiOptions = {}) =>
+    apiRequest<T>(path, { ...options, baseUrl, token })
+
+  return {
+    listAreas: (householdId: string) =>
+      authenticatedRequest<Area[]>(`/households/${householdId}/areas`),
+    listZones: (areaId: string) => authenticatedRequest<Zone[]>(`/areas/${areaId}/zones`),
+    listContainers: (areaId: string) =>
+      authenticatedRequest<StorageContainer[]>(`/areas/${areaId}/containers`),
+    listContainerPlacements: (areaId: string) =>
+      authenticatedRequest<ContainerPlacement[]>(`/areas/${areaId}/container-placements`),
+    getContainerByCode: (code: string) =>
+      authenticatedRequest<StorageContainer>(`/containers/by-code/${encodeURIComponent(code)}`),
+  }
 }
 
 export function createPairingSession(

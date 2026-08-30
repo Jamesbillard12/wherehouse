@@ -277,6 +277,22 @@ async def list_containers(
     return list(result)
 
 
+@router.get("/containers/by-code/{code}", response_model=ContainerRead)
+async def get_container_by_code(
+    code: str, principal: PrincipalDep, session: SessionDep
+) -> Container:
+    container = await session.scalar(
+        select(Container).where(
+            Container.code == code.strip().upper(), Container.is_archived.is_(False)
+        )
+    )
+    if container is None:
+        raise HTTPException(status_code=404, detail="Container not found")
+    area = await require(session, Area, container.area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
+    return container
+
+
 @router.get(
     "/areas/{area_id}/container-placements",
     response_model=list[ContainerPlacementRead],
