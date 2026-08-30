@@ -14,6 +14,25 @@ import {
   type PairingSession,
 } from '@wherehouse/api-client'
 import QRCode from 'qrcode'
+import {
+  Activity,
+  ArrowRightLeft,
+  Bell,
+  Box,
+  Camera,
+  Clock3,
+  Container,
+  House,
+  Laptop,
+  MapPin,
+  PackagePlus,
+  Plus,
+  Printer,
+  QrCode,
+  Search,
+  Settings,
+  Smartphone,
+} from 'lucide-react'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 
 const SESSION_KEY = 'wherehouse.web.session'
@@ -27,6 +46,13 @@ function formatDate(value: string | null): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
     new Date(value),
   )
+}
+
+function greeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
 }
 
 export function App() {
@@ -156,7 +182,7 @@ function AuthScreen({
   return (
     <main className="auth-layout">
       <section className="auth-story">
-        <a className="wordmark" href="/">WH<span>·</span></a>
+        <a className="wordmark" href="/"><span className="brand-mark"><House aria-hidden="true" /></span> WhereHouse</a>
         <div>
           <p className="kicker">Your household, accounted for.</p>
           <h1>Find the thing.<br />Every time.</h1>
@@ -247,7 +273,7 @@ function HouseholdSetup({
   return (
     <main className="setup-layout">
       <nav className="simple-nav">
-        <span className="wordmark dark">WH<span>·</span></span>
+        <span className="wordmark dark"><span className="brand-mark"><House aria-hidden="true" /></span> WhereHouse</span>
         <button className="text-button" onClick={() => void onSignOut()}>Sign out</button>
       </nav>
       <section className="setup-card">
@@ -374,9 +400,11 @@ function Dashboard({
   return (
     <main className="dashboard">
       <header className="topbar">
-        <span className="wordmark dark">WH<span>·</span></span>
+        <span className="wordmark dark"><span className="brand-mark"><House aria-hidden="true" /></span> WhereHouse</span>
+        <div className="global-search"><Search aria-hidden="true" /> <span>Search items, containers, locations</span></div>
         <div className="account-menu">
-          <span>{user.user.display_name}</span>
+          <span className="topbar-icon"><Bell aria-hidden="true" /></span>
+          <span className="avatar">{user.user.display_name.slice(0, 1).toUpperCase()}</span>
           <button className="text-button" onClick={() => void onSignOut()}>Sign out</button>
         </div>
       </header>
@@ -387,9 +415,15 @@ function Dashboard({
           {households.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
         </select>
         <nav>
-          <a className="nav-item active" href="#overview"><span>⌂</span> Overview</a>
-          <a className="nav-item" href="#pair"><span>⌁</span> Companion</a>
-          <span className="nav-item disabled"><span>□</span> Inventory <small>Next</small></span>
+          <a className="nav-item active" href="#overview"><House aria-hidden="true" /> Overview</a>
+          <span className="nav-item disabled"><Box aria-hidden="true" /> Items <small>Next</small></span>
+          <span className="nav-item disabled"><Container aria-hidden="true" /> Containers</span>
+          <span className="nav-item disabled"><MapPin aria-hidden="true" /> Locations</span>
+          <span className="nav-item disabled"><Activity aria-hidden="true" /> Activity</span>
+          <span className="nav-item disabled"><ArrowRightLeft aria-hidden="true" /> Transfers</span>
+          <span className="nav-item disabled"><Clock3 aria-hidden="true" /> Checkouts</span>
+          <a className="nav-item" href="#pair"><QrCode aria-hidden="true" /> Companion</a>
+          <span className="nav-item disabled"><Settings aria-hidden="true" /> Settings</span>
         </nav>
         <div className="server-status"><span /> Server connected</div>
       </aside>
@@ -397,17 +431,48 @@ function Dashboard({
       <section className="dashboard-content">
         <div className="page-heading" id="overview">
           <div>
-            <p className="eyebrow">Household overview</p>
-            <h1>{household.name}</h1>
+            <p className="eyebrow">{household.name}</p>
+            <h1>{greeting()}, {user.user.display_name.split(' ')[0]} <span className="wave">👋</span></h1>
           </div>
-          <div className="role-badge">{isOwner ? 'Owner' : 'Borrower'}</div>
+          <button className="primary-button compact disabled-action" disabled><Plus aria-hidden="true" /> Add</button>
         </div>
 
         <div className="stat-grid">
           <article><strong>0</strong><span>Items tracked</span></article>
           <article><strong>0</strong><span>Containers</span></article>
-          <article><strong>{activeDevices.length}</strong><span>Active devices</span></article>
+          <article><strong>0</strong><span>Locations</span></article>
+          <article><strong>0</strong><span>Checked out</span></article>
         </div>
+
+        <section className="overview-grid">
+          <article className="overview-card">
+            <div className="card-heading"><h2>Locations overview</h2><MapPin aria-hidden="true" /></div>
+            <div className="empty-illustration"><House aria-hidden="true" /></div>
+            <strong>No locations yet</strong>
+            <p>Create an area such as a garage, attic, or trailer to begin organizing.</p>
+            <button className="inline-link" disabled>View all locations →</button>
+          </article>
+          <article className="overview-card">
+            <div className="card-heading"><h2>Recently added items</h2><Box aria-hidden="true" /></div>
+            <div className="empty-illustration"><PackagePlus aria-hidden="true" /></div>
+            <strong>Your inventory is ready</strong>
+            <p>Items you add will appear here with their exact location path.</p>
+            <button className="inline-link" disabled>View all items →</button>
+          </article>
+          <article className="overview-card">
+            <div className="card-heading"><h2>Recent activity</h2><Activity aria-hidden="true" /></div>
+            <div className="empty-illustration"><Clock3 aria-hidden="true" /></div>
+            <strong>No activity yet</strong>
+            <p>Additions, moves, checkouts, and returns will be recorded here.</p>
+            <button className="inline-link" disabled>View all activity →</button>
+          </article>
+        </section>
+
+        <section className="quick-grid">
+          <article><div className="quick-icon"><ArrowRightLeft aria-hidden="true" /></div><div><strong>Transfer items</strong><span>Move inventory between locations.</span></div><small>Coming next</small></article>
+          <article><div className="quick-icon"><Camera aria-hidden="true" /></div><div><strong>AI item capture</strong><span>Photograph an item and review suggestions.</span></div><small>Coming next</small></article>
+          <article><div className="quick-icon"><Printer aria-hidden="true" /></div><div><strong>Print labels</strong><span>Create QR labels for items and containers.</span></div><small>Coming next</small></article>
+        </section>
 
         <section className="panel pairing-panel" id="pair">
           <div className="panel-copy">
@@ -435,7 +500,7 @@ function Dashboard({
                 </button>
               </>
             ) : (
-              <><div className="qr-placeholder">⌁</div><span>Your pairing code will appear here.</span></>
+              <><div className="qr-placeholder"><QrCode aria-hidden="true" /></div><span>Your pairing code will appear here.</span></>
             )}
           </div>
         </section>
@@ -443,14 +508,14 @@ function Dashboard({
         {isOwner ? (
           <section className="panel device-panel">
             <div className="panel-heading">
-              <div><p className="eyebrow">Access</p><h2>Paired devices</h2></div>
+              <div><p className="eyebrow">Access · {activeDevices.length} active</p><h2>Paired devices</h2></div>
               <div className="live-status"><span /> Live</div>
             </div>
             {activeDevices.length ? (
               <div className="device-list">
                 {activeDevices.map((device) => (
                   <article key={device.id}>
-                    <div className="device-icon">{device.device_type === 'phone' ? '▯' : '□'}</div>
+                    <div className="device-icon">{device.device_type === 'phone' ? <Smartphone aria-hidden="true" /> : <Laptop aria-hidden="true" />}</div>
                     <div><strong>{device.name}</strong><span>{device.device_type} · Last seen {formatDate(device.last_seen_at)}</span></div>
                     <button className="danger-button" onClick={() => void revoke(device)}>Revoke</button>
                   </article>
