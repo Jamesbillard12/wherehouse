@@ -1,12 +1,23 @@
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { StatusBar } from 'expo-status-bar'
+import {
+  ArrowRightLeft,
+  Box,
+  Clock3,
+  House,
+  MoreHorizontal,
+  PackagePlus,
+  QrCode,
+  Search,
+} from 'lucide-react-native'
 import { useEffect, useState } from 'react'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   ActivityIndicator,
   Linking,
   Platform,
   Pressable,
-  SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -103,47 +114,78 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <Text style={styles.brand}>WhereHouse</Text>
-        <Text style={styles.title}>Companion</Text>
-        {busy ? (
-          <ActivityIndicator style={styles.activity} color="#166534" size="large" />
-        ) : pairedServer ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Paired with {pairedServer.instanceName}</Text>
-            <Text style={styles.description}>{pairedServer.baseUrl}</Text>
-            <Text style={styles.note}>Ready to cache inventory and queue offline changes.</Text>
-            <Pressable style={styles.secondaryButton} onPress={() => void forget()}>
-              <Text style={styles.secondaryButtonText}>Forget this server</Text>
-            </Pressable>
+      <View style={styles.screen}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.brandRow}>
+            <View style={styles.brandLockup}>
+              <View style={styles.brandMark}><House color="#fff" size={17} strokeWidth={2.5} /></View>
+              <Text style={styles.brand}>WhereHouse</Text>
+            </View>
+            {pairedServer ? <View style={styles.syncPill}><View style={styles.syncDot} /><Text style={styles.syncText}>Connected</Text></View> : null}
           </View>
-        ) : (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Pair this device</Text>
-            <Text style={styles.description}>
-              Scan the one-time QR code, or paste its WhereHouse pairing link below.
-            </Text>
-            <TextInput
-              autoCapitalize="none"
-              autoCorrect={false}
-              onChangeText={setPairingUri}
-              placeholder="wherehouse://pair?..."
-              style={styles.input}
-              value={pairingUri}
-            />
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Pressable onPress={() => void openScanner()} style={styles.scanButton}>
-              <Text style={styles.scanButtonText}>Scan QR code</Text>
-            </Pressable>
-            <Pressable
-              disabled={!pairingUri.trim()}
-              onPress={() => void pair()}
-              style={[styles.button, !pairingUri.trim() && styles.buttonDisabled]}
-            >
-              <Text style={styles.buttonText}>Pair device</Text>
-            </Pressable>
+          <Text style={styles.title}>{pairedServer ? 'Companion ready' : 'Connect companion'}</Text>
+          <Text style={styles.subtitle}>
+            {pairedServer ? 'Your household will stay close, even when the signal does not.' : 'Pair this phone with your household to get started.'}
+          </Text>
+          {busy ? (
+            <ActivityIndicator style={styles.activity} color="#166534" size="large" />
+          ) : pairedServer ? (
+            <View style={styles.card}>
+              <Text style={styles.eyebrow}>Connected household</Text>
+              <Text style={styles.cardTitle}>{pairedServer.instanceName}</Text>
+              <Text style={styles.description}>{pairedServer.baseUrl}</Text>
+              <View style={styles.actionGrid}>
+                <View style={styles.actionTile}><QrCode color="#4f46e5" size={21} /><Text style={styles.actionLabel}>Scan</Text><Text style={styles.actionMeta}>Coming next</Text></View>
+                <View style={styles.actionTile}><PackagePlus color="#4f46e5" size={21} /><Text style={styles.actionLabel}>Add item</Text><Text style={styles.actionMeta}>Coming next</Text></View>
+                <View style={styles.actionTile}><Search color="#4f46e5" size={21} /><Text style={styles.actionLabel}>Find item</Text><Text style={styles.actionMeta}>Coming next</Text></View>
+                <View style={styles.actionTile}><ArrowRightLeft color="#4f46e5" size={21} /><Text style={styles.actionLabel}>Transfer</Text><Text style={styles.actionMeta}>Coming next</Text></View>
+              </View>
+              <Pressable style={styles.secondaryButton} onPress={() => void forget()}>
+                <Text style={styles.secondaryButtonText}>Forget this server</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.card}>
+              <Text style={styles.eyebrow}>One-time setup</Text>
+              <Text style={styles.cardTitle}>Pair this device</Text>
+              <Text style={styles.description}>
+                Scan the one-time QR code, or paste its WhereHouse pairing link below.
+              </Text>
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                onChangeText={setPairingUri}
+                placeholder="wherehouse://pair?..."
+                style={styles.input}
+                value={pairingUri}
+              />
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              <Pressable onPress={() => void openScanner()} style={styles.scanButton}>
+                <View style={styles.buttonContent}><QrCode color="#fff" size={18} strokeWidth={2.5} /><Text style={styles.scanButtonText}>Scan QR code</Text></View>
+              </Pressable>
+              <Pressable
+                disabled={!pairingUri.trim()}
+                onPress={() => void pair()}
+                style={[styles.button, !pairingUri.trim() && styles.buttonDisabled]}
+              >
+                <Text style={styles.buttonText}>Pair device</Text>
+              </Pressable>
+            </View>
+          )}
+        </ScrollView>
+        {pairedServer ? (
+          <View style={styles.bottomNav}>
+            <View style={styles.navTab}><House color="#4f46e5" size={17} strokeWidth={2.5} /><Text style={styles.navLabelActive}>Home</Text></View>
+            <View style={styles.navTab}><Box color="#667085" size={17} /><Text style={styles.navLabel}>Items</Text></View>
+            <View style={styles.scanTab}><QrCode color="#fff" size={21} strokeWidth={2.5} /></View>
+            <View style={styles.navTab}><Clock3 color="#667085" size={17} /><Text style={styles.navLabel}>Checkouts</Text></View>
+            <View style={styles.navTab}><MoreHorizontal color="#667085" size={18} /><Text style={styles.navLabel}>More</Text></View>
           </View>
-        )}
+        ) : null}
         <StatusBar style="auto" />
       </View>
     </SafeAreaView>
@@ -151,30 +193,48 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f6f8f6' },
-  container: { flex: 1, justifyContent: 'center', padding: 28 },
-  brand: { color: '#166534', fontSize: 18, fontWeight: '700' },
-  title: { marginTop: 8, fontSize: 48, fontWeight: '800', letterSpacing: -2, color: '#17211b' },
+  safeArea: { flex: 1, backgroundColor: '#fff' },
+  screen: { flex: 1, backgroundColor: '#f6f7fb' },
+  content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 32 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  brandMark: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#172554' },
+  brand: { color: '#172554', fontSize: 18, fontWeight: '800' },
+  syncPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 9, borderRadius: 20, backgroundColor: '#e9f8ef' },
+  syncDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#239b56' },
+  syncText: { color: '#167443', fontSize: 11, fontWeight: '700' },
+  title: { marginTop: 28, fontSize: 38, lineHeight: 43, fontWeight: '800', letterSpacing: -1.5, color: '#101828' },
+  subtitle: { marginTop: 8, maxWidth: 340, color: '#667085', fontSize: 16, lineHeight: 23 },
   activity: { marginTop: 40 },
-  card: { marginTop: 28, padding: 20, borderRadius: 14, backgroundColor: '#e8f5eb' },
-  cardTitle: { color: '#17211b', fontSize: 20, fontWeight: '700' },
-  description: { marginTop: 10, fontSize: 16, lineHeight: 23, color: '#536158' },
-  note: { marginTop: 14, color: '#166534', fontWeight: '600' },
-  input: { marginTop: 18, padding: 13, borderWidth: 1, borderColor: '#9db7a3', borderRadius: 10, backgroundColor: '#fff' },
+  card: { marginTop: 24, padding: 20, borderWidth: 1, borderColor: '#e1e6ef', borderRadius: 14, backgroundColor: '#fff' },
+  eyebrow: { marginBottom: 8, color: '#4f46e5', fontSize: 11, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
+  cardTitle: { color: '#101828', fontSize: 21, fontWeight: '800' },
+  description: { marginTop: 8, fontSize: 15, lineHeight: 22, color: '#667085' },
+  input: { marginTop: 18, padding: 13, borderWidth: 1, borderColor: '#cfd5df', borderRadius: 10, backgroundColor: '#fff' },
   error: { marginTop: 10, color: '#b42318' },
-  button: { marginTop: 16, padding: 14, borderRadius: 10, backgroundColor: '#166534', alignItems: 'center' },
+  button: { marginTop: 10, padding: 14, borderRadius: 10, backgroundColor: '#172554', alignItems: 'center' },
   buttonDisabled: { opacity: 0.45 },
   buttonText: { color: '#fff', fontWeight: '700' },
   secondaryButton: { marginTop: 20, paddingVertical: 10 },
-  secondaryButtonText: { color: '#166534', fontWeight: '700' },
-  scanButton: { marginTop: 16, padding: 14, borderWidth: 1, borderColor: '#166534', borderRadius: 10, alignItems: 'center' },
-  scanButtonText: { color: '#166534', fontWeight: '700' },
+  secondaryButtonText: { color: '#667085', fontWeight: '700' },
+  scanButton: { marginTop: 16, padding: 14, borderRadius: 10, backgroundColor: '#239b56', alignItems: 'center' },
+  scanButtonText: { color: '#fff', fontWeight: '800' },
+  buttonContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 20 },
+  actionTile: { flexGrow: 1, flexBasis: '46%', minHeight: 96, padding: 13, borderWidth: 1, borderColor: '#e4e7ec', borderRadius: 11, backgroundColor: '#fafbfc' },
+  actionLabel: { marginTop: 8, color: '#101828', fontSize: 14, fontWeight: '800' },
+  actionMeta: { marginTop: 2, color: '#98a2b3', fontSize: 10 },
+  bottomNav: { minHeight: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderTopWidth: 1, borderTopColor: '#e4e7ec', paddingTop: 8, paddingBottom: 6, paddingHorizontal: 12, backgroundColor: '#fff', shadowColor: '#101828', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 8 },
+  navTab: { flex: 1, minWidth: 54, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  navLabel: { color: '#667085', fontSize: 10 },
+  navLabelActive: { color: '#4f46e5', fontSize: 10, fontWeight: '700' },
+  scanTab: { width: 52, height: 52, marginHorizontal: 12, marginTop: -32, borderWidth: 4, borderColor: '#fff', borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: '#239b56', shadowColor: '#101828', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 10 },
   scannerScreen: { flex: 1, backgroundColor: '#07120c' },
   scannerOverlay: { flex: 1, justifyContent: 'space-between', padding: 24, backgroundColor: 'rgba(4, 15, 9, 0.28)' },
   scannerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   scannerTitle: { color: '#fff', fontSize: 20, fontWeight: '800' },
   closeButton: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: 'rgba(0, 0, 0, 0.45)' },
   closeButtonText: { color: '#fff', fontWeight: '700' },
-  finder: { alignSelf: 'center', width: 260, height: 260, borderWidth: 3, borderColor: '#d5e85b', borderRadius: 24, backgroundColor: 'transparent' },
+  finder: { alignSelf: 'center', width: 260, height: 260, borderWidth: 3, borderColor: '#4ade80', borderRadius: 24, backgroundColor: 'transparent' },
   scannerHelp: { alignSelf: 'center', maxWidth: 300, color: '#fff', fontSize: 16, lineHeight: 23, textAlign: 'center', fontWeight: '600' },
 })
