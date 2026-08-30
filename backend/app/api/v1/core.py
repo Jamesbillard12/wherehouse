@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import PrincipalDep, SessionDep, require_household_access
@@ -20,10 +20,12 @@ from app.models import (
 from app.schemas.core import (
     AreaCreate,
     AreaRead,
+    AreaUpdate,
     ContainerCreate,
     ContainerPlacementCreate,
     ContainerPlacementRead,
     ContainerRead,
+    ContainerUpdate,
     HouseholdCreate,
     HouseholdRead,
     HouseholdUserCreate,
@@ -34,9 +36,32 @@ from app.schemas.core import (
     ItemRead,
     ZoneCreate,
     ZoneRead,
+    ZoneUpdate,
 )
 
 router = APIRouter()
+
+CONTAINER_CODE_PREFIXES = {
+    "bin": "BIN",
+    "box": "BOX",
+    "shelf": "SHF",
+    "shelving_unit": "SHU",
+    "cabinet": "CAB",
+    "drawer": "DRW",
+    "toolbox": "TLB",
+    "bag": "BAG",
+    "case": "CSE",
+    "rack": "RCK",
+    "hook": "HOK",
+    "workbench": "WRK",
+    "other": "OTH",
+}
+
+
+async def next_container_code(session: AsyncSession, container_type: str) -> str:
+    number = await session.scalar(text("SELECT nextval('container_code_number_seq')"))
+    prefix = CONTAINER_CODE_PREFIXES[container_type]
+    return f"{prefix}-{number:06d}"
 
 
 async def require(session: AsyncSession, model: type, entity_id: UUID, label: str):
@@ -133,6 +158,26 @@ async def list_areas(
     return list(result)
 
 
+@router.patch("/areas/{area_id}", response_model=AreaRead)
+async def update_area(
+    area_id: UUID, payload: AreaUpdate, principal: PrincipalDep, session: SessionDep
+) -> Area:
+    area = await require(session, Area, area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
+    area.icon = payload.icon
+    await session.commit()
+    await session.refresh(area)
+    return area
+
+
+@router.delete("/areas/{area_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_area(area_id: UUID, principal: PrincipalDep, session: SessionDep) -> None:
+    area = await require(session, Area, area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
+    await session.delete(area)
+    await session.commit()
+
+
 @router.post("/areas/{area_id}/zones", response_model=ZoneRead, status_code=status.HTTP_201_CREATED)
 async def create_zone(
     area_id: UUID, payload: ZoneCreate, principal: PrincipalDep, session: SessionDep
@@ -154,6 +199,20 @@ async def list_zones(area_id: UUID, principal: PrincipalDep, session: SessionDep
     return list(result)
 
 
+@router.patch("/zones/{zone_id}", response_model=ZoneRead)
+async def update_zone(
+    zone_id: UUID, payload: ZoneUpdate, principal: PrincipalDep, session: SessionDep
+) -> Zone:
+    zone = await require(session, Zone, zone_id, "Zone")
+    area = await require(session, Area, zone.area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
+    zone.name = payload.name
+    zone.description = payload.description
+    await session.commit()
+    await session.refresh(zone)
+    return zone
+
+
 @router.post("/containers", response_model=ContainerRead, status_code=status.HTTP_201_CREATED)
 async def create_container(
     payload: ContainerCreate, principal: PrincipalDep, session: SessionDep
@@ -164,11 +223,44 @@ async def create_container(
         zone = await require(session, Zone, payload.zone_id, "Zone")
         if zone.area_id != area.id:
             raise HTTPException(status_code=400, detail="Zone must belong to the selected area")
-    container = Container(**payload.model_dump())
+    code = await next_container_code(session, payload.container_type.value)
+    container = Container(code=code, **payload.model_dump())
     session.add(container)
     await session.commit()
     await session.refresh(container)
     return container
+
+
+@router.patch("/containers/{container_id}", response_model=ContainerRead)
+async def update_container(
+    container_id: UUID,
+    payload: ContainerUpdate,
+    principal: PrincipalDep,
+    session: SessionDep,
+) -> Container:
+    container = await require(session, Container, container_id, "Container")
+    area = await require(session, Area, container.area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
+    if payload.zone_id is not None:
+        zone = await require(session, Zone, payload.zone_id, "Zone")
+        if zone.area_id != area.id:
+            raise HTTPException(status_code=400, detail="Zone must belong to the selected area")
+    for field, value in payload.model_dump().items():
+        setattr(container, field, value)
+    await session.commit()
+    await session.refresh(container)
+    return container
+
+
+@router.delete("/containers/{container_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_container(
+    container_id: UUID, principal: PrincipalDep, session: SessionDep
+) -> None:
+    container = await require(session, Container, container_id, "Container")
+    area = await require(session, Area, container.area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
+    await session.delete(container)
+    await session.commit()
 
 
 @router.get("/areas/{area_id}/containers", response_model=list[ContainerRead])
@@ -181,6 +273,24 @@ async def list_containers(
         select(Container)
         .where(Container.area_id == area_id, Container.is_archived.is_(False))
         .order_by(Container.name)
+    )
+    return list(result)
+
+
+@router.get(
+    "/areas/{area_id}/container-placements",
+    response_model=list[ContainerPlacementRead],
+)
+async def list_container_placements(
+    area_id: UUID, principal: PrincipalDep, session: SessionDep
+) -> list[ContainerPlacement]:
+    area = await require(session, Area, area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
+    result = await session.scalars(
+        select(ContainerPlacement)
+        .join(Container, Container.id == ContainerPlacement.container_id)
+        .where(Container.area_id == area_id)
+        .order_by(ContainerPlacement.position, ContainerPlacement.created_at)
     )
     return list(result)
 
@@ -226,6 +336,21 @@ async def place_container(
     await session.commit()
     await session.refresh(placement)
     return placement
+
+
+@router.delete("/containers/{container_id}/placement", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_container_placement(
+    container_id: UUID, principal: PrincipalDep, session: SessionDep
+) -> None:
+    container = await require(session, Container, container_id, "Container")
+    area = await require(session, Area, container.area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
+    placement = await session.scalar(
+        select(ContainerPlacement).where(ContainerPlacement.container_id == container_id)
+    )
+    if placement is not None:
+        await session.delete(placement)
+        await session.commit()
 
 
 @router.patch("/containers/{container_id}/space", response_model=ContainerRead)

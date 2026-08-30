@@ -52,6 +52,13 @@ class ContainerType(str, enum.Enum):
     OTHER = "other"
 
 
+class ContainerIdentifierType(str, enum.Enum):
+    NONE = "none"
+    QR = "qr"
+    NFC = "nfc"
+    BOTH = "both"
+
+
 class Household(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "households"
 
@@ -102,6 +109,7 @@ class Area(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         PGUUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    icon: Mapped[str] = mapped_column(String(50), nullable=False, default="warehouse")
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     household: Mapped[Household] = relationship(back_populates="areas")
@@ -125,6 +133,7 @@ class Zone(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class Container(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "containers"
+    __table_args__ = (UniqueConstraint("code", name="uq_container_code"),)
 
     area_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("areas.id", ondelete="CASCADE"), nullable=False, index=True
@@ -133,9 +142,18 @@ class Container(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         PGUUID(as_uuid=True), ForeignKey("zones.id", ondelete="SET NULL"), nullable=True, index=True
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    code: Mapped[str] = mapped_column(String(100), nullable=False)
     container_type: Mapped[ContainerType] = mapped_column(
         Enum(ContainerType, name="container_type", values_callable=enum_values), nullable=False
+    )
+    identifier_type: Mapped[ContainerIdentifierType] = mapped_column(
+        Enum(
+            ContainerIdentifierType,
+            name="container_identifier_type",
+            values_callable=enum_values,
+        ),
+        nullable=False,
+        default=ContainerIdentifierType.NONE,
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_movable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

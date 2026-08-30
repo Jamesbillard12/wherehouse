@@ -4,7 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models.core import ContainerRelationship, ContainerType, HouseholdRelationship
+from app.models.core import (
+    ContainerIdentifierType,
+    ContainerRelationship,
+    ContainerType,
+    HouseholdRelationship,
+)
 
 
 class ORMModel(BaseModel):
@@ -51,19 +56,30 @@ class HouseholdUserRead(ORMModel):
 
 class AreaCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
+    icon: str = Field(default="warehouse", min_length=1, max_length=50)
     description: str | None = None
+
+
+class AreaUpdate(BaseModel):
+    icon: str = Field(min_length=1, max_length=50)
 
 
 class AreaRead(ORMModel):
     id: UUID
     household_id: UUID
     name: str
+    icon: str
     description: str | None
     created_at: datetime
     updated_at: datetime
 
 
 class ZoneCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+
+
+class ZoneUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str | None = None
 
@@ -81,20 +97,27 @@ class ContainerCreate(BaseModel):
     area_id: UUID
     zone_id: UUID | None = None
     name: str = Field(min_length=1, max_length=200)
-    code: str | None = Field(default=None, max_length=100)
     container_type: ContainerType
+    identifier_type: ContainerIdentifierType = ContainerIdentifierType.NONE
     description: str | None = None
     is_movable: bool = True
     is_out_of_space: bool = False
 
+class ContainerUpdate(BaseModel):
+    zone_id: UUID | None = None
+    name: str = Field(min_length=1, max_length=200)
+    identifier_type: ContainerIdentifierType = ContainerIdentifierType.NONE
+    description: str | None = None
+    is_movable: bool = True
 
 class ContainerRead(ORMModel):
     id: UUID
     area_id: UUID
     zone_id: UUID | None
     name: str
-    code: str | None
+    code: str
     container_type: ContainerType
+    identifier_type: ContainerIdentifierType
     description: str | None
     is_movable: bool
     is_out_of_space: bool

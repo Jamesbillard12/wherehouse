@@ -65,6 +65,66 @@ export type PairingResult = AccessToken & {
   user_id: string
 }
 
+export type Area = {
+  id: string
+  household_id: string
+  name: string
+  icon: string
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type Zone = {
+  id: string
+  area_id: string
+  name: string
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ContainerType =
+  | 'bin'
+  | 'box'
+  | 'shelf'
+  | 'shelving_unit'
+  | 'cabinet'
+  | 'drawer'
+  | 'toolbox'
+  | 'bag'
+  | 'case'
+  | 'rack'
+  | 'hook'
+  | 'workbench'
+  | 'other'
+
+export type StorageContainer = {
+  id: string
+  area_id: string
+  zone_id: string | null
+  name: string
+  code: string
+  container_type: ContainerType
+  identifier_type: 'none' | 'qr' | 'nfc' | 'both'
+  description: string | null
+  is_movable: boolean
+  is_out_of_space: boolean
+  is_archived: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type ContainerPlacement = {
+  id: string
+  container_id: string
+  parent_container_id: string
+  relationship_type: 'in' | 'on' | 'under' | 'attached_to'
+  position: number | null
+  created_at: string
+  updated_at: string
+}
+
 type ApiOptions = Omit<RequestInit, 'body'> & {
   body?: unknown
   token?: string
@@ -114,6 +174,120 @@ export function listHouseholds(token: string): Promise<Household[]> {
 
 export function createHousehold(token: string, name: string): Promise<Household> {
   return apiRequest('/households', { method: 'POST', token, body: { name } })
+}
+
+export function listAreas(token: string, householdId: string): Promise<Area[]> {
+  return apiRequest(`/households/${householdId}/areas`, { token })
+}
+
+export function createArea(
+  token: string,
+  householdId: string,
+  payload: { name: string; icon: string; description?: string },
+): Promise<Area> {
+  return apiRequest(`/households/${householdId}/areas`, { method: 'POST', token, body: payload })
+}
+
+export function updateAreaIcon(token: string, areaId: string, icon: string): Promise<Area> {
+  return apiRequest(`/areas/${areaId}`, { method: 'PATCH', token, body: { icon } })
+}
+
+export function deleteArea(token: string, areaId: string): Promise<void> {
+  return apiRequest(`/areas/${areaId}`, { method: 'DELETE', token })
+}
+
+export function listZones(token: string, areaId: string): Promise<Zone[]> {
+  return apiRequest(`/areas/${areaId}/zones`, { token })
+}
+
+export function createZone(
+  token: string,
+  areaId: string,
+  payload: { name: string; description?: string },
+): Promise<Zone> {
+  return apiRequest(`/areas/${areaId}/zones`, { method: 'POST', token, body: payload })
+}
+
+export function updateZone(
+  token: string,
+  zoneId: string,
+  payload: { name: string; description?: string },
+): Promise<Zone> {
+  return apiRequest(`/zones/${zoneId}`, { method: 'PATCH', token, body: payload })
+}
+
+export function listContainers(token: string, areaId: string): Promise<StorageContainer[]> {
+  return apiRequest(`/areas/${areaId}/containers`, { token })
+}
+
+export function createContainer(
+  token: string,
+  payload: {
+    area_id: string
+    zone_id?: string
+    name: string
+    container_type: ContainerType
+    identifier_type: StorageContainer['identifier_type']
+    description?: string
+    is_movable: boolean
+  },
+): Promise<StorageContainer> {
+  return apiRequest('/containers', { method: 'POST', token, body: payload })
+}
+
+export function updateContainer(
+  token: string,
+  containerId: string,
+  payload: {
+    zone_id?: string
+    name: string
+    identifier_type: StorageContainer['identifier_type']
+    description?: string
+    is_movable: boolean
+  },
+): Promise<StorageContainer> {
+  return apiRequest(`/containers/${containerId}`, { method: 'PATCH', token, body: payload })
+}
+
+export function deleteContainer(token: string, containerId: string): Promise<void> {
+  return apiRequest(`/containers/${containerId}`, { method: 'DELETE', token })
+}
+
+export function listContainerPlacements(
+  token: string,
+  areaId: string,
+): Promise<ContainerPlacement[]> {
+  return apiRequest(`/areas/${areaId}/container-placements`, { token })
+}
+
+export function placeContainer(
+  token: string,
+  containerId: string,
+  payload: {
+    parent_container_id: string
+    relationship_type: ContainerPlacement['relationship_type']
+  },
+): Promise<ContainerPlacement> {
+  return apiRequest(`/containers/${containerId}/placement`, {
+    method: 'PUT',
+    token,
+    body: payload,
+  })
+}
+
+export function removeContainerPlacement(token: string, containerId: string): Promise<void> {
+  return apiRequest(`/containers/${containerId}/placement`, { method: 'DELETE', token })
+}
+
+export function setContainerSpace(
+  token: string,
+  containerId: string,
+  isOutOfSpace: boolean,
+): Promise<StorageContainer> {
+  return apiRequest(`/containers/${containerId}/space?is_out_of_space=${isOutOfSpace}`, {
+    method: 'PATCH',
+    token,
+  })
 }
 
 export function createPairingSession(
