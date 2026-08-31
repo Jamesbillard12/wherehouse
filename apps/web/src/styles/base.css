@@ -36,6 +36,8 @@ button { cursor: pointer; }
 }
 .wordmark .brand-mark { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 7px; background: var(--action); color: #fff; font-size: 1rem; }
 .brand-mark svg { width: 16px; height: 16px; stroke-width: 2.5; }
+.brand-logo { width: 181px; display: block; border-radius: 6px; object-fit: contain; }
+.wordmark.dark .brand-logo { mix-blend-mode: multiply; }
 .wordmark.dark { color: var(--ink); }
 .eyebrow, .kicker, .nav-label {
   margin: 0 0 0.65rem;
@@ -114,4 +116,3 @@ input:focus, select:focus { border-color: var(--action); box-shadow: 0 0 0 3px r
 .setup-card { width: min(660px, calc(100% - 3rem)); margin: clamp(4rem, 10vw, 8rem) auto; }
 .step-number { display: block; margin-bottom: 2.5rem; color: #c6cabb; font: 700 4rem/1 'Manrope', sans-serif; }
 .setup-card h1 { margin: 0; font: 800 clamp(2.8rem, 7vw, 5rem)/0.95 'Manrope', sans-serif; letter-spacing: -0.06em; }
-

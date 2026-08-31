@@ -1,5 +1,4 @@
 import { login, register } from '@wherehouse/api-client'
-import { House } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 
 import { message } from '../../shared/utils/errors'
@@ -46,7 +45,7 @@ export function AuthScreen({
   return (
     <main className="auth-layout">
       <section className="auth-story">
-        <a className="wordmark" href="/"><span className="brand-mark"><House aria-hidden="true" /></span> WhereHouse</a>
+        <a aria-label="WhereHouse home" className="wordmark" href="/"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></a>
         <div>
           <p className="kicker">Your household, accounted for.</p>
           <h1>Find the thing.<br />Every time.</h1>
@@ -109,5 +108,4 @@ export function AuthScreen({
     </main>
   )
 }
-
 

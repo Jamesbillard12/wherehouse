@@ -177,7 +177,7 @@ export function Dashboard({
   return (
     <main className={`dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <header className="topbar">
-        <span className="wordmark dark"><span className="brand-mark"><House aria-hidden="true" /></span> WhereHouse</span>
+        <span className="wordmark dark"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></span>
         <div className="global-search"><Search aria-hidden="true" /> <span>Search items, containers, locations</span></div>
         <div className="account-menu">
           <span className="topbar-icon"><Bell aria-hidden="true" /></span>

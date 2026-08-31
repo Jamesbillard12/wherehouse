@@ -1,5 +1,4 @@
 import { type MeResponse } from '@wherehouse/api-client'
-import { House } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 
 import { message } from '../../shared/utils/errors'
@@ -31,7 +30,7 @@ export function HouseholdSetup({
   return (
     <main className="setup-layout">
       <nav className="simple-nav">
-        <span className="wordmark dark"><span className="brand-mark"><House aria-hidden="true" /></span> WhereHouse</span>
+        <span className="wordmark dark"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></span>
         <button className="text-button" onClick={() => void onSignOut()}>Sign out</button>
       </nav>
       <section className="setup-card">
@@ -53,5 +52,4 @@ export function HouseholdSetup({
     </main>
   )
 }
-
 
