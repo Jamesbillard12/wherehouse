@@ -30,7 +30,6 @@ import {
   type Zone,
 } from '@wherehouse/api-client'
 import {
-  Box,
   Building2,
   Caravan,
   ChevronRight,
@@ -59,6 +58,7 @@ import { message } from '../../shared/utils/errors'
 import { areaKey } from '../../shared/utils/storage'
 import { AreaIcon, AreaIconPicker, CONTAINER_TYPES } from './locationOptions'
 import { ContainerLabelModal } from './ContainerLabelModal'
+import { LocationContentsList } from '../../components/wherehouse/LocationContentsList'
 
 export { AreaIcon } from './locationOptions'
 export function LocationsView({ household, refreshKey = 0, token }: { household: Household; refreshKey?: number; token: string }) {
@@ -465,24 +465,21 @@ export function LocationsView({ household, refreshKey = 0, token }: { household:
             {openContainer ? <div className="container-breadcrumb"><button className="back-button" onClick={() => setOpenContainerId(placementByContainer.get(openContainer.id)?.parent_container_id ?? null)}>← Back</button><nav aria-label="Container location" className="container-path">{openContainerTrail.map((container, index) => <span className="path-segment" key={container.id}>{index ? <ChevronRight aria-hidden="true" /> : null}{index < openContainerTrail.length - 1 ? <button onClick={() => setOpenContainerId(container.id)}>{container.name}</button> : <strong>{container.name}</strong>}</span>)}</nav><small>{openContainer.code}</small><div className="nested-actions"><button className="add-nested-button" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add container</button><button className="add-nested-button" onClick={() => setShowNestedItemForm(true)}><Plus aria-hidden="true" /> Add item</button></div></div> : null}
 
             {visibleContainers.length || visibleItems.length ? (
-              <div className="container-list">
-                {visibleContainers.map((container) => {
+              <LocationContentsList
+                containers={visibleContainers.map((container) => {
                   const placement = placementByContainer.get(container.id)
                   const parent = placement ? containerById.get(placement.parent_container_id) : null
                   const zone = zones.find((entry) => entry.id === container.zone_id)
-                  return (
-                    <article key={container.id}>
-                      <div className="container-icon"><Container aria-hidden="true" /></div>
-                      <button className="container-copy container-open" onClick={() => setOpenContainerId(container.id)}>
-                        <div><strong>{container.name}</strong><span className="type-badge">{container.container_type.replace('_', ' ')}</span>{container.identifier_type !== 'none' ? <span className="identifier-badge">{container.identifier_type !== 'nfc' ? <QrCode aria-hidden="true" /> : null}{container.identifier_type !== 'qr' ? <Radio aria-hidden="true" /> : null}{container.identifier_type === 'both' ? 'QR + NFC' : container.identifier_type.toUpperCase()}</span> : null}{container.is_out_of_space ? <span className="full-badge">Full</span> : null}</div>
-                        <span>{[zone?.name, parent ? `${placement?.relationship_type.replace('_', ' ')} ${parent.name}` : null, container.code].filter(Boolean).join(' · ') || 'Directly in area'}</span>
-                      </button>
-                      <div className="container-actions"><button aria-label={`Edit ${container.name}`} className="edit-container-button" onClick={() => editContainer(container)} title={`Edit ${container.name}`}><Pencil aria-hidden="true" /></button><button aria-label={`Delete ${container.name}`} className="delete-container-button" disabled={saving} onClick={() => void removeContainer(container)} title={`Delete ${container.name}`}><Trash2 aria-hidden="true" /></button><button className="space-button" onClick={() => void toggleSpace(container)}>{container.is_out_of_space ? 'Mark available' : 'Mark full'}</button></div>
-                    </article>
-                  )
+                  return { container, locationDescription: [zone?.name, parent ? `${placement?.relationship_type.replace('_', ' ')} ${parent.name}` : null, container.code].filter(Boolean).join(' · ') || 'Directly in area' }
                 })}
-                {visibleItems.map((item) => <article className="location-item-row" key={item.id}><div className="container-icon"><Box aria-hidden="true" /></div><button className="container-copy container-open" onClick={() => setSelectedDetailItem(item)}><div><strong>{item.name}</strong><span className="type-badge">Item</span></div><span>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}{item.description ? ` · ${item.description}` : ''}</span></button><ChevronRight aria-hidden="true" /></article>)}
-              </div>
+                items={visibleItems}
+                onDeleteContainer={(container) => void removeContainer(container)}
+                onEditContainer={editContainer}
+                onOpenContainer={(container) => setOpenContainerId(container.id)}
+                onOpenItem={setSelectedDetailItem}
+                onToggleContainerSpace={(container) => void toggleSpace(container)}
+                saving={saving}
+              />
             ) : (
               <div className="location-empty"><div className="empty-illustration"><Container aria-hidden="true" /></div><strong>{openContainer ? `${openContainer.name} is empty` : `No containers in ${selectedArea?.name}`}</strong><p>{openContainer ? 'Add a nested container or place items here.' : 'Add a shelf, cabinet, bin, or any other place that can hold household items.'}</p>{openContainer ? <div className="empty-actions"><button className="secondary-action" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add nested container</button><button className="primary-button compact" onClick={() => setShowNestedItemForm(true)}><Plus aria-hidden="true" /> Add item</button></div> : <button className="primary-button compact" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add first container</button>}</div>
             )}
