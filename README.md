@@ -60,11 +60,14 @@ wherehouse/
 
 ## Documentation
 
+- [Documentation index](docs/README.md)
 - [Architecture](docs/architecture.md)
 - [Domain model](docs/domain-model.md)
 - [MVP](docs/mvp.md)
 - [Authentication and pairing](docs/authentication.md)
 - [UI direction](docs/ui-direction.md)
+- [Future architecture](docs/future-architecture.md)
+- [Roadmap](docs/roadmap.md)
 
 ## Run locally
 
@@ -99,4 +102,6 @@ after changing this value. To run the complete containerized deployment at
 
 ## Status
 
-Early architecture and product design. Implementation scaffold is next.
+Early product implementation: web and companion clients, the versioned API, authentication and
+pairing, inventory/location management, mobile caching and queued writes, and realtime invalidation
+are in progress. See the [roadmap](docs/roadmap.md) for current and future phases.

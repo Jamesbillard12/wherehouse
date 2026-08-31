@@ -1,5 +1,9 @@
 # WhereHouse Architecture
 
+This document describes the implemented/current architecture. For the intended evolution and its
+dependency rules, see the [future architecture overview](future-architecture.md) and
+[architecture decision records](adr/README.md).
+
 ## Goals
 
 WhereHouse must run both self-hosted on a Raspberry Pi and in the cloud without changing client behavior.
@@ -196,6 +200,12 @@ backend/app/
 
 Routes own HTTP concerns. Repositories own persistence queries. Services own reusable business or
 infrastructure behavior. Routes should not accumulate unrelated domain operations.
+
+The current routes still own a meaningful amount of validation, transaction, persistence, and
+realtime-publication behavior. New or materially changed use cases should move incrementally behind
+the application capability boundary described in
+[ADR-0001](adr/0001-application-capabilities.md); this is a direction, not a request for a bulk
+rewrite.
 
 ### Shared TypeScript client
 
