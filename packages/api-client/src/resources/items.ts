@@ -52,16 +52,26 @@ export async function uploadItemImage(
   options: { baseUrl?: string; contentType?: string } = {},
 ): Promise<Item> {
   const apiBase = options.baseUrl ? `${options.baseUrl.replace(/\/$/, '')}/api/${API_VERSION}` : `/api/${API_VERSION}`
-  const response = await fetch(`${apiBase}/items/${itemId}/image`, {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': options.contentType || image.type || 'image/jpeg' },
-    body: image,
-  })
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { detail?: string } | null
-    throw new Error(payload?.detail ?? `Image upload failed (${response.status}).`)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30_000)
+  try {
+    const response = await fetch(`${apiBase}/items/${itemId}/image`, {
+      method: 'PUT',
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': options.contentType || image.type || 'image/jpeg' },
+      body: image,
+    })
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { detail?: string } | null
+      throw new Error(payload?.detail ?? `Image upload failed (${response.status}).`)
+    }
+    return (await response.json()) as Item
+  } catch (reason) {
+    if (controller.signal.aborted) throw new Error('Image upload timed out.')
+    throw reason
+  } finally {
+    clearTimeout(timeout)
   }
-  return (await response.json()) as Item
 }
 
 export async function getItemImage(token: string, itemId: string): Promise<Blob> {

@@ -1,5 +1,6 @@
 export * from './types'
 export * from './remote'
+export * from './realtime'
 export * from './resources/accounts'
 export * from './resources/devices'
 export * from './resources/items'

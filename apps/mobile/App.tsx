@@ -1,6 +1,6 @@
 import { useCameraPermissions } from 'expo-camera'
 import { StatusBar } from 'expo-status-bar'
-import { createRemoteClient, type Item, type StorageContainer } from '@wherehouse/api-client'
+import { createRemoteClient, subscribeToHousehold, type Item, type StorageContainer } from '@wherehouse/api-client'
 import { useEffect, useMemo, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
@@ -82,26 +82,27 @@ export default function App() {
       return
     }
     let cancelled = false
-    void loadCachedInventory(pairedServer.householdId).then((cached) => {
-      if (!cancelled) setInventory(cached)
-    })
     setSyncing(true)
-    void syncPendingItems(pairedServer)
-      .then(() => syncPendingItemUpdates(pairedServer))
-      .then(() => syncInventory(pairedServer))
-      .then((next) => {
+    void (async () => {
+      try {
+        const cached = await loadCachedInventory(pairedServer.householdId)
+        if (!cancelled) setInventory(cached)
+        await syncPendingItems(pairedServer)
+        await syncPendingItemUpdates(pairedServer)
+        const next = await syncInventory(pairedServer)
         if (!cancelled) {
           setInventory(next)
           setError(null)
         }
-      })
-      .catch((reason) => !cancelled && setError(reason instanceof Error ? reason.message : 'Sync failed.'))
-      .finally(() => {
+      } catch (reason) {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : 'Sync failed.')
+      } finally {
         if (cancelled) return
         setSyncing(false)
         void pendingItemCount(pairedServer.householdId).then(setPendingCount)
         void recentLocations(pairedServer.householdId).then(setRecentItemLocations)
-      })
+      }
+    })()
     return () => { cancelled = true }
   }, [pairedServer])
 
@@ -124,6 +125,29 @@ export default function App() {
     const interval = setInterval(() => void retry(), 30_000)
     return () => clearInterval(interval)
   }, [pairedServer, pendingCount])
+
+  useEffect(() => {
+    if (!pairedServer) return
+    let running = false
+    let rerun = false
+    const reconcile = async () => {
+      if (running) { rerun = true; return }
+      running = true
+      try {
+        await syncPendingItems(pairedServer)
+        await syncPendingItemUpdates(pairedServer)
+        setInventory(await syncInventory(pairedServer))
+        setPendingCount(await pendingItemCount(pairedServer.householdId))
+        setError(null)
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'Realtime sync failed.')
+      } finally {
+        running = false
+        if (rerun) { rerun = false; void reconcile() }
+      }
+    }
+    return subscribeToHousehold({ baseUrl: pairedServer.baseUrl, householdId: pairedServer.householdId, token: pairedServer.accessToken, onEvent: () => void reconcile(), onReady: () => void reconcile() })
+  }, [pairedServer])
 
   async function pair() {
     setBusy(true)
@@ -180,9 +204,13 @@ export default function App() {
     setPendingCount(await pendingItemCount(pairedServer.householdId))
     setRecentItemLocations(await recentLocations(pairedServer.householdId))
     setAddItemLocation(draft.location)
-    const result = await syncPendingItems(pairedServer)
-    setPendingCount(await pendingItemCount(pairedServer.householdId))
-    return result.failed === 0 ? 'synced' : 'queued'
+    void syncPendingItems(pairedServer)
+      .then(async () => {
+        setPendingCount(await pendingItemCount(pairedServer.householdId))
+        setInventory(await syncInventory(pairedServer))
+      })
+      .catch((reason) => setError(reason instanceof Error ? reason.message : 'Item will retry when connected.'))
+    return 'queued'
   }
 
   async function updateItem(draft: ItemUpdateDraft): Promise<'queued' | 'synced'> {
@@ -195,9 +223,13 @@ export default function App() {
     setInventory(next)
     await cacheItemUpdate(pairedServer.householdId, optimisticItem, optimisticPlacement)
     setPendingCount(await pendingItemCount(pairedServer.householdId))
-    const result = await syncPendingItemUpdates(pairedServer)
-    setPendingCount(await pendingItemCount(pairedServer.householdId))
-    return result.failed === 0 ? 'synced' : 'queued'
+    void syncPendingItemUpdates(pairedServer)
+      .then(async () => {
+        setPendingCount(await pendingItemCount(pairedServer.householdId))
+        setInventory(await syncInventory(pairedServer))
+      })
+      .catch((reason) => setError(reason instanceof Error ? reason.message : 'Item update will retry when connected.'))
+    return 'queued'
   }
 
   async function openContainerCode(value: string) {
@@ -272,12 +304,12 @@ export default function App() {
           {busy ? (
             <ActivityIndicator style={styles.activity} color="#166534" size="large" />
           ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={() => setActiveTab('containers')} onForget={() => void forget()} onRefresh={() => void refreshInventory()} onScan={() => void openScanner('container')} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
-            : pairedServer && activeTab === 'items' ? <ItemsScreen inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} />
+            : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} syncing={syncing} />
             : pairedServer ? <ContainersScreen error={error} inventory={inventory} onAddItem={(container) => { setAddItemLocation(containerLocationChoice(container, inventory)); setActiveTab('add-item') }} onRefresh={() => void refreshInventory()} onSelect={setSelectedContainer} selected={selectedContainer} syncing={syncing} />
               : <PairingScreen error={error} onChange={setPairingUri} onPair={() => void pair()} onScan={() => void openScanner('pairing')} value={pairingUri} />}
         </ScrollView>
         {pairedServer ? (
-          <BottomNavigation activeTab={activeTab} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onSelect={setActiveTab} />
+          <BottomNavigation activeTab={activeTab} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onSelect={(tab) => { setActiveTab(tab); if (tab === 'items') void refreshInventory() }} />
         ) : null}
         <StatusBar style="auto" />
       </View>

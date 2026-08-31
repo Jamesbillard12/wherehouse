@@ -120,6 +120,7 @@ class ContainerRead(ORMModel):
     container_type: ContainerType
     identifier_type: ContainerIdentifierType
     description: str | None
+    image_path: str | None
     is_movable: bool
     is_out_of_space: bool
     is_archived: bool

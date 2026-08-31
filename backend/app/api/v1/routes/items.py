@@ -16,6 +16,7 @@ from app.schemas.core import (
 )
 from app.services.container_codes import next_item_code
 from app.services.image_storage import get_image_storage
+from app.services.realtime import realtime_hub
 
 router = APIRouter()
 
@@ -42,6 +43,7 @@ async def create_item(
     session.add(item)
     await session.commit()
     await session.refresh(item)
+    await realtime_hub.publish(household_id, entity="item", action="created", entity_id=item.id, source=principal.method)
     return item
 
 
@@ -58,6 +60,7 @@ async def update_item(
         setattr(item, field, value)
     await session.commit()
     await session.refresh(item)
+    await realtime_hub.publish(item.household_id, entity="item", action="updated", entity_id=item.id, source=principal.method)
     return item
 
 
@@ -103,6 +106,7 @@ async def upload_item_image(
     item.image_path = object_key
     await session.commit()
     await session.refresh(item)
+    await realtime_hub.publish(item.household_id, entity="item", action="image.updated", entity_id=item.id, source=principal.method)
     if previous_key and previous_key != object_key:
         storage.delete(previous_key)
     return item
@@ -183,4 +187,5 @@ async def place_item(
 
     await session.commit()
     await session.refresh(placement)
+    await realtime_hub.publish(item.household_id, entity="item-placement", action="updated", entity_id=placement.id, source=principal.method)
     return placement

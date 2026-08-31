@@ -163,6 +163,7 @@ class Container(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=ContainerIdentifierType.NONE,
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_movable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_out_of_space: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

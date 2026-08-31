@@ -6,6 +6,10 @@ import { database } from './database'
 import type { PairedServer } from './pairing'
 
 type PendingRow = { local_id: string; payload: string; remote_item_id: string | null }
+type SyncResult = { failed: number; synced: number }
+
+const creationSyncs = new Map<string, Promise<SyncResult>>()
+const updateSyncs = new Map<string, Promise<SyncResult>>()
 
 export async function queueItem(householdId: string, draft: ItemDraft): Promise<void> {
   const db = await database()
@@ -49,7 +53,15 @@ async function rememberLocation(householdId: string, location: ItemLocationChoic
   )
 }
 
-export async function syncPendingItems(server: PairedServer): Promise<{ failed: number; synced: number }> {
+export function syncPendingItems(server: PairedServer): Promise<SyncResult> {
+  const existing = creationSyncs.get(server.householdId)
+  if (existing) return existing
+  const sync = syncPendingItemsOnce(server).finally(() => creationSyncs.delete(server.householdId))
+  creationSyncs.set(server.householdId, sync)
+  return sync
+}
+
+async function syncPendingItemsOnce(server: PairedServer): Promise<SyncResult> {
   const db = await database()
   const rows = await db.getAllAsync<PendingRow>('SELECT local_id, payload, remote_item_id FROM pending_items WHERE household_id = ? ORDER BY created_at', server.householdId)
   const client = createRemoteClient(server.baseUrl, server.accessToken)
@@ -93,7 +105,15 @@ export async function syncPendingItems(server: PairedServer): Promise<{ failed: 
   return { failed, synced }
 }
 
-export async function syncPendingItemUpdates(server: PairedServer): Promise<{ failed: number; synced: number }> {
+export function syncPendingItemUpdates(server: PairedServer): Promise<SyncResult> {
+  const existing = updateSyncs.get(server.householdId)
+  if (existing) return existing
+  const sync = syncPendingItemUpdatesOnce(server).finally(() => updateSyncs.delete(server.householdId))
+  updateSyncs.set(server.householdId, sync)
+  return sync
+}
+
+async function syncPendingItemUpdatesOnce(server: PairedServer): Promise<SyncResult> {
   const db = await database()
   const rows = await db.getAllAsync<{ item_id: string; payload: string }>('SELECT item_id, payload FROM pending_item_updates WHERE household_id = ? ORDER BY updated_at', server.householdId)
   const client = createRemoteClient(server.baseUrl, server.accessToken)

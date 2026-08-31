@@ -16,7 +16,7 @@ export type OverviewInventory = {
 
 const EMPTY: OverviewInventory = { areas: [], zones: [], containers: [], containerPlacements: [], items: [], itemPlacements: [], loading: true, error: null }
 
-export function useOverviewInventory(householdId: string, token: string): OverviewInventory {
+export function useOverviewInventory(householdId: string, token: string, refreshKey = 0): OverviewInventory {
   const [inventory, setInventory] = useState<OverviewInventory>(EMPTY)
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export function useOverviewInventory(householdId: string, token: string): Overvi
     }
     void load().catch((reason) => !cancelled && setInventory((current) => ({ ...current, loading: false, error: message(reason) })))
     return () => { cancelled = true }
-  }, [householdId, token])
+  }, [householdId, refreshKey, token])
 
   return inventory
 }

@@ -6,6 +6,8 @@ import {
   type Household,
   type MeResponse,
   type PairingSession,
+  subscribeToHousehold,
+  type RealtimeStatus,
 } from '@wherehouse/api-client'
 import QRCode from 'qrcode'
 import {
@@ -32,6 +34,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 
 import { ItemsView, itemLocation } from '../items/ItemsView'
+import { CompanionReviewQueue } from '../items/CompanionReviewQueue'
 import { AreaIcon, LocationsView } from '../locations/LocationsView'
 import { formatDate, greeting } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
@@ -61,12 +64,49 @@ export function Dashboard({
     () => localStorage.getItem(SIDEBAR_KEY) === 'true',
   )
   const [devices, setDevices] = useState<Device[]>([])
-  const overview = useOverviewInventory(household.id, token)
   const [pairing, setPairing] = useState<PairingSession | null>(null)
   const [pairingDeviceBaseline, setPairingDeviceBaseline] = useState(0)
   const [qrCode, setQrCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [realtimeRevision, setRealtimeRevision] = useState(0)
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting')
+  const [reviewItemIds, setReviewItemIds] = useState<string[]>([])
+  const [reviewQueueOpen, setReviewQueueOpen] = useState(false)
+  const overview = useOverviewInventory(household.id, token, realtimeRevision)
+
+  useEffect(() => {
+    const stored = JSON.parse(localStorage.getItem(`wherehouse.review-queue.${household.id}`) ?? '[]') as string[]
+    setReviewItemIds(stored)
+    setReviewQueueOpen(stored.length > 0)
+  }, [household.id])
+
+  useEffect(() => subscribeToHousehold({
+    householdId: household.id,
+    token,
+    onEvent: (event) => {
+      setRealtimeRevision((current) => current + 1)
+      if (event.entity === 'item' && event.action === 'created' && event.source === 'device') {
+        setReviewItemIds((current) => {
+          const next = current.includes(event.entity_id) ? current : [...current, event.entity_id]
+          localStorage.setItem(`wherehouse.review-queue.${household.id}`, JSON.stringify(next))
+          return next
+        })
+        setReviewQueueOpen(true)
+      }
+    },
+    onReady: () => setRealtimeRevision((current) => current + 1),
+    onStatus: setRealtimeStatus,
+  }), [household.id, token])
+
+  function markReviewed(itemId: string) {
+    setReviewItemIds((current) => {
+      const next = current.filter((id) => id !== itemId)
+      localStorage.setItem(`wherehouse.review-queue.${household.id}`, JSON.stringify(next))
+      if (!next.length) setReviewQueueOpen(false)
+      return next
+    })
+  }
 
   useEffect(() => {
     if (!['/overview', '/items', '/locations'].includes(location.pathname)) {
@@ -218,15 +258,15 @@ export function Dashboard({
           <button aria-label="Settings" className="nav-item disabled" disabled title="Settings"><Settings aria-hidden="true" /><span>Settings</span></button>
         </nav>
         <div className="sidebar-footer">
-          <div className="server-status" title="Server connected"><i /><span>Server connected</span></div>
+          <div className={`server-status ${realtimeStatus}`} title={`Realtime ${realtimeStatus}`}><i /><span>Realtime {realtimeStatus}</span></div>
         </div>
       </aside>
 
       <section className="dashboard-content">
         {activeView === 'items' ? (
-          <ItemsView household={household} token={token} />
+          <ItemsView household={household} refreshKey={realtimeRevision} token={token} />
         ) : activeView === 'locations' ? (
-          <LocationsView household={household} token={token} />
+          <LocationsView household={household} refreshKey={realtimeRevision} token={token} />
         ) : (
         <>
         <div className="page-heading" id="overview">
@@ -330,6 +370,8 @@ export function Dashboard({
         </>
         )}
       </section>
+      {reviewItemIds.length && !reviewQueueOpen ? <button className="review-queue-launcher" onClick={() => setReviewQueueOpen(true)}><PackagePlus aria-hidden="true" /><span>{reviewItemIds.length}</span> Review companion items</button> : null}
+      {reviewQueueOpen && reviewItemIds.length ? <CompanionReviewQueue inventory={overview} itemIds={reviewItemIds} onClose={() => setReviewQueueOpen(false)} onReviewed={markReviewed} onUpdated={() => setRealtimeRevision((current) => current + 1)} token={token} /> : null}
     </main>
   )
 }

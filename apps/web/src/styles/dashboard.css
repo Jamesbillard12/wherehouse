@@ -18,6 +18,8 @@
 .sidebar-footer { display: grid; gap: 0.8rem; margin-top: auto; padding-top: 2rem; }
 .server-status { display: flex; align-items: center; gap: 0.5rem; color: #697168; font-size: 0.72rem; white-space: nowrap; }
 .server-status i { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: #5da065; box-shadow: 0 0 0 3px #dce8dc; }
+.server-status.connecting i { background: #d99a2b; box-shadow: 0 0 0 3px #f5e8cc; }
+.server-status.disconnected i { background: #b94a3b; box-shadow: 0 0 0 3px #f1d9d5; }
 .collapse-button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 8px; padding: 0; background: transparent; color: #667085; transition: color 150ms, background 150ms, border-color 150ms; }
 .collapse-button:hover { border-color: var(--line); background: #f8fafc; color: var(--action); }
 .collapse-button:focus-visible { outline: 3px solid rgb(79 70 229 / 18%); outline-offset: 1px; }
@@ -92,4 +94,3 @@
 .device-icon svg { width: 19px; height: 19px; }
 .danger-button { border: 0; background: none; color: var(--danger); font-size: 0.78rem; font-weight: 700; }
 .empty-state { border-top: 1px solid #e6e6dd; padding: 2rem; color: var(--muted); font-size: 0.86rem; }
-
