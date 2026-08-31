@@ -59,6 +59,13 @@ class ContainerIdentifierType(str, enum.Enum):
     BOTH = "both"
 
 
+class ItemIdentifierType(str, enum.Enum):
+    NONE = "none"
+    QR = "qr"
+    NFC = "nfc"
+    BOTH = "both"
+
+
 class Household(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "households"
 
@@ -193,6 +200,7 @@ class ContainerPlacement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class Item(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "items"
+    __table_args__ = (UniqueConstraint("code", name="uq_item_code"),)
 
     household_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -201,6 +209,12 @@ class Item(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(300), nullable=False)
+    code: Mapped[str] = mapped_column(String(100), nullable=False)
+    identifier_type: Mapped[ItemIdentifierType] = mapped_column(
+        Enum(ItemIdentifierType, name="item_identifier_type", values_callable=enum_values),
+        nullable=False,
+        default=ItemIdentifierType.NONE,
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     quantity: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False, default=1)
     unit: Mapped[str | None] = mapped_column(String(50), nullable=True)
