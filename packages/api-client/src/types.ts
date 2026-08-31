@@ -155,3 +155,26 @@ export type ItemPlacement = {
   created_at: string
   updated_at: string
 }
+
+export type IdentifierTargetType = 'item' | 'container'
+export type IdentifierMedium = 'qr' | 'nfc'
+
+export type PhysicalIdentifier = {
+  id: string
+  household_id: string
+  public_id: string
+  target_type: IdentifierTargetType
+  target_id: string
+  medium: IdentifierMedium
+  status: 'pending' | 'active' | 'revoked'
+  payload_version: number
+  payload: string
+  created_at: string
+  updated_at: string
+}
+
+export type IdentifierResolution = {
+  identifier: PhysicalIdentifier
+  item: Item | null
+  container: StorageContainer | null
+}

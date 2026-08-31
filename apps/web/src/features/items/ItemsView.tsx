@@ -169,7 +169,7 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, item,
         {item.notes ? <div className="item-detail-copy"><strong>Notes</strong><p>{item.notes}</p></div> : null}
         <div className="dialog-actions"><button className="secondary-action" onClick={onClose}>Close</button><button className="secondary-action" onClick={() => setShowLabel(true)}><Printer aria-hidden="true" /> Print QR</button><button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</button></div></>}
       </section>
-      {showLabel ? <ItemLabelModal item={item} onClose={() => setShowLabel(false)} /> : null}
+      {showLabel ? <ItemLabelModal item={item} onClose={() => setShowLabel(false)} token={token} /> : null}
     </div>
   )
 }

@@ -16,7 +16,8 @@
           "photosPermission": "Allow WhereHouse to choose photos for inventory items.",
           "cameraPermission": "Allow WhereHouse to photograph inventory items."
         }
-      ]
+      ],
+      ["react-native-nfc-manager", { "nfcPermission": "Allow WhereHouse to read and write inventory NFC tags." }]
     ],
     "version": "0.0.1",
     "orientation": "portrait",

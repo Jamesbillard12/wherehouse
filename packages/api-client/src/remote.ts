@@ -1,12 +1,15 @@
 import { apiRequest, type ApiOptions } from './client'
 import { uploadItemImage } from './resources/items'
-import type { Area, ContainerPlacement, Item, ItemPlacement, StorageContainer, Zone } from './types'
+import type { Area, ContainerPlacement, IdentifierMedium, IdentifierResolution, IdentifierTargetType, Item, ItemPlacement, PhysicalIdentifier, StorageContainer, Zone } from './types'
 
 export function createRemoteClient(baseUrl: string, token: string) {
   const authenticatedRequest = <T>(path: string, options: ApiOptions = {}) =>
     apiRequest<T>(path, { ...options, baseUrl, token })
 
   return {
+    createIdentifier: (targetType: IdentifierTargetType, targetId: string, medium: IdentifierMedium) => authenticatedRequest<PhysicalIdentifier>('/identifiers', { method: 'POST', body: { target_type: targetType, target_id: targetId, medium } }),
+    activateIdentifier: (identifierId: string) => authenticatedRequest<PhysicalIdentifier>(`/identifiers/${identifierId}/activate`, { method: 'POST' }),
+    resolveIdentifier: (publicId: string) => authenticatedRequest<IdentifierResolution>(`/identifiers/${encodeURIComponent(publicId)}/resolve`),
     listAreas: (householdId: string) =>
       authenticatedRequest<Area[]>(`/households/${householdId}/areas`),
     listZones: (areaId: string) => authenticatedRequest<Zone[]>(`/areas/${areaId}/zones`),
