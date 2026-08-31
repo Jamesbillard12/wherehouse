@@ -143,3 +143,70 @@ wherehouse/
 ├── docker-compose.yml
 └── README.md
 ```
+
+## Module boundaries
+
+Modularity is a project requirement, not an optional cleanup step. New functionality should be
+placed in the smallest domain module that owns it instead of extending an unrelated entrypoint.
+
+### Web
+
+```text
+apps/web/src/
+├── features/          # Domain views, feature components, and feature hooks
+│   ├── auth/
+│   ├── dashboard/
+│   ├── households/
+│   ├── items/
+│   └── locations/
+├── shared/            # Cross-feature UI utilities and browser helpers
+├── styles/            # Base, dashboard, inventory, and responsive style layers
+├── App.tsx             # Account/session composition only
+└── main.tsx            # Browser entrypoint only
+```
+
+Feature-specific behavior stays within its feature. Logic used by multiple features belongs in
+`shared`; server communication belongs in `@wherehouse/api-client`.
+
+### Mobile
+
+```text
+apps/mobile/src/
+├── components/        # Reusable presentation and navigation components
+├── screens/           # Route/tab-level screens
+├── services/          # Pairing, secure persistence, and inventory synchronization
+└── theme/             # Shared React Native styles and future tokens
+```
+
+`App.tsx` coordinates application state and screen selection. It should not contain complete
+screen implementations or persistence/networking implementations.
+
+### Backend
+
+```text
+backend/app/
+├── api/v1/routes/     # Thin HTTP controllers grouped by domain
+├── repositories/      # Database lookup and query boundaries
+├── services/          # Business logic and infrastructure providers
+├── models/            # SQLAlchemy persistence models
+├── schemas/           # Pydantic request and response contracts
+├── core/              # Configuration and security primitives
+└── db/                # Database engine and session setup
+```
+
+Routes own HTTP concerns. Repositories own persistence queries. Services own reusable business or
+infrastructure behavior. Routes should not accumulate unrelated domain operations.
+
+### Shared TypeScript client
+
+```text
+packages/api-client/src/
+├── client.ts          # Transport and error handling
+├── types.ts           # Shared API contracts
+├── resources/         # Domain-specific API operations
+├── remote.ts          # Paired-instance client composition
+└── index.ts           # Public package exports only
+```
+
+Only logic genuinely shared by web and mobile belongs in this package. Platform-specific storage,
+navigation, and presentation remain in their respective applications.

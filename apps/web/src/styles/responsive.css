@@ -1,0 +1,47 @@
+@media (max-width: 850px) {
+  .auth-layout { grid-template-columns: 1fr; }
+  .auth-story { min-height: 44vh; padding: 2rem; }
+  .auth-story h1 { font-size: clamp(3.2rem, 14vw, 6rem); }
+  .story-note { display: none; }
+  .auth-panel { padding: 3rem 1.5rem; }
+  .dashboard { display: block; }
+  .dashboard { height: 100dvh; overflow-y: auto; }
+  .topbar { position: sticky; height: 64px; }
+  .sidebar { display: none; }
+  .global-search { display: none; }
+  .dashboard-content { overflow: visible; padding: 2rem 1rem; }
+  .pairing-panel { grid-template-columns: 1fr; }
+  .stat-grid { grid-template-columns: 1fr; }
+  .overview-grid, .quick-grid { grid-template-columns: 1fr; }
+  .stat-grid article + article { border-top: 1px solid var(--line); border-left: 0; }
+  .item-detail-grid { grid-template-columns: 1fr; }
+  .item-detail-grid > div, .item-detail-grid > div:nth-child(odd), .item-detail-grid > div:nth-last-child(-n + 2) { border-right: 0; border-bottom: 1px solid var(--line); }
+  .item-detail-grid > div:last-child { border-bottom: 0; }
+  .page-heading { align-items: start; }
+  .locations-layout { grid-template-columns: 1fr; }
+  .area-list { position: static; }
+  .area-detail-heading { flex-direction: column; }
+}
+
+@media (max-width: 480px) {
+  .auth-story { min-height: 390px; }
+  .account-menu > span { display: none; }
+  .device-list article { grid-template-columns: auto 1fr; padding: 1rem; }
+  .danger-button { grid-column: 2; justify-self: start; }
+  .locations-heading { gap: 1rem; }
+  .locations-heading .compact { flex: 0 0 auto; }
+  .area-actions { width: 100%; flex-wrap: wrap; }
+  .area-actions .secondary-action, .area-actions .primary-button { flex: 1; width: auto; min-width: 140px; }
+  .form-row { grid-template-columns: 1fr; }
+  .icon-picker > div { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .identifier-picker { grid-template-columns: 1fr; }
+  .container-list article { grid-template-columns: auto minmax(0, 1fr); }
+  .container-actions { grid-column: 2; justify-self: start; }
+  .container-breadcrumb { flex-wrap: wrap; }
+  .nested-actions { width: 100%; margin-left: 0; }
+  .container-breadcrumb .nested-actions .add-nested-button { flex: 1; width: auto; min-width: 0; }
+  .empty-actions { flex-direction: column; }
+  .items-panel { overflow-x: auto; }
+  .items-table { min-width: 720px; }
+}
+

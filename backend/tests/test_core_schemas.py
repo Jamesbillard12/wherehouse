@@ -3,10 +3,16 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.models.core import ContainerRelationship, ContainerType, HouseholdRelationship
+from app.models.core import (
+    ContainerRelationship,
+    ContainerType,
+    HouseholdRelationship,
+    ItemIdentifierType,
+)
 from app.schemas.core import (
     ContainerCreate,
     HouseholdUserCreate,
+    ItemCreate,
     ItemPlacementCreate,
 )
 
@@ -42,3 +48,8 @@ def test_container_relationship_only_applies_to_container_target() -> None:
         relationship_type=ContainerRelationship.IN,
     )
     assert placement.relationship_type is ContainerRelationship.IN
+
+
+def test_item_physical_identifier_supports_none_qr_nfc_and_both() -> None:
+    assert ItemCreate(name="Drill").identifier_type is ItemIdentifierType.NONE
+    assert ItemCreate(name="Drill", identifier_type="both").identifier_type is ItemIdentifierType.BOTH

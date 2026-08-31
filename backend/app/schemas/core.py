@@ -9,6 +9,7 @@ from app.models.core import (
     ContainerRelationship,
     ContainerType,
     HouseholdRelationship,
+    ItemIdentifierType,
 )
 
 
@@ -144,6 +145,7 @@ class ContainerPlacementRead(ORMModel):
 
 class ItemCreate(BaseModel):
     name: str = Field(min_length=1, max_length=300)
+    identifier_type: ItemIdentifierType = ItemIdentifierType.NONE
     description: str | None = None
     quantity: Decimal = Field(default=Decimal(1), gt=0)
     unit: str | None = Field(default=None, max_length=50)
@@ -153,10 +155,16 @@ class ItemCreate(BaseModel):
     notes: str | None = None
 
 
+class ItemUpdate(ItemCreate):
+    pass
+
+
 class ItemRead(ORMModel):
     id: UUID
     household_id: UUID
     name: str
+    code: str
+    identifier_type: ItemIdentifierType
     description: str | None
     quantity: Decimal
     unit: str | None
