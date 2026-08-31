@@ -1,5 +1,9 @@
 # WhereHouse Domain Model
 
+This document describes the current/MVP model. The proposed arbitrary-depth logical location model
+and optional spatial extensions are documented in [ADR-0002](adr/0002-hierarchical-locations.md) and
+[the spatial architecture](spatial-architecture.md). They are not implemented requirements today.
+
 ## Household and users
 
 ### Household
@@ -104,6 +108,10 @@ An item record represents one or more interchangeable objects stored together.
 - createdAt
 
 The system can derive a full location through the container hierarchy.
+
+The current model supports an `Area → optional Zone → nested Containers` path. Container nesting is
+arbitrary-depth and cycle-protected by the API, but Area and Zone remain fixed concepts. Avoid adding
+more fixed hierarchy levels while the first-class location proposal is evaluated.
 
 ### ItemPhoto
 - id: UUID
