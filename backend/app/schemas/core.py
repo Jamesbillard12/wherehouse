@@ -164,6 +164,7 @@ class ItemRead(ORMModel):
     model: str | None
     serial_number: str | None
     notes: str | None
+    image_path: str | None
     is_archived: bool
     created_at: datetime
     updated_at: datetime

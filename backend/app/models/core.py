@@ -208,6 +208,7 @@ class Item(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     model: Mapped[str | None] = mapped_column(String(200), nullable=True)
     serial_number: Mapped[str | None] = mapped_column(String(300), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 

@@ -125,6 +125,34 @@ export type ContainerPlacement = {
   updated_at: string
 }
 
+export type Item = {
+  id: string
+  household_id: string
+  name: string
+  description: string | null
+  quantity: string
+  unit: string | null
+  manufacturer: string | null
+  model: string | null
+  serial_number: string | null
+  notes: string | null
+  image_path: string | null
+  is_archived: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type ItemPlacement = {
+  id: string
+  item_id: string
+  area_id: string | null
+  zone_id: string | null
+  container_id: string | null
+  relationship_type: ContainerPlacement['relationship_type'] | null
+  created_at: string
+  updated_at: string
+}
+
 type ApiOptions = Omit<RequestInit, 'body'> & {
   baseUrl?: string
   body?: unknown
@@ -290,6 +318,65 @@ export function setContainerSpace(
     method: 'PATCH',
     token,
   })
+}
+
+export function listItems(token: string, householdId: string): Promise<Item[]> {
+  return apiRequest(`/households/${householdId}/items`, { token })
+}
+
+export function createItem(
+  token: string,
+  householdId: string,
+  payload: {
+    name: string
+    description?: string
+    quantity: number
+    unit?: string
+    manufacturer?: string
+    model?: string
+    serial_number?: string
+    notes?: string
+  },
+): Promise<Item> {
+  return apiRequest(`/households/${householdId}/items`, { method: 'POST', token, body: payload })
+}
+
+export function listItemPlacements(token: string, householdId: string): Promise<ItemPlacement[]> {
+  return apiRequest(`/households/${householdId}/item-placements`, { token })
+}
+
+export async function uploadItemImage(token: string, itemId: string, image: File): Promise<Item> {
+  const response = await fetch(`/api/${API_VERSION}/items/${itemId}/image`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': image.type },
+    body: image,
+  })
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { detail?: string } | null
+    throw new Error(payload?.detail ?? `Image upload failed (${response.status}).`)
+  }
+  return (await response.json()) as Item
+}
+
+export async function getItemImage(token: string, itemId: string): Promise<Blob> {
+  const response = await fetch(`/api/${API_VERSION}/items/${itemId}/image`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) throw new Error(`Image download failed (${response.status}).`)
+  return response.blob()
+}
+
+export function placeItem(
+  token: string,
+  itemId: string,
+  payload: {
+    area_id?: string
+    zone_id?: string
+    container_id?: string
+    relationship_type?: ContainerPlacement['relationship_type']
+  },
+): Promise<ItemPlacement> {
+  return apiRequest(`/items/${itemId}/placement`, { method: 'PUT', token, body: payload })
 }
 
 export function createRemoteClient(baseUrl: string, token: string) {
