@@ -45,10 +45,16 @@ export function listItemPlacements(token: string, householdId: string): Promise<
   return apiRequest(`/households/${householdId}/item-placements`, { token })
 }
 
-export async function uploadItemImage(token: string, itemId: string, image: File): Promise<Item> {
-  const response = await fetch(`/api/${API_VERSION}/items/${itemId}/image`, {
+export async function uploadItemImage(
+  token: string,
+  itemId: string,
+  image: Blob,
+  options: { baseUrl?: string; contentType?: string } = {},
+): Promise<Item> {
+  const apiBase = options.baseUrl ? `${options.baseUrl.replace(/\/$/, '')}/api/${API_VERSION}` : `/api/${API_VERSION}`
+  const response = await fetch(`${apiBase}/items/${itemId}/image`, {
     method: 'PUT',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': image.type },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': options.contentType || image.type || 'image/jpeg' },
     body: image,
   })
   if (!response.ok) {
@@ -78,4 +84,3 @@ export function placeItem(
 ): Promise<ItemPlacement> {
   return apiRequest(`/items/${itemId}/placement`, { method: 'PUT', token, body: payload })
 }
-

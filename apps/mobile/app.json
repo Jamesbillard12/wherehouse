@@ -9,6 +9,13 @@
         {
           "cameraPermission": "Allow WhereHouse to scan companion pairing QR codes."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow WhereHouse to choose photos for inventory items.",
+          "cameraPermission": "Allow WhereHouse to photograph inventory items."
+        }
       ]
     ],
     "version": "0.0.1",

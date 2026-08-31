@@ -2,51 +2,27 @@ import {
   createRemoteClient,
   type Area,
   type ContainerPlacement,
+  type Item,
+  type ItemPlacement,
   type StorageContainer,
   type Zone,
 } from '@wherehouse/api-client'
-import * as SQLite from 'expo-sqlite'
-
 import type { PairedServer } from './pairing'
+import { database } from './database'
 
 export type CachedInventory = {
   areas: Area[]
   containers: StorageContainer[]
   placements: ContainerPlacement[]
+  items: Item[]
+  itemPlacements: ItemPlacement[]
   syncedAt: string | null
   zones: Zone[]
 }
 
-let databasePromise: ReturnType<typeof SQLite.openDatabaseAsync> | null = null
-
-async function database() {
-  if (!databasePromise) {
-    databasePromise = SQLite.openDatabaseAsync('wherehouse.db')
-  }
-  const db = await databasePromise
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA foreign_keys = ON;
-    CREATE TABLE IF NOT EXISTS inventory_cache (
-      entity_type TEXT NOT NULL,
-      entity_id TEXT NOT NULL,
-      household_id TEXT NOT NULL,
-      payload TEXT NOT NULL,
-      PRIMARY KEY (entity_type, entity_id)
-    );
-    CREATE INDEX IF NOT EXISTS ix_inventory_cache_household
-      ON inventory_cache (household_id, entity_type);
-    CREATE TABLE IF NOT EXISTS sync_metadata (
-      household_id TEXT PRIMARY KEY,
-      synced_at TEXT NOT NULL
-    );
-  `)
-  return db
-}
-
 export async function syncInventory(server: PairedServer): Promise<CachedInventory> {
   const client = createRemoteClient(server.baseUrl, server.accessToken)
-  const areas = await client.listAreas(server.householdId)
+  const [areas, items, itemPlacements] = await Promise.all([client.listAreas(server.householdId), client.listItems(server.householdId), client.listItemPlacements(server.householdId)])
   const details = await Promise.all(
     areas.map(async (area) => {
       const [zones, containers, placements] = await Promise.all([
@@ -62,6 +38,8 @@ export async function syncInventory(server: PairedServer): Promise<CachedInvento
     zones: details.flatMap((detail) => detail.zones),
     containers: details.flatMap((detail) => detail.containers),
     placements: details.flatMap((detail) => detail.placements),
+    items,
+    itemPlacements,
     syncedAt: new Date().toISOString(),
   }
   const db = await database()
@@ -72,6 +50,8 @@ export async function syncInventory(server: PairedServer): Promise<CachedInvento
       ['zone', inventory.zones],
       ['container', inventory.containers],
       ['placement', inventory.placements],
+      ['item', inventory.items],
+      ['item-placement', inventory.itemPlacements],
     ] as const) {
       for (const entry of entries) {
         await db.runAsync(
@@ -107,6 +87,8 @@ export async function loadCachedInventory(householdId: string): Promise<CachedIn
     zones: rows.filter((row) => row.entity_type === 'zone').map((row) => JSON.parse(row.payload) as Zone),
     containers: rows.filter((row) => row.entity_type === 'container').map((row) => JSON.parse(row.payload) as StorageContainer),
     placements: rows.filter((row) => row.entity_type === 'placement').map((row) => JSON.parse(row.payload) as ContainerPlacement),
+    items: rows.filter((row) => row.entity_type === 'item').map((row) => JSON.parse(row.payload) as Item),
+    itemPlacements: rows.filter((row) => row.entity_type === 'item-placement').map((row) => JSON.parse(row.payload) as ItemPlacement),
     syncedAt: metadata?.synced_at ?? null,
   }
 }
@@ -117,4 +99,10 @@ export async function clearInventoryCache(householdId: string): Promise<void> {
     await db.runAsync('DELETE FROM inventory_cache WHERE household_id = ?', householdId)
     await db.runAsync('DELETE FROM sync_metadata WHERE household_id = ?', householdId)
   })
+}
+
+export async function cacheItemUpdate(householdId: string, item: Item, placement?: ItemPlacement): Promise<void> {
+  const db = await database()
+  await db.runAsync('INSERT OR REPLACE INTO inventory_cache (entity_type, entity_id, household_id, payload) VALUES (?, ?, ?, ?)', 'item', item.id, householdId, JSON.stringify(item))
+  if (placement) await db.runAsync('INSERT OR REPLACE INTO inventory_cache (entity_type, entity_id, household_id, payload) VALUES (?, ?, ?, ?)', 'item-placement', placement.id, householdId, JSON.stringify(placement))
 }

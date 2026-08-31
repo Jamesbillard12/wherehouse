@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { styles } from '../theme/styles'
 
-type ScannerMode = 'pairing' | 'container'
+type ScannerMode = 'pairing' | 'container' | 'item-location'
 
 export function ScannerScreen({ mode, onCancel, onError, onScan }: {
   mode: ScannerMode
@@ -25,11 +25,11 @@ export function ScannerScreen({ mode, onCancel, onError, onScan }: {
       }} style={styles.scannerCamera} />
       <SafeAreaView style={styles.scannerOverlay}>
         <View style={styles.scannerHeader}>
-          <Text style={styles.scannerTitle}>{mode === 'pairing' ? 'Scan pairing code' : 'Scan container'}</Text>
+          <Text style={styles.scannerTitle}>{mode === 'pairing' ? 'Scan pairing code' : mode === 'item-location' ? 'Choose item location' : 'Scan container'}</Text>
           <Pressable onPress={onCancel} style={styles.closeButton}><Text style={styles.closeButtonText}>Close</Text></Pressable>
         </View>
         <View style={styles.finder} />
-        <Text style={styles.scannerHelp}>{mode === 'pairing' ? 'Center the QR code shown in WhereHouse web.' : 'Center a WhereHouse container label.'}</Text>
+        <Text style={styles.scannerHelp}>{mode === 'pairing' ? 'Center the QR code shown in WhereHouse web.' : mode === 'item-location' ? 'Scan the container where this item will be stored.' : 'Center a WhereHouse container label.'}</Text>
       </SafeAreaView>
       <StatusBar style="light" />
     </View>
