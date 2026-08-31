@@ -1,0 +1,13 @@
+import { MapPin, QrCode, Search } from 'lucide-react-native'
+import { useMemo, useState } from 'react'
+import { Pressable, Text, TextInput, View } from 'react-native'
+
+import { styles } from '../theme/styles'
+import type { ItemLocationChoice } from '../types/itemDraft'
+
+export function ItemLocationPicker({ choices, onChange, onScan, recent, value }: { choices: ItemLocationChoice[]; onChange: (location: ItemLocationChoice) => void; onScan: () => void; recent: ItemLocationChoice[]; value?: ItemLocationChoice }) {
+  const [expanded, setExpanded] = useState(false)
+  const [query, setQuery] = useState('')
+  const filtered = useMemo(() => choices.filter((choice) => `${choice.label} ${choice.detail ?? ''}`.toLowerCase().includes(query.toLowerCase())).slice(0, 12), [choices, query])
+  return <View style={styles.locationPicker}><View style={styles.fieldHeading}><Text style={styles.fieldLabel}>Store in</Text><Text style={styles.optionalText}>Optional</Text></View>{value ? <Pressable onPress={() => setExpanded(true)} style={styles.selectedLocation}><MapPin color="#4f46e5" size={18} /><View style={styles.locationCopy}><Text style={styles.locationName}>{value.label}</Text>{value.detail ? <Text style={styles.locationDetail}>{value.detail}</Text> : null}</View><Text style={styles.changeText}>Change</Text></Pressable> : null}{!value && recent.length ? <View><Text style={styles.recentLabel}>Recent</Text><View style={styles.locationChips}>{recent.map((location) => <Pressable key={`${location.kind}:${location.id}`} onPress={() => onChange(location)} style={styles.locationChip}><Text numberOfLines={1} style={styles.locationChipText}>{location.label}</Text></Pressable>)}</View></View> : null}<View style={styles.locationActions}><Pressable onPress={() => setExpanded((current) => !current)} style={styles.locationAction}><Search color="#4f46e5" size={17} /><Text style={styles.locationActionText}>{value ? 'Browse' : 'Choose location'}</Text></Pressable><Pressable onPress={onScan} style={styles.locationAction}><QrCode color="#4f46e5" size={18} /><Text style={styles.locationActionText}>Scan container</Text></Pressable></View>{expanded ? <View style={styles.locationResults}><TextInput autoCapitalize="none" onChangeText={setQuery} placeholder="Search locations" style={styles.locationSearch} value={query} />{filtered.map((location) => <Pressable key={`${location.kind}:${location.id}`} onPress={() => { onChange(location); setExpanded(false) }} style={styles.locationResult}><MapPin color="#667085" size={16} /><View style={styles.locationCopy}><Text style={styles.locationName}>{location.label}</Text>{location.detail ? <Text style={styles.locationDetail}>{location.detail}</Text> : null}</View></Pressable>)}</View> : null}</View>
+}
