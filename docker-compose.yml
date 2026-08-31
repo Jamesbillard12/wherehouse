@@ -22,6 +22,7 @@ services:
     environment:
       WHEREHOUSE_ENV: local
       DATABASE_URL: postgresql+asyncpg://wherehouse:wherehouse@postgres:5432/wherehouse
+      IMAGE_STORAGE_BACKEND: local
       UPLOAD_DIR: /data/uploads
       PUBLIC_BASE_URL: http://localhost:8080
     depends_on:
@@ -34,6 +35,7 @@ services:
     environment:
       WHEREHOUSE_ENV: local
       DATABASE_URL: postgresql+asyncpg://wherehouse:wherehouse@postgres:5432/wherehouse
+      IMAGE_STORAGE_BACKEND: local
       UPLOAD_DIR: /data/uploads
       PUBLIC_BASE_URL: http://localhost:8080
     volumes:

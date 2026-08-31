@@ -7,6 +7,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://wherehouse:wherehouse@localhost:5432/wherehouse"
     cors_origins: str = "http://localhost:5173"
     upload_dir: str = "./uploads"
+    image_storage_backend: str = "local"
+    s3_bucket: str | None = None
+    s3_region: str | None = None
+    s3_endpoint_url: str | None = None
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
     public_base_url: str = "http://localhost:8000"
     user_session_ttl_hours: int = 24
     pairing_session_ttl_minutes: int = 10

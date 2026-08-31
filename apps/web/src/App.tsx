@@ -2,20 +2,25 @@ import {
   createArea,
   createContainer,
   createHousehold,
+  createItem,
   createPairingSession,
   createZone,
   deleteArea,
   deleteContainer,
   getMe,
+  getItemImage,
   listAreas,
   listContainerPlacements,
   listContainers,
   listDevices,
   listHouseholds,
+  listItemPlacements,
+  listItems,
   listZones,
   login,
   logout,
   placeContainer,
+  placeItem,
   register,
   removeContainerPlacement,
   revokeDevice,
@@ -23,11 +28,14 @@ import {
   updateAreaIcon,
   updateContainer,
   updateZone,
+  uploadItemImage,
   type Area,
   type ContainerPlacement,
   type ContainerType,
   type Device,
   type Household,
+  type Item,
+  type ItemPlacement,
   type MeResponse,
   type PairingSession,
   type StorageContainer,
@@ -48,6 +56,7 @@ import {
   Container,
   House,
   Hammer,
+  Image as ImageIcon,
   Laptop,
   MapPin,
   PackagePlus,
@@ -72,9 +81,10 @@ const SESSION_KEY = 'wherehouse.web.session'
 const SIDEBAR_KEY = 'wherehouse.web.sidebar-collapsed'
 const HOUSEHOLD_KEY = 'wherehouse.web.selected-household'
 
-type DashboardView = 'overview' | 'locations'
+type DashboardView = 'overview' | 'items' | 'locations'
 
 function viewFromLocation(): DashboardView {
+  if (location.pathname === '/items') return 'items'
   return location.pathname === '/locations' ? 'locations' : 'overview'
 }
 
@@ -367,6 +377,13 @@ function Dashboard({
     () => localStorage.getItem(SIDEBAR_KEY) === 'true',
   )
   const [devices, setDevices] = useState<Device[]>([])
+  const [overviewAreas, setOverviewAreas] = useState<Area[]>([])
+  const [overviewZones, setOverviewZones] = useState<Zone[]>([])
+  const [overviewContainers, setOverviewContainers] = useState<StorageContainer[]>([])
+  const [overviewContainerPlacements, setOverviewContainerPlacements] = useState<ContainerPlacement[]>([])
+  const [overviewItems, setOverviewItems] = useState<Item[]>([])
+  const [overviewItemPlacements, setOverviewItemPlacements] = useState<ItemPlacement[]>([])
+  const [overviewLoading, setOverviewLoading] = useState(true)
   const [pairing, setPairing] = useState<PairingSession | null>(null)
   const [pairingDeviceBaseline, setPairingDeviceBaseline] = useState(0)
   const [qrCode, setQrCode] = useState('')
@@ -374,7 +391,7 @@ function Dashboard({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (location.pathname !== '/overview' && location.pathname !== '/locations') {
+    if (!['/overview', '/items', '/locations'].includes(location.pathname)) {
       history.replaceState({}, '', `/${activeView}`)
     }
     const handleNavigation = () => setActiveView(viewFromLocation())
@@ -416,6 +433,37 @@ function Dashboard({
   }, [household.id])
 
   useEffect(() => {
+    let cancelled = false
+    setOverviewLoading(true)
+    async function loadOverview() {
+      const [nextAreas, nextItems, nextItemPlacements] = await Promise.all([
+        listAreas(token, household.id),
+        listItems(token, household.id),
+        listItemPlacements(token, household.id),
+      ])
+      const details = await Promise.all(nextAreas.map(async (area) => {
+        const [areaZones, areaContainers, areaPlacements] = await Promise.all([
+          listZones(token, area.id),
+          listContainers(token, area.id),
+          listContainerPlacements(token, area.id),
+        ])
+        return { areaZones, areaContainers, areaPlacements }
+      }))
+      if (cancelled) return
+      setOverviewAreas(nextAreas)
+      setOverviewItems(nextItems)
+      setOverviewItemPlacements(nextItemPlacements)
+      setOverviewZones(details.flatMap((detail) => detail.areaZones))
+      setOverviewContainers(details.flatMap((detail) => detail.areaContainers))
+      setOverviewContainerPlacements(details.flatMap((detail) => detail.areaPlacements))
+    }
+    void loadOverview()
+      .catch((reason) => !cancelled && setError(message(reason)))
+      .finally(() => !cancelled && setOverviewLoading(false))
+    return () => { cancelled = true }
+  }, [household.id, token])
+
+  useEffect(() => {
     if (!isOwner) return
 
     let cancelled = false
@@ -447,6 +495,9 @@ function Dashboard({
   }, [pairing])
 
   const activeDevices = useMemo(() => devices.filter((device) => device.is_active), [devices])
+  const recentOverviewItems = [...overviewItems]
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+    .slice(0, 3)
 
   async function generatePairing() {
     setBusy(true)
@@ -509,7 +560,7 @@ function Dashboard({
         </div>
         <nav>
           <a aria-label="Overview" className={`nav-item ${activeView === 'overview' ? 'active' : ''}`} href="/overview" onClick={(event) => { event.preventDefault(); navigate('overview') }} title="Overview"><House aria-hidden="true" /><span>Overview</span></a>
-          <button aria-label="Items" className="nav-item disabled" disabled title="Items"><Box aria-hidden="true" /><span>Items</span><small>Next</small></button>
+          <a aria-label="Items" className={`nav-item ${activeView === 'items' ? 'active' : ''}`} href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }} title="Items"><Box aria-hidden="true" /><span>Items</span></a>
           <a aria-label="Locations" className={`nav-item ${activeView === 'locations' ? 'active' : ''}`} href="/locations" onClick={(event) => { event.preventDefault(); navigate('locations') }} title="Locations"><MapPin aria-hidden="true" /><span>Locations</span></a>
           <button aria-label="Activity" className="nav-item disabled" disabled title="Activity"><Activity aria-hidden="true" /><span>Activity</span></button>
           <button aria-label="Transfers" className="nav-item disabled" disabled title="Transfers"><ArrowRightLeft aria-hidden="true" /><span>Transfers</span></button>
@@ -523,7 +574,9 @@ function Dashboard({
       </aside>
 
       <section className="dashboard-content">
-        {activeView === 'locations' ? (
+        {activeView === 'items' ? (
+          <ItemsView household={household} token={token} />
+        ) : activeView === 'locations' ? (
           <LocationsView household={household} token={token} />
         ) : (
         <>
@@ -532,30 +585,33 @@ function Dashboard({
             <p className="eyebrow">{household.name}</p>
             <h1>{greeting()}, {user.user.display_name.split(' ')[0]} <span className="wave">👋</span></h1>
           </div>
-          <button className="primary-button compact disabled-action" disabled><Plus aria-hidden="true" /> Add</button>
+          <a className="primary-button compact overview-add" href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }}><Plus aria-hidden="true" /> Add item</a>
         </div>
 
         <div className="stat-grid">
-          <article><strong>0</strong><span>Items tracked</span></article>
-          <article><strong>0</strong><span>Containers</span></article>
-          <article><strong>0</strong><span>Locations</span></article>
+          <article><strong>{overviewLoading ? '—' : overviewItems.length}</strong><span>Items tracked</span></article>
+          <article><strong>{overviewLoading ? '—' : overviewContainers.length}</strong><span>Containers</span></article>
+          <article><strong>{overviewLoading ? '—' : overviewAreas.length}</strong><span>Areas</span></article>
           <article><strong>0</strong><span>Checked out</span></article>
         </div>
 
         <section className="overview-grid">
           <article className="overview-card">
             <div className="card-heading"><h2>Locations overview</h2><MapPin aria-hidden="true" /></div>
-            <div className="empty-illustration"><House aria-hidden="true" /></div>
-            <strong>No locations yet</strong>
-            <p>Create an area such as a garage, attic, or trailer to begin organizing.</p>
+            {overviewAreas.length ? <div className="overview-list">{overviewAreas.slice(0, 3).map((area) => {
+              const containerCount = overviewContainers.filter((container) => container.area_id === area.id).length
+              const zoneCount = overviewZones.filter((zone) => zone.area_id === area.id).length
+              return <button key={area.id} onClick={() => navigate('locations')}><span className="area-icon"><AreaIcon name={area.icon} /></span><span><strong>{area.name}</strong><small>{zoneCount} zones · {containerCount} containers</small></span><ChevronRight aria-hidden="true" /></button>
+            })}</div> : <><div className="empty-illustration"><House aria-hidden="true" /></div><strong>No locations yet</strong><p>Create an area such as a garage, attic, or trailer to begin organizing.</p></>}
             <a className="inline-link" href="/locations" onClick={(event) => { event.preventDefault(); navigate('locations') }}>View all locations →</a>
           </article>
           <article className="overview-card">
             <div className="card-heading"><h2>Recently added items</h2><Box aria-hidden="true" /></div>
-            <div className="empty-illustration"><PackagePlus aria-hidden="true" /></div>
-            <strong>Your inventory is ready</strong>
-            <p>Items you add will appear here with their exact location path.</p>
-            <button className="inline-link" disabled>View all items →</button>
+            {recentOverviewItems.length ? <div className="overview-list item-preview-list">{recentOverviewItems.map((item) => {
+              const placement = overviewItemPlacements.find((entry) => entry.item_id === item.id)
+              return <button key={item.id} onClick={() => navigate('items')}><span className="area-icon"><Box aria-hidden="true" /></span><span><strong>{item.name}</strong><small>{itemLocation(placement, overviewAreas, overviewZones, overviewContainers, overviewContainerPlacements)}</small></span><ChevronRight aria-hidden="true" /></button>
+            })}</div> : <><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>Your inventory is ready</strong><p>Items you add will appear here with their exact location path.</p></>}
+            <a className="inline-link" href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }}>View all items →</a>
           </article>
           <article className="overview-card">
             <div className="card-heading"><h2>Recent activity</h2><Activity aria-hidden="true" /></div>
@@ -629,6 +685,198 @@ function Dashboard({
   )
 }
 
+function itemLocation(
+  placement: ItemPlacement | undefined,
+  areas: Area[],
+  zones: Zone[],
+  containers: StorageContainer[],
+  containerPlacements: ContainerPlacement[],
+): string {
+  if (!placement) return 'Unplaced'
+  if (placement.area_id) return areas.find((area) => area.id === placement.area_id)?.name ?? 'Area'
+  if (placement.zone_id) {
+    const zone = zones.find((entry) => entry.id === placement.zone_id)
+    const area = areas.find((entry) => entry.id === zone?.area_id)
+    return [area?.name, zone?.name].filter(Boolean).join(' / ')
+  }
+  const path: string[] = []
+  let container = containers.find((entry) => entry.id === placement.container_id)
+  const area = areas.find((entry) => entry.id === container?.area_id)
+  const zone = zones.find((entry) => entry.id === container?.zone_id)
+  while (container) {
+    path.unshift(container.name)
+    const parentId = containerPlacements.find((entry) => entry.container_id === container?.id)?.parent_container_id
+    container = containers.find((entry) => entry.id === parentId)
+  }
+  return [area?.name, zone?.name, ...path].filter(Boolean).join(' / ') || 'Unplaced'
+}
+
+function ItemDetailsModal({ item, locationLabel, onClose, onUpdated, token }: { item: Item; locationLabel: string; onClose: () => void; onUpdated: (item: Item) => void; token: string }) {
+  const [imageUrl, setImageUrl] = useState('')
+  const [imageBusy, setImageBusy] = useState(false)
+  const [imageError, setImageError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!item.image_path) {
+      setImageUrl('')
+      return
+    }
+    let active = true
+    let objectUrl = ''
+    void getItemImage(token, item.id).then((blob) => {
+      if (!active) return
+      objectUrl = URL.createObjectURL(blob)
+      setImageUrl(objectUrl)
+    }).catch((reason) => active && setImageError(message(reason)))
+    return () => {
+      active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [item.id, item.image_path, token])
+
+  async function changeImage(file: File | undefined) {
+    if (!file) return
+    setImageBusy(true)
+    setImageError(null)
+    try {
+      const updated = await uploadItemImage(token, item.id, file)
+      onUpdated(updated)
+    } catch (reason) {
+      setImageError(message(reason))
+    } finally {
+      setImageBusy(false)
+    }
+  }
+
+  return (
+    <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section aria-labelledby="item-details-title" aria-modal="true" className="location-dialog item-details-dialog" role="dialog">
+        <div className="dialog-heading">
+          <div><p className="eyebrow">Item details</p><h2 id="item-details-title">{item.name}</h2></div>
+          <button aria-label="Close item details" onClick={onClose}>×</button>
+        </div>
+        <div className="item-image-panel">
+          {imageUrl ? <img alt={item.name} src={imageUrl} /> : <div className="item-image-placeholder"><ImageIcon aria-hidden="true" /><strong>No image yet</strong><span>Add a photo to make this item easier to identify.</span></div>}
+          <label className="item-image-action"><Camera aria-hidden="true" /><span>{imageBusy ? 'Uploading…' : imageUrl ? 'Replace image' : 'Add image'}</span><input accept="image/jpeg,image/png,image/webp" disabled={imageBusy} onChange={(event) => { void changeImage(event.target.files?.[0]); event.target.value = '' }} type="file" /></label>
+        </div>
+        {imageError ? <div className="alert">{imageError}</div> : null}
+        <div className="item-detail-location"><MapPin aria-hidden="true" /><span><small>Location</small><strong>{locationLabel}</strong></span></div>
+        <dl className="item-detail-grid">
+          <div><dt>Quantity</dt><dd>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</dd></div>
+          <div><dt>Manufacturer</dt><dd>{item.manufacturer || '—'}</dd></div>
+          <div><dt>Model</dt><dd>{item.model || '—'}</dd></div>
+          <div><dt>Serial number</dt><dd>{item.serial_number || '—'}</dd></div>
+          <div><dt>Added</dt><dd>{formatDate(item.created_at)}</dd></div>
+          <div><dt>Last updated</dt><dd>{formatDate(item.updated_at)}</dd></div>
+        </dl>
+        {item.description ? <div className="item-detail-copy"><strong>Description</strong><p>{item.description}</p></div> : null}
+        {item.notes ? <div className="item-detail-copy"><strong>Notes</strong><p>{item.notes}</p></div> : null}
+        <div className="dialog-actions"><button className="secondary-action" onClick={onClose}>Close</button></div>
+      </section>
+    </div>
+  )
+}
+
+function ItemsView({ household, token }: { household: Household; token: string }) {
+  const [items, setItems] = useState<Item[]>([])
+  const [placements, setPlacements] = useState<ItemPlacement[]>([])
+  const [areas, setAreas] = useState<Area[]>([])
+  const [zones, setZones] = useState<Zone[]>([])
+  const [containers, setContainers] = useState<StorageContainer[]>([])
+  const [containerPlacements, setContainerPlacements] = useState<ContainerPlacement[]>([])
+  const [showForm, setShowForm] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function loadInventory() {
+    const [nextItems, nextPlacements, nextAreas] = await Promise.all([
+      listItems(token, household.id),
+      listItemPlacements(token, household.id),
+      listAreas(token, household.id),
+    ])
+    const details = await Promise.all(nextAreas.map(async (area) => {
+      const [areaZones, areaContainers, areaPlacements] = await Promise.all([
+        listZones(token, area.id),
+        listContainers(token, area.id),
+        listContainerPlacements(token, area.id),
+      ])
+      return { areaZones, areaContainers, areaPlacements }
+    }))
+    setItems(nextItems)
+    setPlacements(nextPlacements)
+    setAreas(nextAreas)
+    setZones(details.flatMap((detail) => detail.areaZones))
+    setContainers(details.flatMap((detail) => detail.areaContainers))
+    setContainerPlacements(details.flatMap((detail) => detail.areaPlacements))
+  }
+
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+    void loadInventory().catch((reason) => setError(message(reason))).finally(() => setLoading(false))
+  }, [household.id, token])
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
+    const data = new FormData(event.currentTarget)
+    try {
+      const item = await createItem(token, household.id, {
+        name: String(data.get('name')).trim(),
+        description: String(data.get('description')).trim() || undefined,
+        quantity: Number(data.get('quantity')),
+        unit: String(data.get('unit')).trim() || undefined,
+        manufacturer: String(data.get('manufacturer')).trim() || undefined,
+        model: String(data.get('model')).trim() || undefined,
+      })
+      const target = String(data.get('placement'))
+      if (target) {
+        const [targetType, targetId] = target.split(':')
+        await placeItem(token, item.id, {
+          [`${targetType}_id`]: targetId,
+          ...(targetType === 'container' ? { relationship_type: 'in' as const } : {}),
+        })
+      }
+      await loadInventory()
+      setShowForm(false)
+    } catch (reason) {
+      setError(message(reason))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="items-view">
+      <div className="page-heading locations-heading"><div><p className="eyebrow">Household inventory</p><h1>Items</h1><p className="page-description">Everything you track, with its exact storage path.</p></div><button className="primary-button compact" onClick={() => setShowForm(true)}><Plus aria-hidden="true" /> Add item</button></div>
+      {error ? <div className="alert locations-alert">{error}</div> : null}
+      <section className="items-panel">
+        {loading ? <div className="locations-loading">Loading items…</div> : items.length ? (
+          <table className="items-table">
+            <thead><tr><th>Item</th><th>Quantity</th><th>Location</th><th>Details</th></tr></thead>
+            <tbody>{items.map((item) => {
+              const placement = placements.find((entry) => entry.item_id === item.id)
+              return <tr key={item.id}><td><button className="item-details-button" onClick={() => setSelectedItem(item)}><strong>{item.name}</strong>{item.description ? <small>{item.description}</small> : null}</button></td><td>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</td><td><span className={placement ? 'location-path' : 'unplaced-badge'}>{itemLocation(placement, areas, zones, containers, containerPlacements)}</span></td><td>{[item.manufacturer, item.model].filter(Boolean).join(' · ') || '—'}</td></tr>
+            })}</tbody>
+          </table>
+        ) : <div className="location-empty"><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>No items yet</strong><p>Add your first item and place it directly in an area, zone, or container.</p><button className="primary-button compact" onClick={() => setShowForm(true)}><Plus aria-hidden="true" /> Add first item</button></div>}
+      </section>
+      {selectedItem ? <ItemDetailsModal item={selectedItem} locationLabel={itemLocation(placements.find((entry) => entry.item_id === selectedItem.id), areas, zones, containers, containerPlacements)} onClose={() => setSelectedItem(null)} onUpdated={(updated) => { setSelectedItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} token={token} /> : null}
+      {showForm ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setShowForm(false)}><section aria-labelledby="item-dialog-title" aria-modal="true" className="location-dialog" role="dialog"><div className="dialog-heading"><div><p className="eyebrow">Inventory</p><h2 id="item-dialog-title">Add an item</h2></div><button aria-label="Close" onClick={() => setShowForm(false)}>×</button></div><form onSubmit={submit}>
+        <label>Name<input autoFocus name="name" placeholder="Cordless drill" required /></label>
+        <div className="form-row"><label>Quantity<input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><input name="unit" placeholder="pieces, boxes, feet" /></label></div>
+        <div className="form-row"><label>Manufacturer <span className="optional">Optional</span><input name="manufacturer" /></label><label>Model <span className="optional">Optional</span><input name="model" /></label></div>
+        <label>Location <span className="optional">Optional</span><select defaultValue="" name="placement"><option value="">Unplaced</option>{areas.map((area) => <option key={area.id} value={`area:${area.id}`}>{area.name}</option>)}{zones.map((zone) => <option key={zone.id} value={`zone:${zone.id}`}>{areas.find((area) => area.id === zone.area_id)?.name} / {zone.name}</option>)}{containers.map((container) => <option key={container.id} value={`container:${container.id}`}>{itemLocation({ id: '', item_id: '', area_id: null, zone_id: null, container_id: container.id, relationship_type: 'in', created_at: '', updated_at: '' }, areas, zones, containers, containerPlacements)}</option>)}</select></label>
+        <label>Description <span className="optional">Optional</span><textarea name="description" rows={3} /></label>
+        <div className="dialog-actions"><button className="secondary-action" onClick={() => setShowForm(false)} type="button">Cancel</button><button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</button></div>
+      </form></section></div> : null}
+    </div>
+  )
+}
+
 const CONTAINER_TYPES: Array<{ value: ContainerType; label: string }> = [
   { value: 'bin', label: 'Bin' },
   { value: 'box', label: 'Box' },
@@ -682,10 +930,16 @@ function LocationsView({ household, token }: { household: Household; token: stri
   const [zones, setZones] = useState<Zone[]>([])
   const [containers, setContainers] = useState<StorageContainer[]>([])
   const [placements, setPlacements] = useState<ContainerPlacement[]>([])
+  const [items, setItems] = useState<Item[]>([])
+  const [itemPlacements, setItemPlacements] = useState<ItemPlacement[]>([])
+  const [openContainerId, setOpenContainerId] = useState<string | null>(null)
+  const [selectedZoneFilter, setSelectedZoneFilter] = useState('')
   const [selectedAreaId, setSelectedAreaId] = useState('')
   const [formMode, setFormMode] = useState<'area' | 'zone' | 'edit-zone' | 'container' | 'edit-container' | 'icon' | null>(null)
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null)
   const [selectedContainer, setSelectedContainer] = useState<StorageContainer | null>(null)
+  const [selectedDetailItem, setSelectedDetailItem] = useState<Item | null>(null)
+  const [showNestedItemForm, setShowNestedItemForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -706,14 +960,18 @@ function LocationsView({ household, token }: { household: Household; token: stri
       setPlacements([])
       return
     }
-    const [nextZones, nextContainers, nextPlacements] = await Promise.all([
+    const [nextZones, nextContainers, nextPlacements, nextItems, nextItemPlacements] = await Promise.all([
       listZones(token, areaId),
       listContainers(token, areaId),
       listContainerPlacements(token, areaId),
+      listItems(token, household.id),
+      listItemPlacements(token, household.id),
     ])
     setZones(nextZones)
     setContainers(nextContainers)
     setPlacements(nextPlacements)
+    setItems(nextItems)
+    setItemPlacements(nextItemPlacements)
   }
 
   useEffect(() => {
@@ -726,6 +984,8 @@ function LocationsView({ household, token }: { household: Household; token: stri
 
   useEffect(() => {
     setError(null)
+    setOpenContainerId(null)
+    setSelectedZoneFilter('')
     if (selectedAreaId) localStorage.setItem(areaKey(household.id), selectedAreaId)
     void loadAreaDetails(selectedAreaId).catch((reason) => setError(message(reason)))
   }, [household.id, selectedAreaId, token])
@@ -929,9 +1189,56 @@ function LocationsView({ household, token }: { household: Household; token: stri
     }
   }
 
+  async function submitNestedItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!openContainerId) return
+    setSaving(true)
+    setError(null)
+    const data = new FormData(event.currentTarget)
+    try {
+      const item = await createItem(token, household.id, {
+        name: String(data.get('name')).trim(),
+        description: String(data.get('description')).trim() || undefined,
+        quantity: Number(data.get('quantity')),
+        unit: String(data.get('unit')).trim() || undefined,
+      })
+      await placeItem(token, item.id, {
+        container_id: openContainerId,
+        relationship_type: 'in',
+      })
+      await loadAreaDetails(selectedAreaId)
+      setShowNestedItemForm(false)
+    } catch (reason) {
+      setError(message(reason))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const selectedArea = areas.find((area) => area.id === selectedAreaId)
   const placementByContainer = new Map(placements.map((placement) => [placement.container_id, placement]))
   const containerById = new Map(containers.map((container) => [container.id, container]))
+  const openContainer = openContainerId ? containerById.get(openContainerId) : null
+  const openContainerTrail: StorageContainer[] = []
+  let trailCursor = openContainer
+  while (trailCursor) {
+    openContainerTrail.unshift(trailCursor)
+    const parentId = placementByContainer.get(trailCursor.id)?.parent_container_id
+    trailCursor = parentId ? containerById.get(parentId) : undefined
+  }
+  const visibleContainers = containers.filter((container) => {
+    const parentId = placementByContainer.get(container.id)?.parent_container_id
+    return openContainerId
+      ? parentId === openContainerId
+      : !parentId && (!selectedZoneFilter || container.zone_id === selectedZoneFilter)
+  })
+  const visibleItems = items.filter((item) => {
+    const placement = itemPlacements.find((entry) => entry.item_id === item.id)
+    if (!placement) return false
+    if (openContainerId) return placement.container_id === openContainerId
+    if (selectedZoneFilter) return placement.zone_id === selectedZoneFilter
+    return placement.area_id === selectedAreaId || zones.some((zone) => zone.id === placement.zone_id)
+  })
 
   return (
     <div className="locations-view">
@@ -978,37 +1285,43 @@ function LocationsView({ household, token }: { household: Household; token: stri
             {zones.length ? (
               <div className="zone-chips">
                 <span>Zones</span>
-                {zones.map((zone) => <span className="zone-chip" key={zone.id}>{zone.name}<button aria-label={`Edit ${zone.name}`} onClick={() => editZone(zone)} title={`Edit ${zone.name}`}><Pencil aria-hidden="true" /></button></span>)}
+                <button className={`zone-filter ${selectedZoneFilter === '' ? 'selected' : ''}`} onClick={() => { setSelectedZoneFilter(''); setOpenContainerId(null) }}>All</button>
+                {zones.map((zone) => <span className={`zone-chip ${selectedZoneFilter === zone.id ? 'selected' : ''}`} key={zone.id}><button className="zone-filter-name" onClick={() => { setSelectedZoneFilter(zone.id); setOpenContainerId(null) }}>{zone.name}</button><button aria-label={`Edit ${zone.name}`} onClick={() => editZone(zone)} title={`Edit ${zone.name}`}><Pencil aria-hidden="true" /></button></span>)}
                 <button onClick={() => setFormMode('zone')}><Plus aria-hidden="true" /> Add zone</button>
               </div>
             ) : <div className="empty-strip"><span><MapPin aria-hidden="true" /> No zones yet. Add one to describe a shelf wall, workbench, or other section.</span><button onClick={() => setFormMode('zone')}><Plus aria-hidden="true" /> Add zone</button></div>}
 
-            {containers.length ? (
+            {openContainer ? <div className="container-breadcrumb"><button className="back-button" onClick={() => setOpenContainerId(placementByContainer.get(openContainer.id)?.parent_container_id ?? null)}>← Back</button><nav aria-label="Container location" className="container-path">{openContainerTrail.map((container, index) => <span className="path-segment" key={container.id}>{index ? <ChevronRight aria-hidden="true" /> : null}{index < openContainerTrail.length - 1 ? <button onClick={() => setOpenContainerId(container.id)}>{container.name}</button> : <strong>{container.name}</strong>}</span>)}</nav><small>{openContainer.code}</small><div className="nested-actions"><button className="add-nested-button" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add container</button><button className="add-nested-button" onClick={() => setShowNestedItemForm(true)}><Plus aria-hidden="true" /> Add item</button></div></div> : null}
+
+            {visibleContainers.length || visibleItems.length ? (
               <div className="container-list">
-                {containers.map((container) => {
+                {visibleContainers.map((container) => {
                   const placement = placementByContainer.get(container.id)
                   const parent = placement ? containerById.get(placement.parent_container_id) : null
                   const zone = zones.find((entry) => entry.id === container.zone_id)
                   return (
                     <article key={container.id}>
                       <div className="container-icon"><Container aria-hidden="true" /></div>
-                      <div className="container-copy">
+                      <button className="container-copy container-open" onClick={() => setOpenContainerId(container.id)}>
                         <div><strong>{container.name}</strong><span className="type-badge">{container.container_type.replace('_', ' ')}</span>{container.identifier_type !== 'none' ? <span className="identifier-badge">{container.identifier_type !== 'nfc' ? <QrCode aria-hidden="true" /> : null}{container.identifier_type !== 'qr' ? <Radio aria-hidden="true" /> : null}{container.identifier_type === 'both' ? 'QR + NFC' : container.identifier_type.toUpperCase()}</span> : null}{container.is_out_of_space ? <span className="full-badge">Full</span> : null}</div>
                         <span>{[zone?.name, parent ? `${placement?.relationship_type.replace('_', ' ')} ${parent.name}` : null, container.code].filter(Boolean).join(' · ') || 'Directly in area'}</span>
-                      </div>
+                      </button>
                       <div className="container-actions"><button aria-label={`Edit ${container.name}`} className="edit-container-button" onClick={() => editContainer(container)} title={`Edit ${container.name}`}><Pencil aria-hidden="true" /></button><button aria-label={`Delete ${container.name}`} className="delete-container-button" disabled={saving} onClick={() => void removeContainer(container)} title={`Delete ${container.name}`}><Trash2 aria-hidden="true" /></button><button className="space-button" onClick={() => void toggleSpace(container)}>{container.is_out_of_space ? 'Mark available' : 'Mark full'}</button></div>
                     </article>
                   )
                 })}
+                {visibleItems.map((item) => <article className="location-item-row" key={item.id}><div className="container-icon"><Box aria-hidden="true" /></div><button className="container-copy container-open" onClick={() => setSelectedDetailItem(item)}><div><strong>{item.name}</strong><span className="type-badge">Item</span></div><span>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}{item.description ? ` · ${item.description}` : ''}</span></button><ChevronRight aria-hidden="true" /></article>)}
               </div>
             ) : (
-              <div className="location-empty"><div className="empty-illustration"><Container aria-hidden="true" /></div><strong>No containers in {selectedArea?.name}</strong><p>Add a shelf, cabinet, bin, or any other place that can hold household items.</p><button className="primary-button compact" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add first container</button></div>
+              <div className="location-empty"><div className="empty-illustration"><Container aria-hidden="true" /></div><strong>{openContainer ? `${openContainer.name} is empty` : `No containers in ${selectedArea?.name}`}</strong><p>{openContainer ? 'Add a nested container or place items here.' : 'Add a shelf, cabinet, bin, or any other place that can hold household items.'}</p>{openContainer ? <div className="empty-actions"><button className="secondary-action" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add nested container</button><button className="primary-button compact" onClick={() => setShowNestedItemForm(true)}><Plus aria-hidden="true" /> Add item</button></div> : <button className="primary-button compact" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add first container</button>}</div>
             )}
           </section>
         </div>
       ) : (
         <div className="location-empty first-area"><div className="empty-illustration"><Warehouse aria-hidden="true" /></div><strong>Create your first area</strong><p>Start with a major physical location such as a garage, attic, shed, trailer, or workshop.</p><button className="primary-button compact" onClick={() => setFormMode('area')}><Plus aria-hidden="true" /> Add area</button></div>
       )}
+
+      {selectedDetailItem ? <ItemDetailsModal item={selectedDetailItem} locationLabel={itemLocation(itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id), areas, zones, containers, placements)} onClose={() => setSelectedDetailItem(null)} onUpdated={(updated) => { setSelectedDetailItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} token={token} /> : null}
 
       {formMode ? (
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setFormMode(null)}>
@@ -1041,7 +1354,7 @@ function LocationsView({ household, token }: { household: Household; token: stri
                 </fieldset>
                 <label>Zone <span className="optional">Optional</span><select defaultValue={selectedContainer?.zone_id ?? ''} name="zoneId"><option value="">Directly in area</option>{zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label>
                 <div className="form-row">
-                  <label>Parent container <span className="optional">Optional</span><select defaultValue={selectedContainer ? placements.find((placement) => placement.container_id === selectedContainer.id)?.parent_container_id ?? '' : ''} name="parentId"><option value="">No parent</option>{containers.filter((container) => container.id !== selectedContainer?.id).map((container) => <option key={container.id} value={container.id}>{container.name}</option>)}</select></label>
+                  <label>Parent container <span className="optional">Optional</span><select defaultValue={selectedContainer ? placements.find((placement) => placement.container_id === selectedContainer.id)?.parent_container_id ?? '' : openContainerId ?? ''} name="parentId"><option value="">No parent</option>{containers.filter((container) => container.id !== selectedContainer?.id).map((container) => <option key={container.id} value={container.id}>{container.name}</option>)}</select></label>
                   <label>Relationship<select defaultValue={selectedContainer ? placements.find((placement) => placement.container_id === selectedContainer.id)?.relationship_type ?? 'in' : 'in'} name="relationshipType"><option value="in">In</option><option value="on">On</option><option value="under">Under</option><option value="attached_to">Attached to</option></select></label>
                 </div>
                 <label className="checkbox-label"><input defaultChecked={selectedContainer?.is_movable ?? true} name="isMovable" type="checkbox" /> This container can be moved</label>
@@ -1052,6 +1365,13 @@ function LocationsView({ household, token }: { household: Household; token: stri
           </section>
         </div>
       ) : null}
+      {showNestedItemForm && openContainer ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setShowNestedItemForm(false)}><section aria-labelledby="nested-item-dialog-title" aria-modal="true" className="location-dialog" role="dialog"><div className="dialog-heading"><div><p className="eyebrow">Add to {openContainer.name}</p><h2 id="nested-item-dialog-title">Add an item</h2></div><button aria-label="Close" onClick={() => setShowNestedItemForm(false)}>×</button></div><form onSubmit={submitNestedItem}>
+        <label>Name<input autoFocus name="name" placeholder="Cordless drill" required /></label>
+        <div className="form-row"><label>Quantity<input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><input name="unit" placeholder="pieces, boxes, feet" /></label></div>
+        <label>Description <span className="optional">Optional</span><textarea name="description" rows={3} /></label>
+        <div className="placement-summary"><Container aria-hidden="true" /><span><strong>Placed in {openContainer.name}</strong><small>{openContainer.code}</small></span></div>
+        <div className="dialog-actions"><button className="secondary-action" onClick={() => setShowNestedItemForm(false)} type="button">Cancel</button><button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</button></div>
+      </form></section></div> : null}
     </div>
   )
 }

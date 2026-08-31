@@ -1,6 +1,7 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import Response
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,8 +39,16 @@ from app.schemas.core import (
     ZoneRead,
     ZoneUpdate,
 )
+from app.services.image_storage import get_image_storage
 
 router = APIRouter()
+
+ITEM_IMAGE_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
+MAX_ITEM_IMAGE_BYTES = 8 * 1024 * 1024
 
 CONTAINER_CODE_PREFIXES = {
     "bin": "BIN",
@@ -413,6 +422,77 @@ async def list_items(
         select(Item)
         .where(Item.household_id == household_id, Item.is_archived.is_(False))
         .order_by(Item.name)
+    )
+    return list(result)
+
+
+@router.put("/items/{item_id}/image", response_model=ItemRead)
+async def upload_item_image(
+    item_id: UUID,
+    request: Request,
+    principal: PrincipalDep,
+    session: SessionDep,
+) -> Item:
+    item = await require(session, Item, item_id, "Item")
+    await require_household_access(item.household_id, principal, session)
+    content_type = request.headers.get("content-type", "").split(";", 1)[0].lower()
+    extension = ITEM_IMAGE_TYPES.get(content_type)
+    if extension is None:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Item images must be JPEG, PNG, or WebP.",
+        )
+    body = await request.body()
+    if not body or len(body) > MAX_ITEM_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Item images must be between 1 byte and 8 MB.",
+        )
+    storage = get_image_storage()
+    previous_key = item.image_path
+    object_key = f"households/{item.household_id}/items/{item.id}{extension}"
+    storage.put(object_key, body, content_type)
+    item.image_path = object_key
+    await session.commit()
+    await session.refresh(item)
+    if previous_key and previous_key != object_key:
+        storage.delete(previous_key)
+    return item
+
+
+@router.get("/items/{item_id}/image")
+async def get_item_image(
+    item_id: UUID,
+    principal: PrincipalDep,
+    session: SessionDep,
+) -> Response:
+    item = await require(session, Item, item_id, "Item")
+    await require_household_access(item.household_id, principal, session)
+    if not item.image_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item image not found")
+    stored = get_image_storage().get(item.image_path)
+    if stored is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item image not found")
+    return Response(
+        content=stored.content,
+        media_type=stored.content_type,
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
+
+
+@router.get(
+    "/households/{household_id}/item-placements",
+    response_model=list[ItemPlacementRead],
+)
+async def list_item_placements(
+    household_id: UUID, principal: PrincipalDep, session: SessionDep
+) -> list[ItemPlacement]:
+    await require_household_access(household_id, principal, session)
+    result = await session.scalars(
+        select(ItemPlacement)
+        .join(Item, Item.id == ItemPlacement.item_id)
+        .where(Item.household_id == household_id)
+        .order_by(ItemPlacement.created_at)
     )
     return list(result)
 
