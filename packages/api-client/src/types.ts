@@ -108,6 +108,7 @@ export type StorageContainer = {
   container_type: ContainerType
   identifier_type: 'none' | 'qr' | 'nfc' | 'both'
   description: string | null
+  image_path: string | null
   is_movable: boolean
   is_out_of_space: boolean
   is_archived: boolean

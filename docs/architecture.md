@@ -210,3 +210,19 @@ packages/api-client/src/
 
 Only logic genuinely shared by web and mobile belongs in this package. Platform-specific storage,
 navigation, and presentation remain in their respective applications.
+## Realtime synchronization
+
+Inventory writes continue to use the versioned REST API as the source of truth. Authenticated
+clients also connect to `/api/v1/realtime`, authenticate in their first WebSocket message, and
+subscribe to one household. Successful area, zone, container, placement, item, and image mutations
+emit a small `inventory.changed` invalidation event. Clients then refetch canonical state instead of
+trying to apply partial records from the socket.
+
+The mobile client flushes its offline write queues before refetching after a reconnect. The web
+client refreshes its active inventory views. Reconnects use exponential backoff and always trigger
+a reconciliation fetch, so missed messages do not leave either client stale.
+
+The current realtime hub is process-local and is appropriate for the single API process used by
+local and initial self-hosted deployments. A multi-worker or multi-instance deployment must add a
+shared fan-out adapter such as PostgreSQL `LISTEN/NOTIFY` or Redis pub/sub while retaining the same
+WebSocket event contract.

@@ -1,4 +1,5 @@
 import { apiRequest } from '../client'
+import { API_VERSION } from '../types'
 import type { Area, ContainerPlacement, ContainerType, StorageContainer, Zone } from '../types'
 
 export function listAreas(token: string, householdId: string): Promise<Area[]> {
@@ -78,6 +79,25 @@ export function deleteContainer(token: string, containerId: string): Promise<voi
   return apiRequest(`/containers/${containerId}`, { method: 'DELETE', token })
 }
 
+export async function uploadContainerImage(token: string, containerId: string, image: Blob): Promise<StorageContainer> {
+  const response = await fetch(`/api/${API_VERSION}/containers/${containerId}/image`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': image.type || 'image/jpeg' },
+    body: image,
+  })
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { detail?: string } | null
+    throw new Error(payload?.detail ?? `Image upload failed (${response.status}).`)
+  }
+  return response.json() as Promise<StorageContainer>
+}
+
+export async function getContainerImage(token: string, containerId: string): Promise<Blob> {
+  const response = await fetch(`/api/${API_VERSION}/containers/${containerId}/image`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!response.ok) throw new Error(`Image download failed (${response.status}).`)
+  return response.blob()
+}
+
 export function listContainerPlacements(
   token: string,
   areaId: string,
@@ -114,5 +134,4 @@ export function setContainerSpace(
     token,
   })
 }
-
 

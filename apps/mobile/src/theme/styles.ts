@@ -117,7 +117,7 @@ export const styles = StyleSheet.create({
   doneButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 8, paddingHorizontal: 40 },
   doneButtonText: { color: '#4f46e5', fontSize: 14, fontWeight: '800' },
   itemsPanel: { marginTop: 22, overflow: 'hidden', borderWidth: 1, borderColor: '#e1e6ef', borderRadius: 14, backgroundColor: '#fff' },
-  itemSearch: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 9, borderBottomWidth: 1, borderBottomColor: '#e4e7ec', paddingHorizontal: 14, backgroundColor: '#f8f9fc' },
+  itemSearch: { flex: 1, minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 9, borderBottomWidth: 1, borderBottomColor: '#e4e7ec', paddingHorizontal: 14, backgroundColor: '#f8f9fc' },
   itemSearchInput: { flex: 1, minHeight: 48, color: '#101828' },
   itemListRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: 1, borderBottomColor: '#edf0f5', paddingHorizontal: 13, backgroundColor: '#fff' },
   itemListIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: '#eef2ff' },

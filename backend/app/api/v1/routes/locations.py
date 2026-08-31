@@ -1,6 +1,7 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import Response
 from sqlalchemy import select
 
 from app.api.dependencies import PrincipalDep, SessionDep, require_household_access
@@ -20,8 +21,13 @@ from app.schemas.core import (
     ZoneUpdate,
 )
 from app.services.container_codes import next_container_code
+from app.services.image_storage import get_image_storage
+from app.services.realtime import realtime_hub
 
 router = APIRouter()
+
+CONTAINER_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+MAX_CONTAINER_IMAGE_BYTES = 8 * 1024 * 1024
 
 @router.post(
     "/households/{household_id}/areas",
@@ -39,6 +45,7 @@ async def create_area(
     session.add(area)
     await session.commit()
     await session.refresh(area)
+    await realtime_hub.publish(household_id, entity="area", action="created", entity_id=area.id, source=principal.method)
     return area
 
 
@@ -62,6 +69,7 @@ async def update_area(
     area.icon = payload.icon
     await session.commit()
     await session.refresh(area)
+    await realtime_hub.publish(area.household_id, entity="area", action="updated", entity_id=area.id, source=principal.method)
     return area
 
 
@@ -69,8 +77,10 @@ async def update_area(
 async def delete_area(area_id: UUID, principal: PrincipalDep, session: SessionDep) -> None:
     area = await require(session, Area, area_id, "Area")
     await require_household_access(area.household_id, principal, session)
+    household_id = area.household_id
     await session.delete(area)
     await session.commit()
+    await realtime_hub.publish(household_id, entity="area", action="deleted", entity_id=area_id, source=principal.method)
 
 
 @router.post("/areas/{area_id}/zones", response_model=ZoneRead, status_code=status.HTTP_201_CREATED)
@@ -83,6 +93,7 @@ async def create_zone(
     session.add(zone)
     await session.commit()
     await session.refresh(zone)
+    await realtime_hub.publish(area.household_id, entity="zone", action="created", entity_id=zone.id, source=principal.method)
     return zone
 
 
@@ -105,6 +116,7 @@ async def update_zone(
     zone.description = payload.description
     await session.commit()
     await session.refresh(zone)
+    await realtime_hub.publish(area.household_id, entity="zone", action="updated", entity_id=zone.id, source=principal.method)
     return zone
 
 
@@ -123,6 +135,7 @@ async def create_container(
     session.add(container)
     await session.commit()
     await session.refresh(container)
+    await realtime_hub.publish(area.household_id, entity="container", action="created", entity_id=container.id, source=principal.method)
     return container
 
 
@@ -144,7 +157,50 @@ async def update_container(
         setattr(container, field, value)
     await session.commit()
     await session.refresh(container)
+    await realtime_hub.publish(area.household_id, entity="container", action="updated", entity_id=container.id, source=principal.method)
     return container
+
+
+@router.put("/containers/{container_id}/image", response_model=ContainerRead)
+async def upload_container_image(
+    container_id: UUID, request: Request, principal: PrincipalDep, session: SessionDep
+) -> Container:
+    container = await require(session, Container, container_id, "Container")
+    area = await require(session, Area, container.area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
+    content_type = request.headers.get("content-type", "").split(";", 1)[0].lower()
+    extension = CONTAINER_IMAGE_TYPES.get(content_type)
+    if extension is None:
+        raise HTTPException(status_code=415, detail="Container images must be JPEG, PNG, or WebP.")
+    body = await request.body()
+    if not body or len(body) > MAX_CONTAINER_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Container images must be between 1 byte and 8 MB.")
+    storage = get_image_storage()
+    previous_key = container.image_path
+    object_key = f"households/{area.household_id}/containers/{container.id}{extension}"
+    storage.put(object_key, body, content_type)
+    container.image_path = object_key
+    await session.commit()
+    await session.refresh(container)
+    await realtime_hub.publish(area.household_id, entity="container", action="image.updated", entity_id=container.id, source=principal.method)
+    if previous_key and previous_key != object_key:
+        storage.delete(previous_key)
+    return container
+
+
+@router.get("/containers/{container_id}/image")
+async def get_container_image(
+    container_id: UUID, principal: PrincipalDep, session: SessionDep
+) -> Response:
+    container = await require(session, Container, container_id, "Container")
+    area = await require(session, Area, container.area_id, "Area")
+    await require_household_access(area.household_id, principal, session)
+    if not container.image_path:
+        raise HTTPException(status_code=404, detail="Container image not found")
+    stored = get_image_storage().get(container.image_path)
+    if stored is None:
+        raise HTTPException(status_code=404, detail="Container image not found")
+    return Response(content=stored.content, media_type=stored.content_type, headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.delete("/containers/{container_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -154,8 +210,10 @@ async def delete_container(
     container = await require(session, Container, container_id, "Container")
     area = await require(session, Area, container.area_id, "Area")
     await require_household_access(area.household_id, principal, session)
+    household_id = area.household_id
     await session.delete(container)
     await session.commit()
+    await realtime_hub.publish(household_id, entity="container", action="deleted", entity_id=container_id, source=principal.method)
 
 
 @router.get("/areas/{area_id}/containers", response_model=list[ContainerRead])
@@ -246,6 +304,7 @@ async def place_container(
         placement.position = payload.position
     await session.commit()
     await session.refresh(placement)
+    await realtime_hub.publish(area.household_id, entity="container-placement", action="updated", entity_id=placement.id, source=principal.method)
     return placement
 
 
@@ -260,8 +319,10 @@ async def remove_container_placement(
         select(ContainerPlacement).where(ContainerPlacement.container_id == container_id)
     )
     if placement is not None:
+        placement_id = placement.id
         await session.delete(placement)
         await session.commit()
+        await realtime_hub.publish(area.household_id, entity="container-placement", action="deleted", entity_id=placement_id, source=principal.method)
 
 
 @router.patch("/containers/{container_id}/space", response_model=ContainerRead)
@@ -277,6 +338,5 @@ async def set_container_space(
     container.is_out_of_space = is_out_of_space
     await session.commit()
     await session.refresh(container)
+    await realtime_hub.publish(area.household_id, entity="container", action="updated", entity_id=container.id, source=principal.method)
     return container
-
-

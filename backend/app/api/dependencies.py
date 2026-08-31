@@ -31,7 +31,11 @@ async def get_current_principal(credentials: BearerDep, session: SessionDep) -> 
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
         )
 
-    digest = token_hash(credentials.credentials)
+    return await authenticate_token(credentials.credentials, session)
+
+
+async def authenticate_token(token: str, session: AsyncSession) -> Principal:
+    digest = token_hash(token)
     now = datetime.now(UTC)
     user_session = await session.scalar(
         select(UserSession).where(

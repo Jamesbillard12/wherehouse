@@ -5,6 +5,7 @@ import {
   createZone,
   deleteArea,
   deleteContainer,
+  getContainerImage,
   listAreas,
   listContainerPlacements,
   listContainers,
@@ -17,6 +18,7 @@ import {
   setContainerSpace,
   updateAreaIcon,
   updateContainer,
+  uploadContainerImage,
   updateZone,
   type Area,
   type ContainerPlacement,
@@ -34,11 +36,14 @@ import {
   ChevronRight,
   CircleOff,
   Container,
+  Camera,
+  Image as ImageIcon,
   Hammer,
   House,
   MapPin,
   Pencil,
   Plus,
+  Printer,
   QrCode,
   Radio,
   Trash2,
@@ -53,9 +58,10 @@ import { PhysicalIdentifierPicker } from '../items/PhysicalIdentifierPicker'
 import { message } from '../../shared/utils/errors'
 import { areaKey } from '../../shared/utils/storage'
 import { AreaIcon, AreaIconPicker, CONTAINER_TYPES } from './locationOptions'
+import { ContainerLabelModal } from './ContainerLabelModal'
 
 export { AreaIcon } from './locationOptions'
-export function LocationsView({ household, token }: { household: Household; token: string }) {
+export function LocationsView({ household, refreshKey = 0, token }: { household: Household; refreshKey?: number; token: string }) {
   const [areas, setAreas] = useState<Area[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [containers, setContainers] = useState<StorageContainer[]>([])
@@ -68,6 +74,9 @@ export function LocationsView({ household, token }: { household: Household; toke
   const [formMode, setFormMode] = useState<'area' | 'zone' | 'edit-zone' | 'container' | 'edit-container' | 'icon' | null>(null)
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null)
   const [selectedContainer, setSelectedContainer] = useState<StorageContainer | null>(null)
+  const [containerImageUrl, setContainerImageUrl] = useState('')
+  const [containerImageBusy, setContainerImageBusy] = useState(false)
+  const [showContainerLabel, setShowContainerLabel] = useState(false)
   const [selectedDetailItem, setSelectedDetailItem] = useState<Item | null>(null)
   const [showNestedItemForm, setShowNestedItemForm] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -101,6 +110,7 @@ export function LocationsView({ household, token }: { household: Household; toke
     setContainers(nextContainers)
     setPlacements(nextPlacements)
     setItems(nextItems)
+    setSelectedDetailItem((current) => current ? nextItems.find((item) => item.id === current.id) ?? null : null)
     setItemPlacements(nextItemPlacements)
   }
 
@@ -110,7 +120,7 @@ export function LocationsView({ household, token }: { household: Household; toke
     void loadAreas()
       .catch((reason) => setError(message(reason)))
       .finally(() => setLoading(false))
-  }, [household.id, token])
+  }, [household.id, refreshKey, token])
 
   useEffect(() => {
     setError(null)
@@ -118,7 +128,7 @@ export function LocationsView({ household, token }: { household: Household; toke
     setSelectedZoneFilter('')
     if (selectedAreaId) localStorage.setItem(areaKey(household.id), selectedAreaId)
     void loadAreaDetails(selectedAreaId).catch((reason) => setError(message(reason)))
-  }, [household.id, selectedAreaId, token])
+  }, [household.id, refreshKey, selectedAreaId, token])
 
   async function submitArea(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -289,6 +299,36 @@ export function LocationsView({ household, token }: { household: Household; toke
     setFormMode('edit-container')
   }
 
+  useEffect(() => {
+    if (!selectedContainer?.image_path || formMode !== 'edit-container') {
+      setContainerImageUrl('')
+      return
+    }
+    let active = true
+    let objectUrl = ''
+    void getContainerImage(token, selectedContainer.id).then((blob) => {
+      if (!active) return
+      objectUrl = URL.createObjectURL(blob)
+      setContainerImageUrl(objectUrl)
+    }).catch((reason) => active && setError(message(reason)))
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl) }
+  }, [formMode, selectedContainer?.id, selectedContainer?.image_path, token])
+
+  async function changeContainerImage(file: File | undefined) {
+    if (!file || !selectedContainer) return
+    setContainerImageBusy(true)
+    setError(null)
+    try {
+      const updated = await uploadContainerImage(token, selectedContainer.id, file)
+      setSelectedContainer(updated)
+      setContainers((current) => current.map((entry) => entry.id === updated.id ? updated : entry))
+    } catch (reason) {
+      setError(message(reason))
+    } finally {
+      setContainerImageBusy(false)
+    }
+  }
+
   async function removeContainer(container: StorageContainer) {
     const childCount = placements.filter(
       (placement) => placement.parent_container_id === container.id,
@@ -452,13 +492,14 @@ export function LocationsView({ household, token }: { household: Household; toke
         <div className="location-empty first-area"><div className="empty-illustration"><Warehouse aria-hidden="true" /></div><strong>Create your first area</strong><p>Start with a major physical location such as a garage, attic, shed, trailer, or workshop.</p><button className="primary-button compact" onClick={() => setFormMode('area')}><Plus aria-hidden="true" /> Add area</button></div>
       )}
 
-      {selectedDetailItem ? <ItemDetailsModal item={selectedDetailItem} locationLabel={itemLocation(itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id), areas, zones, containers, placements)} onClose={() => setSelectedDetailItem(null)} onUpdated={(updated) => { setSelectedDetailItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} token={token} /> : null}
+      {selectedDetailItem ? <ItemDetailsModal areas={areas} containerPlacements={placements} containers={containers} item={selectedDetailItem} locationLabel={itemLocation(itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id), areas, zones, containers, placements)} onClose={() => setSelectedDetailItem(null)} onPlacementUpdated={(updated) => setItemPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedDetailItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id)} token={token} zones={zones} /> : null}
 
       {formMode ? (
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setFormMode(null)}>
           <section aria-labelledby="location-dialog-title" aria-modal="true" className="location-dialog" role="dialog">
             <div className="dialog-heading"><div><p className="eyebrow">Location setup</p><h2 id="location-dialog-title">{formMode === 'area' ? 'Add an area' : formMode === 'zone' ? `Add a zone to ${selectedArea?.name}` : formMode === 'edit-zone' ? `Edit ${selectedZone?.name}` : formMode === 'edit-container' ? `Edit ${selectedContainer?.name}` : formMode === 'icon' ? `Choose an icon for ${selectedArea?.name}` : `Add a container to ${selectedArea?.name}`}</h2></div><button aria-label="Close" onClick={() => { setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }}>×</button></div>
             <form onSubmit={formMode === 'area' ? submitArea : formMode === 'zone' ? submitZone : formMode === 'edit-zone' ? submitZoneEdit : formMode === 'edit-container' ? submitContainerEdit : formMode === 'icon' ? submitAreaIcon : submitContainer}>
+              {formMode === 'edit-container' ? <div className="item-image-panel container-image-panel">{containerImageUrl ? <img alt={selectedContainer?.name} src={containerImageUrl} /> : <div className="item-image-placeholder"><ImageIcon aria-hidden="true" /><strong>No image yet</strong><span>Add a photo to make this container easier to identify.</span></div>}<label className="item-image-action"><Camera aria-hidden="true" /><span>{containerImageBusy ? 'Uploading…' : containerImageUrl ? 'Replace image' : 'Add image'}</span><input accept="image/jpeg,image/png,image/webp" disabled={containerImageBusy} onChange={(event) => { void changeContainerImage(event.target.files?.[0]); event.target.value = '' }} type="file" /></label></div> : null}
               {formMode !== 'icon' ? <label>Name<input autoFocus defaultValue={formMode === 'edit-zone' ? selectedZone?.name : formMode === 'edit-container' ? selectedContainer?.name : ''} name="name" placeholder={formMode === 'area' ? 'Garage' : formMode === 'zone' || formMode === 'edit-zone' ? 'North wall' : 'Camping bin'} required /></label> : null}
               {formMode === 'area' || formMode === 'icon' ? <AreaIconPicker defaultValue={formMode === 'icon' ? selectedArea?.icon : undefined} /> : null}
               {formMode === 'container' || formMode === 'edit-container' ? <>
@@ -491,11 +532,12 @@ export function LocationsView({ household, token }: { household: Household; toke
                 <label className="checkbox-label"><input defaultChecked={selectedContainer?.is_movable ?? true} name="isMovable" type="checkbox" /> This container can be moved</label>
               </> : null}
               {formMode !== 'icon' ? <label>Description <span className="optional">Optional</span><textarea defaultValue={formMode === 'edit-zone' ? selectedZone?.description ?? '' : formMode === 'edit-container' ? selectedContainer?.description ?? '' : ''} name="description" placeholder="Add a helpful note…" rows={3} /></label> : null}
-              <div className="dialog-actions"><button className="secondary-action" onClick={() => { setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }} type="button">Cancel</button><button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : formMode === 'area' ? 'Create area' : formMode === 'zone' ? 'Create zone' : formMode === 'edit-zone' || formMode === 'edit-container' ? 'Save changes' : formMode === 'icon' ? 'Save icon' : 'Create container'}</button></div>
+              <div className="dialog-actions"><button className="secondary-action" onClick={() => { setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }} type="button">Cancel</button>{formMode === 'edit-container' ? <button className="secondary-action" onClick={() => setShowContainerLabel(true)} type="button"><Printer aria-hidden="true" /> Print QR</button> : null}<button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : formMode === 'area' ? 'Create area' : formMode === 'zone' ? 'Create zone' : formMode === 'edit-zone' || formMode === 'edit-container' ? 'Save changes' : formMode === 'icon' ? 'Save icon' : 'Create container'}</button></div>
             </form>
           </section>
         </div>
       ) : null}
+      {showContainerLabel && selectedContainer ? <ContainerLabelModal container={selectedContainer} onClose={() => setShowContainerLabel(false)} /> : null}
       {showNestedItemForm && openContainer ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setShowNestedItemForm(false)}><section aria-labelledby="nested-item-dialog-title" aria-modal="true" className="location-dialog" role="dialog"><div className="dialog-heading"><div><p className="eyebrow">Add to {openContainer.name}</p><h2 id="nested-item-dialog-title">Add an item</h2></div><button aria-label="Close" onClick={() => setShowNestedItemForm(false)}>×</button></div><form onSubmit={submitNestedItem}>
         <label>Name<input autoFocus name="name" placeholder="Cordless drill" required /></label>
         <div className="form-row"><label>Quantity<input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><input name="unit" placeholder="pieces, boxes, feet" /></label></div>

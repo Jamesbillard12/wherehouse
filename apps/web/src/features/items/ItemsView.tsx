@@ -18,12 +18,13 @@ import {
   type StorageContainer,
   type Zone,
 } from '@wherehouse/api-client'
-import { Box, Camera, Image as ImageIcon, MapPin, PackagePlus, Pencil, Plus, QrCode, Radio } from 'lucide-react'
+import { Box, Camera, Image as ImageIcon, MapPin, PackagePlus, Pencil, Plus, Printer, QrCode, Radio } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
 import { PhysicalIdentifierPicker } from './PhysicalIdentifierPicker'
+import { ItemLabelModal } from './ItemLabelModal'
 
 export function itemLocation(
   placement: ItemPlacement | undefined,
@@ -51,12 +52,16 @@ export function itemLocation(
   return [area?.name, zone?.name, ...path].filter(Boolean).join(' / ') || 'Unplaced'
 }
 
-export function ItemDetailsModal({ item, locationLabel, onClose, onUpdated, token }: { item: Item; locationLabel: string; onClose: () => void; onUpdated: (item: Item) => void; token: string }) {
+export function ItemDetailsModal({ areas, containerPlacements, containers, item, locationLabel, onClose, onPlacementUpdated, onUpdated, placement, token, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; item: Item; locationLabel: string; onClose: () => void; onPlacementUpdated?: (placement: ItemPlacement) => void; onUpdated: (item: Item) => void; placement?: ItemPlacement; token: string; zones: Zone[] }) {
   const [imageUrl, setImageUrl] = useState('')
   const [imageBusy, setImageBusy] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showLabel, setShowLabel] = useState(false)
+  const [displayLocation, setDisplayLocation] = useState(locationLabel)
+
+  useEffect(() => setDisplayLocation(locationLabel), [locationLabel])
 
   useEffect(() => {
     if (!item.image_path) {
@@ -107,6 +112,16 @@ export function ItemDetailsModal({ item, locationLabel, onClose, onUpdated, toke
         description: String(data.get('description')).trim() || undefined,
         notes: String(data.get('notes')).trim() || undefined,
       })
+      const target = String(data.get('placement'))
+      if (target) {
+        const [targetType, targetId] = target.split(':')
+        const updatedPlacement = await placeItem(token, item.id, {
+          [`${targetType}_id`]: targetId,
+          ...(targetType === 'container' ? { relationship_type: 'in' as const } : {}),
+        })
+        onPlacementUpdated?.(updatedPlacement)
+        setDisplayLocation(itemLocation(updatedPlacement, areas, zones, containers, containerPlacements))
+      }
       onUpdated(updated)
       setEditing(false)
     } catch (reason) {
@@ -134,11 +149,12 @@ export function ItemDetailsModal({ item, locationLabel, onClose, onUpdated, toke
           <div className="form-row"><label>Manufacturer <span className="optional">Optional</span><input defaultValue={item.manufacturer ?? ''} name="manufacturer" /></label><label>Model <span className="optional">Optional</span><input defaultValue={item.model ?? ''} name="model" /></label></div>
           <div className="form-row"><label>Serial number <span className="optional">Optional</span><input defaultValue={item.serial_number ?? ''} name="serialNumber" /></label><label>Code<input className="readonly-input" readOnly value={item.code} /></label></div>
           <PhysicalIdentifierPicker defaultValue={item.identifier_type} />
+          <label>Location<select defaultValue={placement?.area_id ? `area:${placement.area_id}` : placement?.zone_id ? `zone:${placement.zone_id}` : placement?.container_id ? `container:${placement.container_id}` : ''} name="placement"><option disabled value="">Choose a location</option>{areas.map((area) => <option key={area.id} value={`area:${area.id}`}>{area.name}</option>)}{zones.map((zone) => <option key={zone.id} value={`zone:${zone.id}`}>{areas.find((area) => area.id === zone.area_id)?.name} / {zone.name}</option>)}{containers.map((container) => <option key={container.id} value={`container:${container.id}`}>{itemLocation({ id: '', item_id: item.id, area_id: null, zone_id: null, container_id: container.id, relationship_type: 'in', created_at: '', updated_at: '' }, areas, zones, containers, containerPlacements)}</option>)}</select></label>
           <label>Description <span className="optional">Optional</span><textarea defaultValue={item.description ?? ''} name="description" rows={3} /></label>
           <label>Notes <span className="optional">Optional</span><textarea defaultValue={item.notes ?? ''} name="notes" rows={3} /></label>
           <div className="dialog-actions"><button className="secondary-action" onClick={() => setEditing(false)} type="button">Cancel</button><button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save changes'}</button></div>
         </form> : <>
-        <div className="item-detail-location"><MapPin aria-hidden="true" /><span><small>Location</small><strong>{locationLabel}</strong></span></div>
+        <div className="item-detail-location"><MapPin aria-hidden="true" /><span><small>Location</small><strong>{displayLocation}</strong></span></div>
         <dl className="item-detail-grid">
           <div><dt>Quantity</dt><dd>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</dd></div>
           <div><dt>Code</dt><dd>{item.code}</dd></div>
@@ -151,13 +167,14 @@ export function ItemDetailsModal({ item, locationLabel, onClose, onUpdated, toke
         </dl>
         {item.description ? <div className="item-detail-copy"><strong>Description</strong><p>{item.description}</p></div> : null}
         {item.notes ? <div className="item-detail-copy"><strong>Notes</strong><p>{item.notes}</p></div> : null}
-        <div className="dialog-actions"><button className="secondary-action" onClick={onClose}>Close</button><button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</button></div></>}
+        <div className="dialog-actions"><button className="secondary-action" onClick={onClose}>Close</button><button className="secondary-action" onClick={() => setShowLabel(true)}><Printer aria-hidden="true" /> Print QR</button><button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</button></div></>}
       </section>
+      {showLabel ? <ItemLabelModal item={item} onClose={() => setShowLabel(false)} /> : null}
     </div>
   )
 }
 
-export function ItemsView({ household, token }: { household: Household; token: string }) {
+export function ItemsView({ household, refreshKey = 0, token }: { household: Household; refreshKey?: number; token: string }) {
   const [items, setItems] = useState<Item[]>([])
   const [placements, setPlacements] = useState<ItemPlacement[]>([])
   const [areas, setAreas] = useState<Area[]>([])
@@ -185,6 +202,7 @@ export function ItemsView({ household, token }: { household: Household; token: s
       return { areaZones, areaContainers, areaPlacements }
     }))
     setItems(nextItems)
+    setSelectedItem((current) => current ? nextItems.find((item) => item.id === current.id) ?? null : null)
     setPlacements(nextPlacements)
     setAreas(nextAreas)
     setZones(details.flatMap((detail) => detail.areaZones))
@@ -196,7 +214,7 @@ export function ItemsView({ household, token }: { household: Household; token: s
     setLoading(true)
     setError(null)
     void loadInventory().catch((reason) => setError(message(reason))).finally(() => setLoading(false))
-  }, [household.id, token])
+  }, [household.id, refreshKey, token])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -245,7 +263,7 @@ export function ItemsView({ household, token }: { household: Household; token: s
           </table>
         ) : <div className="location-empty"><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>No items yet</strong><p>Add your first item and place it directly in an area, zone, or container.</p><button className="primary-button compact" onClick={() => setShowForm(true)}><Plus aria-hidden="true" /> Add first item</button></div>}
       </section>
-      {selectedItem ? <ItemDetailsModal item={selectedItem} locationLabel={itemLocation(placements.find((entry) => entry.item_id === selectedItem.id), areas, zones, containers, containerPlacements)} onClose={() => setSelectedItem(null)} onUpdated={(updated) => { setSelectedItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} token={token} /> : null}
+      {selectedItem ? <ItemDetailsModal areas={areas} containerPlacements={containerPlacements} containers={containers} item={selectedItem} locationLabel={itemLocation(placements.find((entry) => entry.item_id === selectedItem.id), areas, zones, containers, containerPlacements)} onClose={() => setSelectedItem(null)} onPlacementUpdated={(updated) => setPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={placements.find((entry) => entry.item_id === selectedItem.id)} token={token} zones={zones} /> : null}
       {showForm ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setShowForm(false)}><section aria-labelledby="item-dialog-title" aria-modal="true" className="location-dialog" role="dialog"><div className="dialog-heading"><div><p className="eyebrow">Inventory</p><h2 id="item-dialog-title">Add an item</h2></div><button aria-label="Close" onClick={() => setShowForm(false)}>×</button></div><form onSubmit={submit}>
         <label>Name<input autoFocus name="name" placeholder="Cordless drill" required /></label>
         <div className="form-row"><label>Quantity<input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><input name="unit" placeholder="pieces, boxes, feet" /></label></div>
@@ -258,4 +276,3 @@ export function ItemsView({ household, token }: { household: Household; token: s
     </div>
   )
 }
-
