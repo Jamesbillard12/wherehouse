@@ -5,7 +5,15 @@ from fastapi.responses import Response
 from sqlalchemy import select
 
 from app.api.dependencies import PrincipalDep, SessionDep, require_household_access
-from app.models import Area, Container, Item, ItemPlacement, Zone
+from app.application.context import ActorContext
+from app.application.items.capabilities import (
+    EntityNotFound,
+    HouseholdAccessDenied,
+    InvalidMove,
+    MoveItem,
+    move_item,
+)
+from app.models import Item, ItemPlacement
 from app.repositories.entities import require_entity as require
 from app.schemas.core import (
     ItemCreate,
@@ -156,36 +164,22 @@ async def place_item(
     principal: PrincipalDep,
     session: SessionDep,
 ) -> ItemPlacement:
-    item = await require(session, Item, item_id, "Item")
-    await require_household_access(item.household_id, principal, session)
-
-    if payload.area_id is not None:
-        area = await require(session, Area, payload.area_id, "Area")
-        household_id = area.household_id
-    elif payload.zone_id is not None:
-        zone = await require(session, Zone, payload.zone_id, "Zone")
-        area = await require(session, Area, zone.area_id, "Area")
-        household_id = area.household_id
-    else:
-        container = await require(session, Container, payload.container_id, "Container")
-        area = await require(session, Area, container.area_id, "Area")
-        household_id = area.household_id
-
-    if household_id != item.household_id:
-        raise HTTPException(
-            status_code=400, detail="Item and destination must belong to the same household"
+    actor = ActorContext(
+        user_id=principal.user.id,
+        client=principal.method,
+        device_id=principal.device_id,
+        household_id=principal.device_household_id,
+    )
+    try:
+        return await move_item(
+            session,
+            actor,
+            MoveItem(item_id=item_id, **payload.model_dump()),
+            realtime_hub,
         )
-
-    placement = await session.scalar(select(ItemPlacement).where(ItemPlacement.item_id == item_id))
-    values = payload.model_dump()
-    if placement is None:
-        placement = ItemPlacement(item_id=item_id, **values)
-        session.add(placement)
-    else:
-        for field, value in values.items():
-            setattr(placement, field, value)
-
-    await session.commit()
-    await session.refresh(placement)
-    await realtime_hub.publish(item.household_id, entity="item-placement", action="updated", entity_id=placement.id, source=principal.method)
-    return placement
+    except EntityNotFound as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except HouseholdAccessDenied as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
+    except InvalidMove as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
