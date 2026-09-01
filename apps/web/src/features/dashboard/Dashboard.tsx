@@ -20,6 +20,8 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
+
 import { ItemsView, itemLocation } from '../items/ItemsView'
 import { CompanionReviewQueue } from '../items/CompanionReviewQueue'
 import { AreaIcon, LocationsView } from '../locations/LocationsView'
@@ -67,6 +69,7 @@ export function Dashboard({
   const [reviewItemIds, setReviewItemIds] = useState<string[]>([])
   const [reviewQueueOpen, setReviewQueueOpen] = useState(false)
   const [resolvedTarget, setResolvedTarget] = useState<{ type: 'item' | 'container'; id: string; areaId?: string; scanKey: string } | null>(null)
+  const [locationTarget, setLocationTarget] = useState<{ areaId: string; containerId?: string; zoneId?: string } | null>(null)
   const overview = useOverviewInventory(household.id, token, realtimeRevision)
 
   useEffect(() => {
@@ -167,14 +170,14 @@ export function Dashboard({
         <div className="global-search"><Search aria-hidden="true" /> <span>Search items, containers, locations</span></div>
         <div className="account-menu" ref={accountMenuRef}>
           <span className="topbar-icon"><Bell aria-hidden="true" /></span>
-          <button aria-expanded={accountMenuOpen} aria-haspopup="menu" aria-label="Open user menu" className="avatar avatar-button" onClick={() => setAccountMenuOpen((open) => !open)}>{user.user.display_name.slice(0, 1).toUpperCase()}</button>
-          {accountMenuOpen ? <div className="user-menu" role="menu"><div className="user-menu-identity"><strong>{user.user.display_name}</strong><span>{user.user.email}</span></div>{sectionsForMenu.map(({ id, label }) => <a href={`/settings/${id}`} key={id} onClick={(event) => { event.preventDefault(); navigateSettings(id) }} role="menuitem">{label}</a>)}{isOwner ? <a href="/settings/households#connected-devices" onClick={(event) => { event.preventDefault(); navigateToPairing() }} role="menuitem">Pair device</a> : null}<button onClick={() => { setAccountMenuOpen(false); void onSignOut() }} role="menuitem"><UserRound aria-hidden="true" /> Sign out</button></div> : null}
+          <Button aria-expanded={accountMenuOpen} aria-haspopup="menu" aria-label="Open user menu" className="avatar avatar-button" onClick={() => setAccountMenuOpen((open) => !open)}>{user.user.display_name.slice(0, 1).toUpperCase()}</Button>
+          {accountMenuOpen ? <div className="user-menu" role="menu"><div className="user-menu-identity"><strong>{user.user.display_name}</strong><span>{user.user.email}</span></div>{sectionsForMenu.map(({ id, label }) => <a href={`/settings/${id}`} key={id} onClick={(event) => { event.preventDefault(); navigateSettings(id) }} role="menuitem">{label}</a>)}{isOwner ? <a href="/settings/households#connected-devices" onClick={(event) => { event.preventDefault(); navigateToPairing() }} role="menuitem">Pair device</a> : null}<Button onClick={() => { setAccountMenuOpen(false); void onSignOut() }} role="menuitem"><UserRound aria-hidden="true" /> Sign out</Button></div> : null}
         </div>
       </header>
 
       <aside className="sidebar">
         <div className="sidebar-controls">
-          <button
+          <Button
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="collapse-button"
             onClick={() => {
@@ -185,7 +188,7 @@ export function Dashboard({
             title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
-          </button>
+          </Button>
         </div>
         <div className="sidebar-household">
           <p className="nav-label">Household</p>
@@ -197,9 +200,9 @@ export function Dashboard({
           <a aria-label="Overview" className={`nav-item ${activeView === 'overview' ? 'active' : ''}`} href="/overview" onClick={(event) => { event.preventDefault(); navigate('overview') }} title="Overview"><House aria-hidden="true" /><span>Overview</span></a>
           <a aria-label="Locations" className={`nav-item ${activeView === 'locations' ? 'active' : ''}`} href="/locations" onClick={(event) => { event.preventDefault(); navigate('locations') }} title="Locations"><MapPin aria-hidden="true" /><span>Locations</span></a>
           <a aria-label="Items" className={`nav-item ${activeView === 'items' ? 'active' : ''}`} href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }} title="Items"><Box aria-hidden="true" /><span>Items</span></a>
-          <button aria-label="Activity" className="nav-item disabled" disabled title="Activity"><Activity aria-hidden="true" /><span>Activity</span></button>
-          <button aria-label="Transfers" className="nav-item disabled" disabled title="Transfers"><ArrowRightLeft aria-hidden="true" /><span>Transfers</span></button>
-          <button aria-label="Checkouts" className="nav-item disabled" disabled title="Checkouts"><Clock3 aria-hidden="true" /><span>Checkouts</span></button>
+          <span aria-disabled="true" className="nav-item disabled" title="Activity"><Activity aria-hidden="true" /><span>Activity</span></span>
+          <span aria-disabled="true" className="nav-item disabled" title="Transfers"><ArrowRightLeft aria-hidden="true" /><span>Transfers</span></span>
+          <span aria-disabled="true" className="nav-item disabled" title="Checkouts"><Clock3 aria-hidden="true" /><span>Checkouts</span></span>
           <a aria-label="Settings" className={`nav-item ${activeView === 'settings' ? 'active' : ''}`} href="/settings/account" onClick={(event) => { event.preventDefault(); navigateSettings('account') }} title="Settings"><Settings aria-hidden="true" /><span>Settings</span></a>
         </nav>
         <div className="sidebar-footer">
@@ -209,9 +212,9 @@ export function Dashboard({
 
       <section className={`dashboard-content ${activeView === 'overview' ? 'overview-content' : ''}`}>
         {activeView === 'items' ? (
-          <ItemsView household={household} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
+          <ItemsView household={household} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
-          <LocationsView household={household} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealContainerAreaId={resolvedTarget?.type === 'container' ? resolvedTarget.areaId : undefined} revealContainerId={resolvedTarget?.type === 'container' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'container' ? resolvedTarget.scanKey : undefined} token={token} />
+          <LocationsView household={household} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.areaId : undefined)} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : undefined)} revealScanKey={resolvedTarget?.type === 'container' ? resolvedTarget.scanKey : undefined} revealZoneId={locationTarget?.zoneId} token={token} />
         ) : activeView === 'settings' ? (
           <SettingsView household={household} households={households} isOwner={isOwner} onCreateHousehold={onCreateHousehold} onNavigate={navigateSettings} onSelect={onSelect} section={settingsSection} token={token} user={user} />
         ) : (
@@ -237,7 +240,7 @@ export function Dashboard({
             {overview.areas.length ? <div className="overview-list">{overview.areas.slice(0, 3).map((area) => {
               const containerCount = overview.containers.filter((container) => container.area_id === area.id).length
               const zoneCount = overview.zones.filter((zone) => zone.area_id === area.id).length
-              return <button key={area.id} onClick={() => navigate('locations')}><span className="area-icon"><AreaIcon name={area.icon} /></span><span><strong>{area.name}</strong><small>{zoneCount} zones · {containerCount} containers</small></span><ChevronRight aria-hidden="true" /></button>
+              return <a href="/locations" key={area.id} onClick={(event) => { event.preventDefault(); setLocationTarget({ areaId: area.id }); navigate('locations') }}><span className="area-icon"><AreaIcon name={area.icon} /></span><span><strong>{area.name}</strong><small>{zoneCount} zones · {containerCount} containers</small></span><ChevronRight aria-hidden="true" /></a>
             })}</div> : <><div className="empty-illustration"><House aria-hidden="true" /></div><strong>No locations yet</strong><p>Create an area such as a garage, attic, or trailer to begin organizing.</p></>}
             <a className="inline-link" href="/locations" onClick={(event) => { event.preventDefault(); navigate('locations') }}>View all locations →</a>
           </article>
@@ -245,7 +248,7 @@ export function Dashboard({
             <div className="card-heading"><h2>Recently added items</h2><Box aria-hidden="true" /></div>
             {recentOverviewItems.length ? <div className="overview-list item-preview-list">{recentOverviewItems.map((item) => {
               const placement = overview.itemPlacements.find((entry) => entry.item_id === item.id)
-              return <button key={item.id} onClick={() => navigate('items')}><span className="area-icon"><Box aria-hidden="true" /></span><span><strong>{item.name}</strong><small>{itemLocation(placement, overview.areas, overview.zones, overview.containers, overview.containerPlacements)}</small></span><ChevronRight aria-hidden="true" /></button>
+              return <a href={`/items#${item.id}`} key={item.id} onClick={(event) => { event.preventDefault(); setResolvedTarget({ type: 'item', id: item.id, scanKey: `overview-${item.id}` }); navigate('items') }}><span className="area-icon"><Box aria-hidden="true" /></span><span><strong>{item.name}</strong><small>{itemLocation(placement, overview.areas, overview.zones, overview.containers, overview.containerPlacements)}</small></span><ChevronRight aria-hidden="true" /></a>
             })}</div> : <><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>Your inventory is ready</strong><p>Items you add will appear here with their exact location path.</p></>}
             <a className="inline-link" href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }}>View all items →</a>
           </article>
@@ -254,7 +257,7 @@ export function Dashboard({
             <div className="empty-illustration"><Clock3 aria-hidden="true" /></div>
             <strong>No activity yet</strong>
             <p>Additions, moves, checkouts, and returns will be recorded here.</p>
-            <button className="inline-link" disabled>View all activity →</button>
+            <Button className="inline-link" disabled>View all activity →</Button>
           </article>
         </section>
 
@@ -267,7 +270,7 @@ export function Dashboard({
         </>
         )}
       </section>
-      {reviewItemIds.length && !reviewQueueOpen ? <button className="review-queue-launcher" onClick={() => setReviewQueueOpen(true)}><PackagePlus aria-hidden="true" /><span>{reviewItemIds.length}</span> Review companion items</button> : null}
+      {reviewItemIds.length && !reviewQueueOpen ? <Button className="review-queue-launcher" onClick={() => setReviewQueueOpen(true)}><PackagePlus aria-hidden="true" /><span>{reviewItemIds.length}</span> Review companion items</Button> : null}
       {reviewQueueOpen && reviewItemIds.length ? <CompanionReviewQueue inventory={overview} itemIds={reviewItemIds} onClose={() => setReviewQueueOpen(false)} onReviewed={markReviewed} onUpdated={() => setRealtimeRevision((current) => current + 1)} token={token} /> : null}
     </main>
   )

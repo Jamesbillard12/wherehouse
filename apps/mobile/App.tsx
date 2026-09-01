@@ -143,6 +143,12 @@ export default function App() {
   }, [editingItem, pairedServer])
 
   useEffect(() => {
+    if (!editingItem) return
+    const refreshed = inventory.items.find((item) => item.id === editingItem.id)
+    if (refreshed && refreshed !== editingItem) setEditingItem(refreshed)
+  }, [editingItem?.id, inventory.items])
+
+  useEffect(() => {
     if (!pairedServer || pendingCount === 0) return
     let running = false
     const retry = async () => {

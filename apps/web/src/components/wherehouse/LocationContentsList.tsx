@@ -2,6 +2,8 @@ import type { Item, StorageContainer } from '@wherehouse/api-client'
 import { ChevronRight, Container, Package, Pencil, QrCode, Radio, Trash2 } from 'lucide-react'
 import { useId } from 'react'
 
+import { Button } from '@/components/ui/button'
+
 export type ContainerContent = {
   container: StorageContainer
   itemQuantity: number
@@ -42,11 +44,11 @@ export function LocationContentsList({
             {containers.map(({ container, itemQuantity, locationDescription }) => (
               <article className="location-container-row" key={container.id}>
                 <div className="location-entry-icon location-container-icon"><Container aria-hidden="true" /></div>
-                <button className="container-copy container-open" onClick={() => onOpenContainer(container)}>
+                <Button className="container-copy container-open" onClick={() => onOpenContainer(container)}>
                   <div><strong>{container.name}</strong><span className="type-badge container-kind-badge">Container</span><span className="type-badge">{container.container_type.replace('_', ' ')}</span><span className="type-badge quantity-badge">{itemQuantity} {itemQuantity === 1 ? 'item' : 'items'}</span>{container.identifier_type !== 'none' ? <span className="identifier-badge">{container.identifier_type !== 'nfc' ? <QrCode aria-hidden="true" /> : null}{container.identifier_type !== 'qr' ? <Radio aria-hidden="true" /> : null}{container.identifier_type === 'both' ? 'QR + NFC' : container.identifier_type.toUpperCase()}</span> : null}{container.is_out_of_space ? <span className="full-badge">Full</span> : null}</div>
                   <span>{locationDescription}</span>
-                </button>
-                <div className="container-actions"><button aria-label={`Edit ${container.name}`} className="edit-container-button" onClick={() => onEditContainer(container)} title={`Edit ${container.name}`}><Pencil aria-hidden="true" /></button><button aria-label={`Delete ${container.name}`} className="delete-container-button" disabled={saving} onClick={() => onDeleteContainer(container)} title={`Delete ${container.name}`}><Trash2 aria-hidden="true" /></button><button className="space-button" onClick={() => onToggleContainerSpace(container)}>{container.is_out_of_space ? 'Mark available' : 'Mark full'}</button><ChevronRight aria-hidden="true" className="location-entry-chevron" /></div>
+                </Button>
+                <div className="container-actions"><Button aria-label={`Edit ${container.name}`} className="edit-container-button" onClick={() => onEditContainer(container)} title={`Edit ${container.name}`}><Pencil aria-hidden="true" /></Button><Button aria-label={`Delete ${container.name}`} className="delete-container-button" disabled={saving} onClick={() => onDeleteContainer(container)} title={`Delete ${container.name}`}><Trash2 aria-hidden="true" /></Button><Button className="space-button" onClick={() => onToggleContainerSpace(container)}>{container.is_out_of_space ? 'Mark available' : 'Mark full'}</Button><ChevronRight aria-hidden="true" className="location-entry-chevron" /></div>
               </article>
             ))}
           </div>
@@ -60,11 +62,11 @@ export function LocationContentsList({
             {items.map((item) => (
               <article className="location-item-row" key={item.id}>
                 <div className="location-entry-icon location-item-icon"><Package aria-hidden="true" /></div>
-                <button className="container-copy container-open" onClick={() => onOpenItem(item)}>
+                <Button className="container-copy container-open" onClick={() => onOpenItem(item)}>
                   <div><strong>{item.name}</strong><span className="type-badge item-kind-badge">Item</span><span className="type-badge quantity-badge">{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</span></div>
                   <span>{item.description || 'No description'}</span>
-                </button>
-                <div className="container-actions"><button aria-label={`Edit ${item.name}`} className="edit-container-button" onClick={() => onEditItem(item)} title={`Edit ${item.name}`}><Pencil aria-hidden="true" /></button><button aria-label={`Delete ${item.name}`} className="delete-container-button" disabled={saving} onClick={() => onDeleteItem(item)} title={`Delete ${item.name}`}><Trash2 aria-hidden="true" /></button><ChevronRight aria-hidden="true" className="location-entry-chevron" /></div>
+                </Button>
+                <div className="container-actions"><Button aria-label={`Edit ${item.name}`} className="edit-container-button" onClick={() => onEditItem(item)} title={`Edit ${item.name}`}><Pencil aria-hidden="true" /></Button><Button aria-label={`Delete ${item.name}`} className="delete-container-button" disabled={saving} onClick={() => onDeleteItem(item)} title={`Delete ${item.name}`}><Trash2 aria-hidden="true" /></Button><ChevronRight aria-hidden="true" className="location-entry-chevron" /></div>
               </article>
             ))}
           </div>

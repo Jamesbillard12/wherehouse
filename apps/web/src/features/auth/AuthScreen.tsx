@@ -1,6 +1,8 @@
 import { login, register } from '@wherehouse/api-client'
 import { type FormEvent, useEffect, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
+
 import { message } from '../../shared/utils/errors'
 
 export function AuthScreen({
@@ -89,11 +91,11 @@ export function AuthScreen({
               {mode === 'register' ? <span className="field-note">At least 10 characters</span> : null}
             </label>
             {error ? <div className="alert">{error}</div> : null}
-            <button className="primary-button" disabled={busy || submitting} type="submit">
+            <Button className="primary-button" disabled={busy || submitting} type="submit">
               {submitting || busy ? 'One moment…' : mode === 'register' ? 'Create account' : 'Sign in'}
-            </button>
+            </Button>
           </form>
-          <button
+          <Button
             className="text-button"
             onClick={() => {
               setMode(mode === 'register' ? 'login' : 'register')
@@ -102,10 +104,9 @@ export function AuthScreen({
             type="button"
           >
             {mode === 'register' ? 'Already have an account? Sign in' : 'New here? Create an account'}
-          </button>
+          </Button>
         </div>
       </section>
     </main>
   )
 }
-

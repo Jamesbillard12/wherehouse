@@ -8,7 +8,7 @@
 .user-menu-identity span { overflow: hidden; color: var(--muted-text); font-size: 0.72rem; text-overflow: ellipsis; }
 .user-menu a, .user-menu > button { display: flex; align-items: center; gap: 0.6rem; border: 0; padding: 0.7rem 1rem; background: #fff; color: var(--ink); font-size: 0.8rem; text-align: left; text-decoration: none; }
 .user-menu a:hover, .user-menu > button:hover, .user-menu a:focus-visible, .user-menu > button:focus-visible { background: #f5f6ff; color: var(--action); outline: none; }
-.user-menu > button { border-top: 1px solid var(--line); color: var(--danger); }
+.user-menu > button { width: 100%; height: auto; min-height: 0; justify-content: flex-start; border-top: 1px solid var(--line); border-radius: 0; color: var(--danger); font-weight: inherit; white-space: normal; }
 .user-menu svg { width: 16px; }
 .global-search { display: flex; align-items: center; gap: 0.55rem; width: min(390px, 34vw); border: 1px solid #d8deea; border-radius: 7px; padding: 0.55rem 0.75rem; color: #98a2b3; background: #fff; font-size: 0.76rem; }
 .global-search svg { width: 16px; height: 16px; }
@@ -57,7 +57,7 @@
 .add-household-form { margin-bottom: 1rem; }
 .add-household-form .primary-button { justify-self: start; }
 .household-list { margin-bottom: 1rem; padding: 0.6rem; }
-.household-list button { display: flex; align-items: center; gap: 0.8rem; border: 1px solid transparent; border-radius: 8px; padding: 0.8rem; background: transparent; text-align: left; }
+.household-list button { width: 100%; height: auto; min-height: 0; display: flex; align-items: center; justify-content: flex-start; gap: 0.8rem; border: 1px solid transparent; border-radius: 8px; padding: 0.8rem; background: transparent; color: var(--ink); font-size: inherit; font-weight: inherit; text-align: left; white-space: normal; }
 .household-list button.active { border-color: #c7d2fe; background: #f3f4ff; }
 .household-list button span { display: grid; gap: 0.2rem; }
 .household-list small { color: var(--muted-text); text-transform: capitalize; }
@@ -86,15 +86,15 @@
 .overview-card > strong { align-self: center; font-size: 0.86rem; }
 .overview-card > p { max-width: 240px; align-self: center; margin: 0.45rem auto 1.1rem; color: var(--muted-text); font-size: 0.73rem; line-height: 1.45; text-align: center; }
 .overview-list { width: 100%; display: grid; margin-bottom: 1rem; }
-.overview-list > button { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.65rem; border: 0; border-bottom: 1px solid var(--line); padding: 0.65rem 0; background: transparent; color: var(--ink); text-align: left; }
-.overview-list > button:first-child { padding-top: 0; }
-.overview-list > button:last-child { border-bottom: 0; }
-.overview-list > button > span:nth-child(2) { min-width: 0; display: grid; gap: 0.2rem; }
-.overview-list > button strong, .overview-list > button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.overview-list > button strong { font-size: 0.76rem; }
-.overview-list > button small { color: var(--muted-text); font-size: 0.65rem; }
-.overview-list > button > svg { width: 14px; height: 14px; color: #98a2b3; }
-.overview-list > button:hover strong { color: var(--action); }
+.overview-list > a { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.65rem; border-bottom: 1px solid var(--line); padding: 0.65rem 0; color: var(--ink); text-align: left; text-decoration: none; }
+.overview-list > a:first-child { padding-top: 0; }
+.overview-list > a:last-child { border-bottom: 0; }
+.overview-list > a > span:nth-child(2) { min-width: 0; display: grid; gap: 0.2rem; }
+.overview-list > a strong, .overview-list > a small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.overview-list > a strong { font-size: 0.76rem; }
+.overview-list > a small { color: var(--muted-text); font-size: 0.65rem; }
+.overview-list > a > svg { width: 14px; height: 14px; color: #98a2b3; }
+.overview-list > a:hover strong { color: var(--action); }
 .overview-list .area-icon { width: 34px; height: 34px; }
 .inline-link { margin-top: auto; border: 0; padding: 0; background: none; color: var(--action); font-size: 0.72rem; font-weight: 700; text-decoration: none; }
 .quick-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; max-width: 1100px; margin: 1rem auto; }

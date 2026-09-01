@@ -19,7 +19,7 @@ import {
   type StorageContainer,
   type Zone,
 } from '@wherehouse/api-client'
-import { Box, Camera, Image as ImageIcon, MapPin, PackagePlus, Pencil, Plus, Printer, QrCode, Radio, Trash2 } from 'lucide-react'
+import { Box, Camera, Image as ImageIcon, MapPin, PackagePlus, Pencil, Plus, Printer, QrCode, Radio, Trash2, X } from 'lucide-react'
 import { type FormEvent, type MouseEvent, type RefObject, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,7 @@ import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
+import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
 import { PhysicalIdentifierPicker } from './PhysicalIdentifierPicker'
@@ -58,10 +59,12 @@ export function itemLocation(
   return [area?.name, zone?.name, ...path].filter(Boolean).join(' / ') || 'Unplaced'
 }
 
-export function ItemDetailsModal({ areas, containerPlacements, containers, initialMode = 'details', item, locationLabel, onClose, onDeleted, onPlacementUpdated, onUpdated, placement, token, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; initialMode?: 'details' | 'edit' | 'delete'; item: Item; locationLabel: string; onClose: () => void; onDeleted: (itemId: string) => void; onPlacementUpdated?: (placement: ItemPlacement) => void; onUpdated: (item: Item) => void; placement?: ItemPlacement; token: string; zones: Zone[] }) {
+export function ItemDetailsModal({ areas, containerPlacements, containers, imageRevision = 0, initialMode = 'details', item, locationLabel, onClose, onDeleted, onPlacementUpdated, onUpdated, placement, token, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; imageRevision?: number; initialMode?: 'details' | 'edit' | 'delete'; item: Item; locationLabel: string; onClose: () => void; onDeleted: (itemId: string) => void; onPlacementUpdated?: (placement: ItemPlacement) => void; onUpdated: (item: Item) => void; placement?: ItemPlacement; token: string; zones: Zone[] }) {
   const [imageUrl, setImageUrl] = useState('')
   const [imageBusy, setImageBusy] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
+  const [localImageRevision, setLocalImageRevision] = useState(0)
+  const [imageToCrop, setImageToCrop] = useState<File | null>(null)
   const [editing, setEditing] = useState(initialMode === 'edit')
   const [saving, setSaving] = useState(false)
   const [showLabel, setShowLabel] = useState(false)
@@ -87,7 +90,7 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, initi
       active = false
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [item.id, item.image_path, token])
+  }, [imageRevision, item.id, item.image_path, localImageRevision, token])
 
   async function changeImage(file: File | undefined) {
     if (!file) return
@@ -96,6 +99,7 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, initi
     try {
       const updated = await uploadItemImage(token, item.id, file)
       onUpdated(updated)
+      setLocalImageRevision((current) => current + 1)
     } catch (reason) {
       setImageError(message(reason))
     } finally {
@@ -156,11 +160,11 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, initi
       <section aria-labelledby="item-details-title" aria-modal="true" className="location-dialog item-details-dialog" role="dialog">
         <div className="dialog-heading">
           <div><p className="eyebrow">Item details</p><h2 id="item-details-title">{item.name}</h2></div>
-          <button aria-label="Close item details" onClick={onClose}>×</button>
+          <Button aria-label="Close item details" onClick={onClose} size="icon" variant="secondary"><X aria-hidden="true" /></Button>
         </div>
         <div className="item-image-panel">
           {imageUrl ? <img alt={item.name} src={imageUrl} /> : <div className="item-image-placeholder"><ImageIcon aria-hidden="true" /><strong>No image yet</strong><span>Add a photo to make this item easier to identify.</span></div>}
-          <label className="item-image-action"><Camera aria-hidden="true" /><span>{imageBusy ? 'Uploading…' : imageUrl ? 'Replace image' : 'Add image'}</span><input accept="image/jpeg,image/png,image/webp" disabled={imageBusy} onChange={(event) => { void changeImage(event.target.files?.[0]); event.target.value = '' }} type="file" /></label>
+          <label className="item-image-action"><Camera aria-hidden="true" /><span>{imageBusy ? 'Uploading…' : imageUrl ? 'Replace image' : 'Add image'}</span><input accept="image/jpeg,image/png,image/webp" disabled={imageBusy} onChange={(event) => { setImageToCrop(event.target.files?.[0] ?? null); event.target.value = '' }} type="file" /></label>
         </div>
         {imageError ? <div className="alert">{imageError}</div> : null}
         {editing ? <form className="item-edit-form" onSubmit={saveItem}>
@@ -172,7 +176,7 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, initi
           <label>Location<select defaultValue={placement?.area_id ? `area:${placement.area_id}` : placement?.zone_id ? `zone:${placement.zone_id}` : placement?.container_id ? `container:${placement.container_id}` : ''} name="placement"><option disabled value="">Choose a location</option>{areas.map((area) => <option key={area.id} value={`area:${area.id}`}>{area.name}</option>)}{zones.map((zone) => <option key={zone.id} value={`zone:${zone.id}`}>{areas.find((area) => area.id === zone.area_id)?.name} / {zone.name}</option>)}{containers.map((container) => <option key={container.id} value={`container:${container.id}`}>{itemLocation({ id: '', item_id: item.id, area_id: null, zone_id: null, container_id: container.id, relationship_type: 'in', created_at: '', updated_at: '' }, areas, zones, containers, containerPlacements)}</option>)}</select></label>
           <label>Description <span className="optional">Optional</span><textarea defaultValue={item.description ?? ''} name="description" rows={3} /></label>
           <label>Notes <span className="optional">Optional</span><textarea defaultValue={item.notes ?? ''} name="notes" rows={3} /></label>
-          <div className="dialog-actions"><button className="secondary-action" onClick={() => setEditing(false)} type="button">Cancel</button><button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save changes'}</button></div>
+          <div className="dialog-actions"><Button className="secondary-action" onClick={() => setEditing(false)} type="button">Cancel</Button><Button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save changes'}</Button></div>
         </form> : <>
         <div className="item-detail-location"><MapPin aria-hidden="true" /><span><small>Location</small><strong>{displayLocation}</strong></span></div>
         <dl className="item-detail-grid">
@@ -187,9 +191,10 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, initi
         </dl>
         {item.description ? <div className="item-detail-copy"><strong>Description</strong><p>{item.description}</p></div> : null}
         {item.notes ? <div className="item-detail-copy"><strong>Notes</strong><p>{item.notes}</p></div> : null}
-        <div className="dialog-actions item-details-actions"><Button aria-label={`Delete ${item.name}`} onClick={() => setConfirmingDelete(true)} size="icon" title={`Delete ${item.name}`} variant="destructive"><Trash2 aria-hidden="true" /></Button><span className="dialog-action-spacer" /><button className="secondary-action" onClick={onClose}>Close</button><button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</button></div></>}
+        <div className="dialog-actions item-details-actions"><Button aria-label={`Delete ${item.name}`} onClick={() => setConfirmingDelete(true)} size="icon" title={`Delete ${item.name}`} variant="destructive"><Trash2 aria-hidden="true" /></Button><span className="dialog-action-spacer" /><Button className="secondary-action" onClick={onClose}>Close</Button><Button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</Button></div></>}
       </section>
       <ConfirmDialog busy={deleting} confirmLabel="Delete item" description="This removes the item from your inventory. This cannot be undone." destructive onCancel={() => setConfirmingDelete(false)} onConfirm={removeItem} open={confirmingDelete} title={`Delete ${item.name}?`} />
+      <ImageCropDialog file={imageToCrop} onCancel={() => setImageToCrop(null)} onConfirm={(file) => { setImageToCrop(null); void changeImage(file) }} />
       {showLabel ? <ItemLabelModal item={item} onClose={() => setShowLabel(false)} token={token} /> : null}
     </div>
   )
@@ -217,7 +222,7 @@ export function AddItemDialog({ areas, containerPlacements, containers, finalFoc
   )
 }
 
-export function ItemsView({ household, onRevealConsumed, refreshKey = 0, revealItemId, revealScanKey, token }: { household: Household; onRevealConsumed?: () => void; refreshKey?: number; revealItemId?: string; revealScanKey?: string; token: string }) {
+export function ItemsView({ household, onOpenLocation, onRevealConsumed, refreshKey = 0, revealItemId, revealScanKey, token }: { household: Household; onOpenLocation: (target: { areaId: string; containerId?: string; zoneId?: string }) => void; onRevealConsumed?: () => void; refreshKey?: number; revealItemId?: string; revealScanKey?: string; token: string }) {
   const [items, setItems] = useState<Item[]>([])
   const [placements, setPlacements] = useState<ItemPlacement[]>([])
   const [areas, setAreas] = useState<Area[]>([])
@@ -308,20 +313,27 @@ export function ItemsView({ household, onRevealConsumed, refreshKey = 0, revealI
 
   return (
     <div className="items-view">
-      <div className="page-heading locations-heading"><div><p className="eyebrow">Household inventory</p><h1>Items</h1><p className="page-description">Everything you track, with its exact storage path.</p></div><button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add item</button></div>
+      <div className="page-heading locations-heading"><div><p className="eyebrow">Household inventory</p><h1>Items</h1><p className="page-description">Everything you track, with its exact storage path.</p></div><Button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add item</Button></div>
       {error ? <div className="alert locations-alert">{error}</div> : null}
       <section className="items-panel">
         {loading ? <div className="locations-loading">Loading items…</div> : items.length ? (
           <table className="items-table">
             <thead><tr><th>Item</th><th>Quantity</th><th>Location</th><th>Details</th></tr></thead>
-            <tbody>{items.map((item) => {
+            <tbody>{[...items].sort((left, right) => {
+              const leftPlacement = placements.find((entry) => entry.item_id === left.id)
+              const rightPlacement = placements.find((entry) => entry.item_id === right.id)
+              const locationOrder = itemLocation(leftPlacement, areas, zones, containers, containerPlacements).localeCompare(itemLocation(rightPlacement, areas, zones, containers, containerPlacements), undefined, { numeric: true, sensitivity: 'base' })
+              return locationOrder || left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
+            }).map((item) => {
               const placement = placements.find((entry) => entry.item_id === item.id)
-              return <tr key={item.id}><td><button className="item-details-button" onClick={() => setSelectedItem(item)}><strong>{item.name}</strong>{item.description ? <small>{item.description}</small> : null}</button></td><td>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</td><td><span className={placement ? 'location-path' : 'unplaced-badge'}>{itemLocation(placement, areas, zones, containers, containerPlacements)}</span></td><td>{[item.manufacturer, item.model].filter(Boolean).join(' · ') || '—'}</td></tr>
+              const locationLabel = itemLocation(placement, areas, zones, containers, containerPlacements)
+              const areaId = placement?.area_id ?? zones.find((zone) => zone.id === placement?.zone_id)?.area_id ?? containers.find((container) => container.id === placement?.container_id)?.area_id
+              return <tr key={item.id}><td><a className="item-details-button" href={`/items#${item.id}`} onClick={(event) => { event.preventDefault(); setSelectedItem(item) }}><strong>{item.name}</strong>{item.description ? <small>{item.description}</small> : null}</a></td><td>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</td><td>{placement && areaId ? <a className="location-path" href="/locations" onClick={(event) => { event.preventDefault(); onOpenLocation({ areaId, ...(placement.container_id ? { containerId: placement.container_id } : {}), ...(placement.zone_id ? { zoneId: placement.zone_id } : {}) }) }}>{locationLabel}</a> : <span className="unplaced-badge">{locationLabel}</span>}</td><td>{[item.manufacturer, item.model].filter(Boolean).join(' · ') || '—'}</td></tr>
             })}</tbody>
           </table>
-        ) : <div className="location-empty"><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>No items yet</strong><p>Add your first item and place it directly in an area, zone, or container.</p><button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add first item</button></div>}
+        ) : <div className="location-empty"><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>No items yet</strong><p>Add your first item and place it directly in an area, zone, or container.</p><Button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add first item</Button></div>}
       </section>
-      {selectedItem ? <ItemDetailsModal areas={areas} containerPlacements={containerPlacements} containers={containers} item={selectedItem} locationLabel={itemLocation(placements.find((entry) => entry.item_id === selectedItem.id), areas, zones, containers, containerPlacements)} onClose={() => setSelectedItem(null)} onDeleted={(itemId) => { setSelectedItem(null); setItems((current) => current.filter((item) => item.id !== itemId)); setPlacements((current) => current.filter((entry) => entry.item_id !== itemId)) }} onPlacementUpdated={(updated) => setPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={placements.find((entry) => entry.item_id === selectedItem.id)} token={token} zones={zones} /> : null}
+      {selectedItem ? <ItemDetailsModal areas={areas} containerPlacements={containerPlacements} containers={containers} imageRevision={refreshKey} item={selectedItem} locationLabel={itemLocation(placements.find((entry) => entry.item_id === selectedItem.id), areas, zones, containers, containerPlacements)} onClose={() => setSelectedItem(null)} onDeleted={(itemId) => { setSelectedItem(null); setItems((current) => current.filter((item) => item.id !== itemId)); setPlacements((current) => current.filter((entry) => entry.item_id !== itemId)) }} onPlacementUpdated={(updated) => setPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={placements.find((entry) => entry.item_id === selectedItem.id)} token={token} zones={zones} /> : null}
       <AddItemDialog areas={areas} containerPlacements={containerPlacements} containers={containers} finalFocus={addItemTriggerRef} onOpenChange={setShowForm} onSubmit={submit} open={showForm} saving={saving} zones={zones} />
     </div>
   )

@@ -81,6 +81,7 @@ export async function uploadItemImage(
 
 export async function getItemImage(token: string, itemId: string): Promise<Blob> {
   const response = await fetch(`/api/${API_VERSION}/items/${itemId}/image`, {
+    cache: 'no-store',
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!response.ok) throw new Error(`Image download failed (${response.status}).`)
