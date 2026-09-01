@@ -1,22 +1,39 @@
-import { Box, House, MoreHorizontal, Package, QrCode } from 'lucide-react-native'
-import { Pressable, Text, View } from 'react-native'
+import { Box, House, MoreHorizontal, Package, PackagePlus, QrCode, Radio, X } from 'lucide-react-native'
+import { useState } from 'react'
+import { Modal, Pressable, Text, View } from 'react-native'
 
 import { styles } from '../theme/styles'
 
 export type MobileTab = 'home' | 'containers' | 'add-item' | 'items'
 
-export function BottomNavigation({ activeTab, onScan, onSelect }: {
+export function BottomNavigation({ activeTab, onAddItem, onNfc, onScan, onSelect }: {
   activeTab: MobileTab
+  onAddItem: () => void
+  onNfc: () => void
   onScan: () => void
   onSelect: (tab: MobileTab) => void
 }) {
+  const [actionsOpen, setActionsOpen] = useState(false)
+  function choose(action: () => void) { setActionsOpen(false); action() }
   return (
+    <>
     <View style={styles.bottomNav}>
       <Pressable onPress={() => onSelect('home')} style={styles.navTab}><House color={activeTab === 'home' ? '#4f46e5' : '#667085'} size={17} strokeWidth={activeTab === 'home' ? 2.5 : 2} /><Text style={activeTab === 'home' ? styles.navLabelActive : styles.navLabel}>Home</Text></Pressable>
       <Pressable onPress={() => onSelect('containers')} style={styles.navTab}><Box color={activeTab === 'containers' ? '#4f46e5' : '#667085'} size={17} /><Text style={activeTab === 'containers' ? styles.navLabelActive : styles.navLabel}>Containers</Text></Pressable>
-      <Pressable accessibilityHint="Opens a session for scanning QR codes or tapping NFC tags" accessibilityLabel="Scan QR or tap NFC" onPress={onScan} style={styles.scanTab}><QrCode color="#fff" size={24} strokeWidth={2.8} /></Pressable>
+      <Pressable accessibilityHint="Opens add and scan actions" accessibilityLabel="Add or scan" onPress={() => setActionsOpen(true)} style={styles.scanTab}><QrCode color="#fff" size={24} strokeWidth={2.8} /></Pressable>
       <Pressable onPress={() => onSelect('items')} style={styles.navTab}><Package color={activeTab === 'items' ? '#4f46e5' : '#667085'} size={17} /><Text style={activeTab === 'items' ? styles.navLabelActive : styles.navLabel}>Items</Text></Pressable>
       <View style={styles.navTab}><MoreHorizontal color="#667085" size={18} /><Text style={styles.navLabel}>More</Text></View>
     </View>
+    <Modal animationType="fade" onRequestClose={() => setActionsOpen(false)} transparent visible={actionsOpen}>
+      <Pressable accessibilityRole="button" onPress={() => setActionsOpen(false)} style={styles.quickActionBackdrop}>
+        <Pressable accessibilityRole="menu" onPress={(event) => event.stopPropagation()} style={styles.quickActionSheet}>
+          <View style={styles.quickActionHeading}><View><Text style={styles.quickActionTitle}>What would you like to do?</Text><Text style={styles.quickActionSubtitle}>Add inventory or identify something nearby.</Text></View><Pressable accessibilityLabel="Close actions" onPress={() => setActionsOpen(false)}><X color="#667085" size={21} /></Pressable></View>
+          <Pressable accessibilityRole="menuitem" onPress={() => choose(onAddItem)} style={styles.quickActionOption}><PackagePlus color="#4f46e5" size={22} /><View><Text style={styles.quickActionOptionTitle}>Add item</Text><Text style={styles.quickActionOptionMeta}>Create a new inventory item</Text></View></Pressable>
+          <Pressable accessibilityRole="menuitem" onPress={() => choose(onScan)} style={styles.quickActionOption}><QrCode color="#239b56" size={22} /><View><Text style={styles.quickActionOptionTitle}>Scan QR</Text><Text style={styles.quickActionOptionMeta}>Start a multi-item scan session</Text></View></Pressable>
+          <Pressable accessibilityRole="menuitem" onPress={() => choose(onNfc)} style={styles.quickActionOption}><Radio color="#239b56" size={22} /><View><Text style={styles.quickActionOptionTitle}>Tap NFC</Text><Text style={styles.quickActionOptionMeta}>Read a nearby WhereHouse tag</Text></View></Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+    </>
   )
 }
