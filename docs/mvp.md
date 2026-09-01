@@ -40,7 +40,7 @@ The MVP must let a household organize real items, find them later, move them, an
 - Learned transfer suggestions
 - Weather-aware suggestions
 - External contacts without accounts
-- NFC-specific workflows
+- Advanced NFC provisioning and bulk-management workflows
 - Scanner-gun-specific UI
 - Advanced conflict resolution
 - Visual garage maps
