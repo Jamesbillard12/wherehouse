@@ -58,6 +58,14 @@ export function App() {
     setMe(await getMe(token))
   }
 
+  if (token && loading && !me) {
+    return (
+      <main aria-label="Loading WhereHouse" aria-live="polite" className="app-bootstrap" role="status">
+        <img alt="WhereHouse" className="brand-logo" src="/logo.png" />
+        <span>Loading your household…</span>
+      </main>
+    )
+  }
   if (!token || !me) return <AuthScreen busy={loading} initialError={error} onAuthenticated={acceptToken} />
   if (!households.length) return <HouseholdSetup user={me} onCreate={addHousehold} onSignOut={signOut} />
 

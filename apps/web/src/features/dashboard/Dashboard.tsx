@@ -255,8 +255,8 @@ export function Dashboard({
         </div>
         <nav>
           <a aria-label="Overview" className={`nav-item ${activeView === 'overview' ? 'active' : ''}`} href="/overview" onClick={(event) => { event.preventDefault(); navigate('overview') }} title="Overview"><House aria-hidden="true" /><span>Overview</span></a>
-          <a aria-label="Items" className={`nav-item ${activeView === 'items' ? 'active' : ''}`} href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }} title="Items"><Box aria-hidden="true" /><span>Items</span></a>
           <a aria-label="Locations" className={`nav-item ${activeView === 'locations' ? 'active' : ''}`} href="/locations" onClick={(event) => { event.preventDefault(); navigate('locations') }} title="Locations"><MapPin aria-hidden="true" /><span>Locations</span></a>
+          <a aria-label="Items" className={`nav-item ${activeView === 'items' ? 'active' : ''}`} href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }} title="Items"><Box aria-hidden="true" /><span>Items</span></a>
           <button aria-label="Activity" className="nav-item disabled" disabled title="Activity"><Activity aria-hidden="true" /><span>Activity</span></button>
           <button aria-label="Transfers" className="nav-item disabled" disabled title="Transfers"><ArrowRightLeft aria-hidden="true" /><span>Transfers</span></button>
           <button aria-label="Checkouts" className="nav-item disabled" disabled title="Checkouts"><Clock3 aria-hidden="true" /><span>Checkouts</span></button>

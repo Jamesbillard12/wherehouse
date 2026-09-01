@@ -1,5 +1,6 @@
 import {
   createItem,
+  deleteItem,
   getItemImage,
   listAreas,
   listContainerPlacements,
@@ -18,9 +19,13 @@ import {
   type StorageContainer,
   type Zone,
 } from '@wherehouse/api-client'
-import { Box, Camera, Image as ImageIcon, MapPin, PackagePlus, Pencil, Plus, Printer, QrCode, Radio } from 'lucide-react'
-import { type FormEvent, useEffect, useState } from 'react'
+import { Box, Camera, Image as ImageIcon, MapPin, PackagePlus, Pencil, Plus, Printer, QrCode, Radio, Trash2 } from 'lucide-react'
+import { type FormEvent, type MouseEvent, type RefObject, useEffect, useRef, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
 import { PhysicalIdentifierPicker } from './PhysicalIdentifierPicker'
@@ -52,13 +57,15 @@ export function itemLocation(
   return [area?.name, zone?.name, ...path].filter(Boolean).join(' / ') || 'Unplaced'
 }
 
-export function ItemDetailsModal({ areas, containerPlacements, containers, item, locationLabel, onClose, onPlacementUpdated, onUpdated, placement, token, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; item: Item; locationLabel: string; onClose: () => void; onPlacementUpdated?: (placement: ItemPlacement) => void; onUpdated: (item: Item) => void; placement?: ItemPlacement; token: string; zones: Zone[] }) {
+export function ItemDetailsModal({ areas, containerPlacements, containers, initialMode = 'details', item, locationLabel, onClose, onDeleted, onPlacementUpdated, onUpdated, placement, token, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; initialMode?: 'details' | 'edit' | 'delete'; item: Item; locationLabel: string; onClose: () => void; onDeleted: (itemId: string) => void; onPlacementUpdated?: (placement: ItemPlacement) => void; onUpdated: (item: Item) => void; placement?: ItemPlacement; token: string; zones: Zone[] }) {
   const [imageUrl, setImageUrl] = useState('')
   const [imageBusy, setImageBusy] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(initialMode === 'edit')
   const [saving, setSaving] = useState(false)
   const [showLabel, setShowLabel] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(initialMode === 'delete')
+  const [deleting, setDeleting] = useState(false)
   const [displayLocation, setDisplayLocation] = useState(locationLabel)
 
   useEffect(() => setDisplayLocation(locationLabel), [locationLabel])
@@ -131,6 +138,18 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, item,
     }
   }
 
+  async function removeItem() {
+    setDeleting(true)
+    setImageError(null)
+    try {
+      await deleteItem(token, item.id)
+      onDeleted(item.id)
+    } catch (reason) {
+      setImageError(message(reason))
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section aria-labelledby="item-details-title" aria-modal="true" className="location-dialog item-details-dialog" role="dialog">
@@ -167,10 +186,33 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, item,
         </dl>
         {item.description ? <div className="item-detail-copy"><strong>Description</strong><p>{item.description}</p></div> : null}
         {item.notes ? <div className="item-detail-copy"><strong>Notes</strong><p>{item.notes}</p></div> : null}
-        <div className="dialog-actions"><button className="secondary-action" onClick={onClose}>Close</button><button className="secondary-action" onClick={() => setShowLabel(true)}><Printer aria-hidden="true" /> Print QR</button><button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</button></div></>}
+        {confirmingDelete ? <div className="item-delete-confirmation" role="alert"><div><strong>Delete {item.name}?</strong><p>This removes the item from your inventory.</p></div><div><Button disabled={deleting} onClick={() => setConfirmingDelete(false)} variant="outline">Cancel</Button><Button disabled={deleting} onClick={() => void removeItem()} variant="destructive">{deleting ? 'Deleting…' : 'Delete item'}</Button></div></div> : null}
+        <div className="dialog-actions"><Button aria-label={`Delete ${item.name}`} onClick={() => setConfirmingDelete(true)} variant="destructive"><Trash2 aria-hidden="true" /> Delete</Button><span className="dialog-action-spacer" /><button className="secondary-action" onClick={onClose}>Close</button><button className="secondary-action" onClick={() => setShowLabel(true)}><Printer aria-hidden="true" /> Print QR</button><button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</button></div></>}
       </section>
       {showLabel ? <ItemLabelModal item={item} onClose={() => setShowLabel(false)} token={token} /> : null}
     </div>
+  )
+}
+
+export function AddItemDialog({ areas, containerPlacements, containers, finalFocus, onOpenChange, onSubmit, open, saving, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; finalFocus?: RefObject<HTMLElement | null>; onOpenChange: (open: boolean) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; open: boolean; saving: boolean; zones: Zone[] }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="location-dialog max-w-[calc(100%-3rem)] gap-0 overflow-y-auto p-0 sm:max-w-[560px]" finalFocus={finalFocus} showCloseButton={false}>
+        <DialogHeader className="dialog-heading flex-row">
+          <div><p className="eyebrow">Inventory</p><DialogTitle id="item-dialog-title">Add an item</DialogTitle></div>
+          <DialogClose aria-label="Close add item dialog" render={<Button size="icon" type="button" variant="secondary" />}>×</DialogClose>
+        </DialogHeader>
+        <form onSubmit={onSubmit}>
+          <label>Name<Input autoFocus name="name" placeholder="Cordless drill" required /></label>
+          <div className="form-row"><label>Quantity<Input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><Input name="unit" placeholder="pieces, boxes, feet" /></label></div>
+          <div className="form-row"><label>Manufacturer <span className="optional">Optional</span><Input name="manufacturer" /></label><label>Model <span className="optional">Optional</span><Input name="model" /></label></div>
+          <PhysicalIdentifierPicker />
+          <label>Location <span className="optional">Optional</span><select defaultValue="" name="placement"><option value="">Unplaced</option>{areas.map((area) => <option key={area.id} value={`area:${area.id}`}>{area.name}</option>)}{zones.map((zone) => <option key={zone.id} value={`zone:${zone.id}`}>{areas.find((area) => area.id === zone.area_id)?.name} / {zone.name}</option>)}{containers.map((container) => <option key={container.id} value={`container:${container.id}`}>{itemLocation({ id: '', item_id: '', area_id: null, zone_id: null, container_id: container.id, relationship_type: 'in', created_at: '', updated_at: '' }, areas, zones, containers, containerPlacements)}</option>)}</select></label>
+          <label>Description <span className="optional">Optional</span><Textarea name="description" rows={3} /></label>
+          <div className="dialog-actions"><DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose><Button disabled={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</Button></div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -186,6 +228,12 @@ export function ItemsView({ household, onRevealConsumed, refreshKey = 0, revealI
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const addItemTriggerRef = useRef<HTMLElement | null>(null)
+
+  function openAddItemDialog(event: MouseEvent<HTMLButtonElement>) {
+    addItemTriggerRef.current = event.currentTarget
+    setShowForm(true)
+  }
 
   async function loadInventory() {
     const [nextItems, nextPlacements, nextAreas] = await Promise.all([
@@ -259,7 +307,7 @@ export function ItemsView({ household, onRevealConsumed, refreshKey = 0, revealI
 
   return (
     <div className="items-view">
-      <div className="page-heading locations-heading"><div><p className="eyebrow">Household inventory</p><h1>Items</h1><p className="page-description">Everything you track, with its exact storage path.</p></div><button className="primary-button compact" onClick={() => setShowForm(true)}><Plus aria-hidden="true" /> Add item</button></div>
+      <div className="page-heading locations-heading"><div><p className="eyebrow">Household inventory</p><h1>Items</h1><p className="page-description">Everything you track, with its exact storage path.</p></div><button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add item</button></div>
       {error ? <div className="alert locations-alert">{error}</div> : null}
       <section className="items-panel">
         {loading ? <div className="locations-loading">Loading items…</div> : items.length ? (
@@ -270,18 +318,10 @@ export function ItemsView({ household, onRevealConsumed, refreshKey = 0, revealI
               return <tr key={item.id}><td><button className="item-details-button" onClick={() => setSelectedItem(item)}><strong>{item.name}</strong>{item.description ? <small>{item.description}</small> : null}</button></td><td>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</td><td><span className={placement ? 'location-path' : 'unplaced-badge'}>{itemLocation(placement, areas, zones, containers, containerPlacements)}</span></td><td>{[item.manufacturer, item.model].filter(Boolean).join(' · ') || '—'}</td></tr>
             })}</tbody>
           </table>
-        ) : <div className="location-empty"><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>No items yet</strong><p>Add your first item and place it directly in an area, zone, or container.</p><button className="primary-button compact" onClick={() => setShowForm(true)}><Plus aria-hidden="true" /> Add first item</button></div>}
+        ) : <div className="location-empty"><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>No items yet</strong><p>Add your first item and place it directly in an area, zone, or container.</p><button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add first item</button></div>}
       </section>
-      {selectedItem ? <ItemDetailsModal areas={areas} containerPlacements={containerPlacements} containers={containers} item={selectedItem} locationLabel={itemLocation(placements.find((entry) => entry.item_id === selectedItem.id), areas, zones, containers, containerPlacements)} onClose={() => setSelectedItem(null)} onPlacementUpdated={(updated) => setPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={placements.find((entry) => entry.item_id === selectedItem.id)} token={token} zones={zones} /> : null}
-      {showForm ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setShowForm(false)}><section aria-labelledby="item-dialog-title" aria-modal="true" className="location-dialog" role="dialog"><div className="dialog-heading"><div><p className="eyebrow">Inventory</p><h2 id="item-dialog-title">Add an item</h2></div><button aria-label="Close" onClick={() => setShowForm(false)}>×</button></div><form onSubmit={submit}>
-        <label>Name<input autoFocus name="name" placeholder="Cordless drill" required /></label>
-        <div className="form-row"><label>Quantity<input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><input name="unit" placeholder="pieces, boxes, feet" /></label></div>
-        <div className="form-row"><label>Manufacturer <span className="optional">Optional</span><input name="manufacturer" /></label><label>Model <span className="optional">Optional</span><input name="model" /></label></div>
-        <PhysicalIdentifierPicker />
-        <label>Location <span className="optional">Optional</span><select defaultValue="" name="placement"><option value="">Unplaced</option>{areas.map((area) => <option key={area.id} value={`area:${area.id}`}>{area.name}</option>)}{zones.map((zone) => <option key={zone.id} value={`zone:${zone.id}`}>{areas.find((area) => area.id === zone.area_id)?.name} / {zone.name}</option>)}{containers.map((container) => <option key={container.id} value={`container:${container.id}`}>{itemLocation({ id: '', item_id: '', area_id: null, zone_id: null, container_id: container.id, relationship_type: 'in', created_at: '', updated_at: '' }, areas, zones, containers, containerPlacements)}</option>)}</select></label>
-        <label>Description <span className="optional">Optional</span><textarea name="description" rows={3} /></label>
-        <div className="dialog-actions"><button className="secondary-action" onClick={() => setShowForm(false)} type="button">Cancel</button><button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</button></div>
-      </form></section></div> : null}
+      {selectedItem ? <ItemDetailsModal areas={areas} containerPlacements={containerPlacements} containers={containers} item={selectedItem} locationLabel={itemLocation(placements.find((entry) => entry.item_id === selectedItem.id), areas, zones, containers, containerPlacements)} onClose={() => setSelectedItem(null)} onDeleted={(itemId) => { setSelectedItem(null); setItems((current) => current.filter((item) => item.id !== itemId)); setPlacements((current) => current.filter((entry) => entry.item_id !== itemId)) }} onPlacementUpdated={(updated) => setPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={placements.find((entry) => entry.item_id === selectedItem.id)} token={token} zones={zones} /> : null}
+      <AddItemDialog areas={areas} containerPlacements={containerPlacements} containers={containers} finalFocus={addItemTriggerRef} onOpenChange={setShowForm} onSubmit={submit} open={showForm} saving={saving} zones={zones} />
     </div>
   )
 }

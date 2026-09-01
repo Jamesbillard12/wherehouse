@@ -20,7 +20,17 @@ export type CachedInventory = {
   zones: Zone[]
 }
 
-export async function syncInventory(server: PairedServer): Promise<CachedInventory> {
+const inventorySyncs = new Map<string, Promise<CachedInventory>>()
+
+export function syncInventory(server: PairedServer): Promise<CachedInventory> {
+  const existing = inventorySyncs.get(server.householdId)
+  if (existing) return existing
+  const sync = syncInventoryOnce(server).finally(() => inventorySyncs.delete(server.householdId))
+  inventorySyncs.set(server.householdId, sync)
+  return sync
+}
+
+async function syncInventoryOnce(server: PairedServer): Promise<CachedInventory> {
   const client = createRemoteClient(server.baseUrl, server.accessToken)
   const [areas, items, itemPlacements] = await Promise.all([client.listAreas(server.householdId), client.listItems(server.householdId), client.listItemPlacements(server.householdId)])
   const details = await Promise.all(
@@ -43,8 +53,8 @@ export async function syncInventory(server: PairedServer): Promise<CachedInvento
     syncedAt: new Date().toISOString(),
   }
   const db = await database()
-  await db.withTransactionAsync(async () => {
-    await db.runAsync('DELETE FROM inventory_cache WHERE household_id = ?', server.householdId)
+  await db.withExclusiveTransactionAsync(async (transaction) => {
+    await transaction.runAsync('DELETE FROM inventory_cache WHERE household_id = ?', server.householdId)
     for (const [entityType, entries] of [
       ['area', inventory.areas],
       ['zone', inventory.zones],
@@ -54,7 +64,7 @@ export async function syncInventory(server: PairedServer): Promise<CachedInvento
       ['item-placement', inventory.itemPlacements],
     ] as const) {
       for (const entry of entries) {
-        await db.runAsync(
+        await transaction.runAsync(
           'INSERT INTO inventory_cache (entity_type, entity_id, household_id, payload) VALUES (?, ?, ?, ?)',
           entityType,
           entry.id,
@@ -63,7 +73,7 @@ export async function syncInventory(server: PairedServer): Promise<CachedInvento
         )
       }
     }
-    await db.runAsync(
+    await transaction.runAsync(
       'INSERT OR REPLACE INTO sync_metadata (household_id, synced_at) VALUES (?, ?)',
       server.householdId,
       inventory.syncedAt,
@@ -95,9 +105,9 @@ export async function loadCachedInventory(householdId: string): Promise<CachedIn
 
 export async function clearInventoryCache(householdId: string): Promise<void> {
   const db = await database()
-  await db.withTransactionAsync(async () => {
-    await db.runAsync('DELETE FROM inventory_cache WHERE household_id = ?', householdId)
-    await db.runAsync('DELETE FROM sync_metadata WHERE household_id = ?', householdId)
+  await db.withExclusiveTransactionAsync(async (transaction) => {
+    await transaction.runAsync('DELETE FROM inventory_cache WHERE household_id = ?', householdId)
+    await transaction.runAsync('DELETE FROM sync_metadata WHERE household_id = ?', householdId)
   })
 }
 

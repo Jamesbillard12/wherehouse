@@ -1,10 +1,9 @@
 import * as SQLite from 'expo-sqlite'
 
-let databasePromise: ReturnType<typeof SQLite.openDatabaseAsync> | null = null
+let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null
 
-export async function database() {
-  if (!databasePromise) databasePromise = SQLite.openDatabaseAsync('wherehouse.db')
-  const db = await databasePromise
+async function initializeDatabase(): Promise<SQLite.SQLiteDatabase> {
+  const db = await SQLite.openDatabaseAsync('wherehouse.db')
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
@@ -47,4 +46,14 @@ export async function database() {
     );
   `)
   return db
+}
+
+export function database(): Promise<SQLite.SQLiteDatabase> {
+  if (!databasePromise) {
+    databasePromise = initializeDatabase().catch((error) => {
+      databasePromise = null
+      throw error
+    })
+  }
+  return databasePromise
 }

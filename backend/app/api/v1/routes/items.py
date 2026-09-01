@@ -13,6 +13,7 @@ from app.application.items.capabilities import (
     MoveItem,
     move_item,
 )
+from app.application.items.capabilities import delete_item as delete_item_capability
 from app.models import Item, ItemPlacement
 from app.repositories.entities import require_entity as require
 from app.schemas.core import (
@@ -70,6 +71,27 @@ async def update_item(
     await session.refresh(item)
     await realtime_hub.publish(item.household_id, entity="item", action="updated", entity_id=item.id, source=principal.method)
     return item
+
+
+@router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_item(
+    item_id: UUID,
+    principal: PrincipalDep,
+    session: SessionDep,
+) -> Response:
+    actor = ActorContext(
+        user_id=principal.user.id,
+        client=principal.method,
+        device_id=principal.device_id,
+        household_id=principal.device_household_id,
+    )
+    try:
+        await delete_item_capability(session, actor, item_id, realtime_hub)
+    except EntityNotFound as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except HouseholdAccessDenied as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/households/{household_id}/items", response_model=list[ItemRead])

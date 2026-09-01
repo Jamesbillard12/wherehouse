@@ -43,6 +43,8 @@ export function createRemoteClient(baseUrl: string, token: string) {
       serial_number?: string
       notes?: string
     }) => authenticatedRequest<Item>(`/items/${itemId}`, { method: 'PATCH', body: payload }),
+    deleteItem: (itemId: string) =>
+      authenticatedRequest<void>(`/items/${itemId}`, { method: 'DELETE' }),
     placeItem: (itemId: string, payload: { area_id?: string; zone_id?: string; container_id?: string; relationship_type?: ContainerPlacement['relationship_type'] }) =>
       authenticatedRequest<ItemPlacement>(`/items/${itemId}/placement`, { method: 'PUT', body: payload }),
     uploadItemImage: (itemId: string, image: Blob, contentType?: string) =>
