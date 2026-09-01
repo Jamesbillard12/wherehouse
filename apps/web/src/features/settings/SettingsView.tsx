@@ -3,6 +3,7 @@ import { CircleUserRound, Database, House, Info, Laptop, Palette, Shield, Smartp
 import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
 
+import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
 import type { SettingsSection } from '../../shared/utils/navigation'
@@ -36,6 +37,8 @@ function Households({ household, households, isOwner, onCreate, onSelect, token,
   const [error, setError] = useState<string | null>(null)
   const [newHouseholdName, setNewHouseholdName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [deviceToRevoke, setDeviceToRevoke] = useState<Device | null>(null)
+  const [revoking, setRevoking] = useState(false)
   useEffect(() => { setPairing(null); setQrCode(''); if (isOwner) void listDevices(token, household.id).then(setDevices).catch((reason) => setError(message(reason))); else setDevices([]) }, [household.id, isOwner, token])
   useEffect(() => { if (pairing) void QRCode.toDataURL(pairing.pairing_uri, { margin: 1, width: 260 }).then(setQrCode) }, [pairing])
   useEffect(() => {
@@ -54,7 +57,7 @@ function Households({ household, households, isOwner, onCreate, onSelect, token,
     return () => { cancelled = true; window.clearInterval(interval) }
   }, [household.id, isOwner, pairing?.id, pairingDeviceBaseline, token])
   async function pair() { try { const current = await listDevices(token, household.id); setDevices(current); setPairingDeviceBaseline(current.filter((device) => device.is_active).length); setPairing(await createPairingSession(token, household.id, { instance_name: `${household.name} WhereHouse`, instance_type: location.hostname === 'localhost' ? 'local' : 'cloud' })) } catch (reason) { setError(message(reason)) } }
-  async function revoke(device: Device) { if (!confirm(`Revoke ${device.name}?`)) return; await revokeDevice(token, device.id); setDevices(await listDevices(token, household.id)) }
+  async function revoke() { if (!deviceToRevoke) return; setRevoking(true); try { await revokeDevice(token, deviceToRevoke.id); setDevices(await listDevices(token, household.id)); setDeviceToRevoke(null) } catch (reason) { setError(message(reason)) } finally { setRevoking(false) } }
   async function create(event: React.FormEvent) { event.preventDefault(); if (!newHouseholdName.trim()) return; setCreating(true); setError(null); try { await onCreate(newHouseholdName.trim()); setNewHouseholdName('') } catch (reason) { setError(message(reason)) } finally { setCreating(false) } }
   const role = user.households.find((entry) => entry.household_id === household.id)?.relationship_type
   return <>
@@ -67,7 +70,8 @@ function Households({ household, households, isOwner, onCreate, onSelect, token,
       <button className="primary-button compact" disabled={creating || !newHouseholdName.trim()} type="submit">{creating ? 'Creating…' : 'Add household'}</button>
     </form>
     <div className="household-list">{households.map((entry) => <button className={entry.id === household.id ? 'active' : ''} key={entry.id} onClick={() => onSelect(entry.id)}><House aria-hidden="true" /><span><strong>{entry.name}</strong><small>{user.households.find((access) => access.household_id === entry.id)?.relationship_type ?? 'member'}{entry.id === household.id ? ' · Active' : ''}</small></span></button>)}</div>
-    <div className="settings-card" id="connected-devices"><h3>{household.name}</h3><p className="muted">Your relationship: {role}</p><h3>Connected Devices</h3>{isOwner ? <><button className="primary-button compact" onClick={() => void pair()}>Pair a device</button>{pairing && qrCode ? <div className="settings-pairing"><img alt="One-time device pairing QR code" src={qrCode} /><span>Expires {formatDate(pairing.expires_at)}</span></div> : null}<div className="device-list">{devices.filter((device) => device.is_active).map((device) => <article key={device.id}><div className="device-icon">{device.device_type === 'phone' ? <Smartphone /> : <Laptop />}</div><div><strong>{device.name}</strong><span>{device.device_type} · Last seen {formatDate(device.last_seen_at)}</span></div><button className="danger-button" onClick={() => void revoke(device)}>Revoke</button></article>)}</div></> : <p className="notice">Only household owners can manage connected devices and members.</p>}{error ? <div className="alert">{error}</div> : null}</div>
+    <div className="settings-card" id="connected-devices"><h3>{household.name}</h3><p className="muted">Your relationship: {role}</p><h3>Connected Devices</h3>{isOwner ? <><button className="primary-button compact" onClick={() => void pair()}>Pair a device</button>{pairing && qrCode ? <div className="settings-pairing"><img alt="One-time device pairing QR code" src={qrCode} /><span>Expires {formatDate(pairing.expires_at)}</span></div> : null}<div className="device-list">{devices.filter((device) => device.is_active).map((device) => <article key={device.id}><div className="device-icon">{device.device_type === 'phone' ? <Smartphone /> : <Laptop />}</div><div><strong>{device.name}</strong><span>{device.device_type} · Last seen {formatDate(device.last_seen_at)}</span></div><button className="danger-button" onClick={() => setDeviceToRevoke(device)}>Revoke</button></article>)}</div></> : <p className="notice">Only household owners can manage connected devices and members.</p>}{error ? <div className="alert">{error}</div> : null}</div>
+    <ConfirmDialog busy={revoking} confirmLabel="Revoke" description={`${deviceToRevoke?.name ?? 'This device'} will no longer be able to sync.`} destructive onCancel={() => setDeviceToRevoke(null)} onConfirm={revoke} open={Boolean(deviceToRevoke)} title="Revoke device?" />
   </>
 }
 

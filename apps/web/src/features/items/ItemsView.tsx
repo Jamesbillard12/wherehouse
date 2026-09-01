@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
 import { PhysicalIdentifierPicker } from './PhysicalIdentifierPicker'
@@ -177,7 +178,7 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, initi
         <dl className="item-detail-grid">
           <div><dt>Quantity</dt><dd>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</dd></div>
           <div><dt>Code</dt><dd>{item.code}</dd></div>
-          <div><dt>Physical identifier</dt><dd className="physical-identifier-value">{item.identifier_type !== 'nfc' && item.identifier_type !== 'none' ? <QrCode aria-hidden="true" /> : null}{item.identifier_type !== 'qr' && item.identifier_type !== 'none' ? <Radio aria-hidden="true" /> : null}{item.identifier_type === 'none' ? 'Neither' : item.identifier_type === 'both' ? 'QR + NFC' : item.identifier_type.toUpperCase()}</dd></div>
+          <div className="physical-identifier-detail"><dt>Physical identifier</dt><dd><span className="physical-identifier-value">{item.identifier_type !== 'nfc' && item.identifier_type !== 'none' ? <QrCode aria-hidden="true" /> : null}{item.identifier_type !== 'qr' && item.identifier_type !== 'none' ? <Radio aria-hidden="true" /> : null}{item.identifier_type === 'none' ? 'Neither' : item.identifier_type === 'both' ? 'QR + NFC' : item.identifier_type.toUpperCase()}</span>{item.identifier_type === 'qr' || item.identifier_type === 'both' ? <Button className="identifier-print-button" onClick={() => setShowLabel(true)} size="sm" variant="outline"><Printer aria-hidden="true" /> Print QR</Button> : null}</dd></div>
           <div><dt>Manufacturer</dt><dd>{item.manufacturer || '—'}</dd></div>
           <div><dt>Model</dt><dd>{item.model || '—'}</dd></div>
           <div><dt>Serial number</dt><dd>{item.serial_number || '—'}</dd></div>
@@ -186,9 +187,9 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, initi
         </dl>
         {item.description ? <div className="item-detail-copy"><strong>Description</strong><p>{item.description}</p></div> : null}
         {item.notes ? <div className="item-detail-copy"><strong>Notes</strong><p>{item.notes}</p></div> : null}
-        {confirmingDelete ? <div className="item-delete-confirmation" role="alert"><div><strong>Delete {item.name}?</strong><p>This removes the item from your inventory.</p></div><div><Button disabled={deleting} onClick={() => setConfirmingDelete(false)} variant="outline">Cancel</Button><Button disabled={deleting} onClick={() => void removeItem()} variant="destructive">{deleting ? 'Deleting…' : 'Delete item'}</Button></div></div> : null}
-        <div className="dialog-actions"><Button aria-label={`Delete ${item.name}`} onClick={() => setConfirmingDelete(true)} variant="destructive"><Trash2 aria-hidden="true" /> Delete</Button><span className="dialog-action-spacer" /><button className="secondary-action" onClick={onClose}>Close</button><button className="secondary-action" onClick={() => setShowLabel(true)}><Printer aria-hidden="true" /> Print QR</button><button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</button></div></>}
+        <div className="dialog-actions item-details-actions"><Button aria-label={`Delete ${item.name}`} onClick={() => setConfirmingDelete(true)} size="icon" title={`Delete ${item.name}`} variant="destructive"><Trash2 aria-hidden="true" /></Button><span className="dialog-action-spacer" /><button className="secondary-action" onClick={onClose}>Close</button><button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</button></div></>}
       </section>
+      <ConfirmDialog busy={deleting} confirmLabel="Delete item" description="This removes the item from your inventory. This cannot be undone." destructive onCancel={() => setConfirmingDelete(false)} onConfirm={removeItem} open={confirmingDelete} title={`Delete ${item.name}?`} />
       {showLabel ? <ItemLabelModal item={item} onClose={() => setShowLabel(false)} token={token} /> : null}
     </div>
   )

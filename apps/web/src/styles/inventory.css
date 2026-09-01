@@ -178,9 +178,6 @@
 .icon-picker input:focus-visible + span { outline: 3px solid rgb(79 70 229 / 18%); outline-offset: 1px; }
 .dialog-actions { position: sticky; bottom: 0; z-index: 4; display: flex; justify-content: flex-end; gap: 0.7rem; margin: 0.5rem -1.5rem 0; border-top: 1px solid var(--line); padding: 1rem 1.5rem; background: rgb(255 255 255 / 96%); box-shadow: 0 -8px 18px rgb(16 24 40 / 5%); backdrop-filter: blur(10px); }
 .dialog-action-spacer { flex: 1; }
-.item-delete-confirmation { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; border: 1px solid #efb3a8; border-radius: 10px; padding: 0.85rem; background: #fff7f5; }
-.item-delete-confirmation p { margin: 0.2rem 0 0; color: var(--muted-text); font-size: 0.82rem; }
-.item-delete-confirmation > div:last-child { display: flex; gap: 0.5rem; }
 .location-dialog > .dialog-actions { margin-inline: 0; }
 .item-details-dialog { width: min(620px, 100%); }
 .item-image-panel { position: relative; width: calc(100% - 3rem); aspect-ratio: 16 / 7; margin: 1.5rem 1.5rem 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #f8f9fc; }
@@ -206,6 +203,9 @@
 .item-detail-grid dd { margin: 0; overflow-wrap: anywhere; color: var(--ink); font-size: 0.78rem; font-weight: 700; }
 .physical-identifier-value { display: inline-flex; align-items: center; gap: 0.3rem; text-transform: none; }
 .physical-identifier-value svg { width: 15px; height: 15px; color: var(--action); }
+.physical-identifier-detail dd { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.identifier-print-button { flex: 0 0 auto; }
+.item-details-actions > [data-slot="button"]:first-child { width: var(--button-height); height: var(--button-height); }
 .item-edit-form { margin-top: 1.25rem !important; }
 .item-detail-copy { margin: 1rem 1.5rem 0; }
 .item-detail-copy strong { font-size: 0.72rem; }
@@ -227,17 +227,13 @@
 .review-queue-launcher { position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 20; min-height: 46px; display: flex; align-items: center; gap: 0.55rem; border: 0; border-radius: 99px; padding: 0 1rem; background: var(--action); color: #fff; font-weight: 800; box-shadow: 0 10px 30px rgb(67 56 202 / 28%); }
 .review-queue-launcher > svg { width: 18px; height: 18px; }
 .review-queue-launcher > span { min-width: 22px; height: 22px; display: grid; place-items: center; border-radius: 99px; background: #fff; color: var(--action); font-size: 0.68rem; }
-.label-backdrop { z-index: 70; }
-.item-label-dialog { width: min(430px, 100%); border-radius: 14px; padding: 1.5rem; background: #fff; box-shadow: 0 24px 80px rgb(16 24 40 / 24%); }
-.item-label-print { display: grid; justify-items: center; border: 2px solid #101828; border-radius: 12px; padding: 1.25rem; text-align: center; }
+.item-label-dialog { overflow: hidden; }
+.label-dialog-heading { border-bottom: 1px solid var(--line); padding: 1.25rem 1.5rem; }
+.item-label-print { display: grid; justify-items: center; margin: 1.5rem; border: 2px solid #101828; border-radius: 12px; padding: 1.25rem; text-align: center; }
 .item-label-print img { width: 240px; height: 240px; }
+.label-qr-loading { width: 240px; height: 240px; border-radius: 8px; background: linear-gradient(90deg, #f2f4f7 25%, #e4e7ec 50%, #f2f4f7 75%); background-size: 200% 100%; animation: label-loading 1.2s infinite linear; }
 .item-label-print strong { max-width: 100%; margin-top: 0.65rem; overflow: hidden; color: #101828; font-size: 1.15rem; text-overflow: ellipsis; white-space: nowrap; }
 .item-label-print span { margin-top: 0.3rem; color: #344054; font: 800 0.88rem/1 monospace; letter-spacing: 0.08em; }
-.label-actions { display: flex; justify-content: flex-end; gap: 0.7rem; margin-top: 1rem; }
-
-@media print {
-  body * { visibility: hidden !important; }
-  .item-label-print, .item-label-print * { visibility: visible !important; }
-  .item-label-print { position: fixed; inset: 0 auto auto 0; width: 3in; border: 1px solid #000; border-radius: 0; padding: 0.15in; }
-  .item-label-print img { width: 2in; height: 2in; }
-}
+.label-actions { margin: 0; padding: 1rem 1.5rem; }
+.label-actions [data-slot="button"] { min-width: 132px; }
+@keyframes label-loading { to { background-position: -200% 0; } }
