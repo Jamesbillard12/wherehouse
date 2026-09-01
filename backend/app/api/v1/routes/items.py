@@ -12,13 +12,19 @@ from app.application.items.capabilities import (
     HouseholdAccessDenied,
     IdempotencyConflict,
     InvalidMove,
+    ItemDestination,
     MoveItem,
+    UpdateItem,
     move_item,
+    resolve_item_locations,
 )
 from app.application.items.capabilities import (
     create_item as create_item_capability,
 )
 from app.application.items.capabilities import delete_item as delete_item_capability
+from app.application.items.capabilities import (
+    update_item as update_item_capability,
+)
 from app.models import Item, ItemPlacement
 from app.repositories.entities import require_entity as require
 from app.schemas.core import (
@@ -62,13 +68,20 @@ async def create_item(
             session,
             actor,
             household_id,
-            CreateItem(**payload.model_dump()),
+            CreateItem(
+                **payload.model_dump(exclude={"placement"}),
+                placement=ItemDestination(**payload.placement.model_dump()) if payload.placement else None,
+            ),
             realtime_hub,
         )
     except HouseholdAccessDenied as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
     except IdempotencyConflict as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    except EntityNotFound as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except InvalidMove as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
 
 
 @router.patch("/items/{item_id}", response_model=ItemRead)
@@ -78,14 +91,29 @@ async def update_item(
     principal: PrincipalDep,
     session: SessionDep,
 ) -> Item:
-    item = await require(session, Item, item_id, "Item")
-    await require_household_access(item.household_id, principal, session)
-    for field, value in payload.model_dump().items():
-        setattr(item, field, value)
-    await session.commit()
-    await session.refresh(item)
-    await realtime_hub.publish(item.household_id, entity="item", action="updated", entity_id=item.id, source=principal.method)
-    return item
+    actor = ActorContext(
+        user_id=principal.user.id,
+        client=principal.method,
+        device_id=principal.device_id,
+        household_id=None,
+    )
+    try:
+        return await update_item_capability(
+            session,
+            actor,
+            item_id,
+            UpdateItem(
+                **payload.model_dump(exclude={"placement"}),
+                placement=ItemDestination(**payload.placement.model_dump()) if payload.placement else None,
+            ),
+            realtime_hub,
+        )
+    except EntityNotFound as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except HouseholdAccessDenied as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
+    except InvalidMove as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
 
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -183,7 +211,7 @@ async def get_item_image(
 )
 async def list_item_placements(
     household_id: UUID, principal: PrincipalDep, session: SessionDep
-) -> list[ItemPlacement]:
+) -> list[ItemPlacementRead]:
     await require_household_access(household_id, principal, session)
     result = await session.scalars(
         select(ItemPlacement)
@@ -191,7 +219,23 @@ async def list_item_placements(
         .where(Item.household_id == household_id)
         .order_by(ItemPlacement.created_at)
     )
-    return list(result)
+    actor = ActorContext(
+        user_id=principal.user.id,
+        client=principal.method,
+        device_id=principal.device_id,
+        household_id=household_id,
+    )
+    placements = list(result)
+    try:
+        paths = await resolve_item_locations(session, actor, household_id, placements)
+        return [
+            ItemPlacementRead.model_validate(placement).model_copy(
+                update={"resolved_path": paths[placement.id]}
+            )
+            for placement in placements
+        ]
+    except InvalidMove as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
 
 
 @router.put("/items/{item_id}/placement", response_model=ItemPlacementRead)

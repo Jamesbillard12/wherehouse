@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.context import ActorContext
-from app.models import Area, Container, HouseholdUser, Item, ItemPlacement, Zone
+from app.models import Area, Container, ContainerPlacement, HouseholdUser, Item, ItemPlacement, Zone
 from app.models.core import ContainerRelationship, ItemIdentifierType
 from app.services.container_codes import next_item_code
 
@@ -49,12 +49,43 @@ class CreateItem:
     model: str | None = None
     serial_number: str | None = None
     notes: str | None = None
+    placement: "ItemDestination | None" = None
+
+
+@dataclass(frozen=True)
+class UpdateItem:
+    name: str
+    identifier_type: ItemIdentifierType
+    quantity: Decimal
+    description: str | None = None
+    unit: str | None = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = None
+    notes: str | None = None
+    placement: "ItemDestination | None" = None
+
+
+@dataclass(frozen=True)
+class ItemDestination:
+    area_id: UUID | None = None
+    zone_id: UUID | None = None
+    container_id: UUID | None = None
+    relationship_type: ContainerRelationship | None = None
+
+    def __post_init__(self) -> None:
+        if sum(value is not None for value in (self.area_id, self.zone_id, self.container_id)) != 1:
+            raise InvalidMove("Exactly one destination is required")
+        if self.container_id is None and self.relationship_type is not None:
+            raise InvalidMove("A relationship is only valid for a container destination")
 
 
 def _json_value(value: object) -> object:
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, UUID):
         return str(value)
     raise TypeError(f"Unsupported creation payload value: {type(value).__name__}")
 
@@ -89,8 +120,14 @@ async def create_item(
                 raise IdempotencyConflict("Client operation ID was already used for another request")
             return existing
 
+    if command.placement is not None:
+        destination_household_id = await _destination_household(session, command.placement)
+        if destination_household_id != household_id:
+            raise InvalidMove("Item and destination must belong to the same household")
+
     values = asdict(command)
     values.pop("client_operation_id")
+    placement_values = values.pop("placement")
     item = Item(
         household_id=household_id,
         code=await next_item_code(session),
@@ -100,6 +137,9 @@ async def create_item(
     )
     session.add(item)
     try:
+        await session.flush()
+        if placement_values is not None:
+            session.add(ItemPlacement(item_id=item.id, **placement_values))
         await session.commit()
         await session.refresh(item)
     except IntegrityError:
@@ -159,6 +199,51 @@ async def delete_item(
     )
 
 
+async def update_item(
+    session: AsyncSession,
+    actor: ActorContext,
+    item_id: UUID,
+    command: UpdateItem,
+    events: "EventPublisher",
+) -> Item:
+    item = await session.get(Item, item_id)
+    if item is None or item.is_archived:
+        raise EntityNotFound("Item")
+    await _require_access(session, actor, item.household_id)
+    if command.placement is not None:
+        destination_household_id = await _destination_household(session, command.placement)
+        if destination_household_id != item.household_id:
+            raise InvalidMove("Item and destination must belong to the same household")
+
+    values = asdict(command)
+    placement_values = values.pop("placement")
+    for field, value in values.items():
+        setattr(item, field, value)
+    if placement_values is not None:
+        placement = await session.scalar(
+            select(ItemPlacement).where(ItemPlacement.item_id == item_id)
+        )
+        if placement is None:
+            session.add(ItemPlacement(item_id=item_id, **placement_values))
+        else:
+            for field, value in placement_values.items():
+                setattr(placement, field, value)
+    try:
+        await session.commit()
+        await session.refresh(item)
+    except Exception:
+        await session.rollback()
+        raise
+    await events.publish(
+        item.household_id,
+        entity="item",
+        action="updated",
+        entity_id=item.id,
+        source=actor.client,
+    )
+    return item
+
+
 class EventPublisher(Protocol):
     async def publish(
         self,
@@ -180,11 +265,12 @@ class MoveItem:
     relationship_type: ContainerRelationship | None = None
 
     def __post_init__(self) -> None:
-        targets = (self.area_id, self.zone_id, self.container_id)
-        if sum(target is not None for target in targets) != 1:
-            raise InvalidMove("Exactly one destination is required")
-        if self.container_id is None and self.relationship_type is not None:
-            raise InvalidMove("A relationship is only valid for a container destination")
+        ItemDestination(
+            area_id=self.area_id,
+            zone_id=self.zone_id,
+            container_id=self.container_id,
+            relationship_type=self.relationship_type,
+        )
 
 
 async def _require_access(session: AsyncSession, actor: ActorContext, household_id: UUID) -> None:
@@ -200,7 +286,7 @@ async def _require_access(session: AsyncSession, actor: ActorContext, household_
         raise HouseholdAccessDenied("Household access denied")
 
 
-async def _destination_household(session: AsyncSession, command: MoveItem) -> UUID:
+async def _destination_household(session: AsyncSession, command: MoveItem | ItemDestination) -> UUID:
     if command.area_id is not None:
         area = await session.get(Area, command.area_id)
         if area is None:
@@ -221,6 +307,140 @@ async def _destination_household(session: AsyncSession, command: MoveItem) -> UU
     if area is None:
         raise EntityNotFound("Container area")
     return area.household_id
+
+
+async def resolve_item_location(
+    session: AsyncSession, actor: ActorContext, placement: ItemPlacement
+) -> str:
+    item = await session.get(Item, placement.item_id)
+    if item is None or item.is_archived:
+        raise EntityNotFound("Item")
+    await _require_access(session, actor, item.household_id)
+
+    if placement.area_id is not None:
+        area = await session.get(Area, placement.area_id)
+        if area is None or area.household_id != item.household_id:
+            raise InvalidMove("Item placement has an invalid area")
+        return area.name
+
+    if placement.zone_id is not None:
+        zone = await session.get(Zone, placement.zone_id)
+        area = await session.get(Area, zone.area_id) if zone else None
+        if zone is None or area is None or area.household_id != item.household_id:
+            raise InvalidMove("Item placement has an invalid zone")
+        return f"{area.name} > {zone.name}"
+
+    container = await session.get(Container, placement.container_id)
+    if container is None or container.is_archived:
+        raise InvalidMove("Item placement has an invalid container")
+    area = await session.get(Area, container.area_id)
+    if area is None or area.household_id != item.household_id:
+        raise InvalidMove("Item placement crosses a household boundary")
+    zone = await session.get(Zone, container.zone_id) if container.zone_id else None
+    if zone is not None and zone.area_id != area.id:
+        raise InvalidMove("Container zone does not belong to its area")
+
+    names = [container.name]
+    visited = {container.id}
+    cursor = container.id
+    while True:
+        parent_id = await session.scalar(
+            select(ContainerPlacement.parent_container_id).where(
+                ContainerPlacement.container_id == cursor
+            )
+        )
+        if parent_id is None:
+            break
+        if parent_id in visited:
+            raise InvalidMove("Container hierarchy contains a cycle")
+        visited.add(parent_id)
+        parent = await session.get(Container, parent_id)
+        if parent is None or parent.is_archived or parent.area_id != area.id:
+            raise InvalidMove("Container hierarchy is malformed")
+        names.append(parent.name)
+        cursor = parent.id
+    prefix = [area.name]
+    if zone is not None:
+        prefix.append(zone.name)
+    return " > ".join(prefix + list(reversed(names)))
+
+
+async def resolve_item_locations(
+    session: AsyncSession,
+    actor: ActorContext,
+    household_id: UUID,
+    placements: list[ItemPlacement],
+) -> dict[UUID, str]:
+    """Resolve a household's item paths with bounded queries for list consumers."""
+    await _require_access(session, actor, household_id)
+    areas = list(await session.scalars(select(Area).where(Area.household_id == household_id)))
+    area_by_id = {area.id: area for area in areas}
+    area_ids = list(area_by_id)
+    zones = list(await session.scalars(select(Zone).where(Zone.area_id.in_(area_ids))))
+    zone_by_id = {zone.id: zone for zone in zones}
+    containers = list(
+        await session.scalars(
+            select(Container).where(
+                Container.area_id.in_(area_ids), Container.is_archived.is_(False)
+            )
+        )
+    )
+    container_by_id = {container.id: container for container in containers}
+    nesting = list(
+        await session.scalars(
+            select(ContainerPlacement).where(
+                ContainerPlacement.container_id.in_(list(container_by_id))
+            )
+        )
+    )
+    parent_by_child = {
+        placement.container_id: placement.parent_container_id for placement in nesting
+    }
+
+    def container_path(container_id: UUID) -> str:
+        container = container_by_id.get(container_id)
+        if container is None:
+            raise InvalidMove("Item placement has an invalid container")
+        area = area_by_id.get(container.area_id)
+        if area is None:
+            raise InvalidMove("Item placement crosses a household boundary")
+        zone = zone_by_id.get(container.zone_id) if container.zone_id else None
+        if zone is not None and zone.area_id != area.id:
+            raise InvalidMove("Container zone does not belong to its area")
+        names: list[str] = []
+        visited: set[UUID] = set()
+        cursor: UUID | None = container.id
+        while cursor is not None:
+            if cursor in visited:
+                raise InvalidMove("Container hierarchy contains a cycle")
+            visited.add(cursor)
+            current = container_by_id.get(cursor)
+            if current is None or current.area_id != area.id:
+                raise InvalidMove("Container hierarchy is malformed")
+            names.append(current.name)
+            cursor = parent_by_child.get(cursor)
+        return " > ".join(
+            [area.name, *([zone.name] if zone is not None else []), *reversed(names)]
+        )
+
+    paths: dict[UUID, str] = {}
+    for placement in placements:
+        if placement.area_id is not None:
+            area = area_by_id.get(placement.area_id)
+            if area is None:
+                raise InvalidMove("Item placement has an invalid area")
+            paths[placement.id] = area.name
+        elif placement.zone_id is not None:
+            zone = zone_by_id.get(placement.zone_id)
+            area = area_by_id.get(zone.area_id) if zone else None
+            if zone is None or area is None:
+                raise InvalidMove("Item placement has an invalid zone")
+            paths[placement.id] = f"{area.name} > {zone.name}"
+        elif placement.container_id is not None:
+            paths[placement.id] = container_path(placement.container_id)
+        else:
+            raise InvalidMove("Item placement has no destination")
+    return paths
 
 
 async def move_item(

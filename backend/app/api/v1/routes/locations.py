@@ -5,6 +5,16 @@ from fastapi.responses import Response
 from sqlalchemy import select
 
 from app.api.dependencies import PrincipalDep, SessionDep, require_household_access
+from app.application.context import ActorContext
+from app.application.locations.capabilities import (
+    InvalidContainerPlacement,
+    LocationAccessDenied,
+    LocationNotFound,
+    PlaceContainer,
+)
+from app.application.locations.capabilities import (
+    place_container as place_container_capability,
+)
 from app.models import Area, Container, ContainerPlacement, Zone
 from app.repositories.entities import require_entity as require
 from app.schemas.core import (
@@ -271,41 +281,25 @@ async def place_container(
     principal: PrincipalDep,
     session: SessionDep,
 ) -> ContainerPlacement:
-    container = await require(session, Container, container_id, "Container")
-    area = await require(session, Area, container.area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
-    parent = await require(session, Container, payload.parent_container_id, "Parent container")
-    if container.area_id != parent.area_id:
-        raise HTTPException(
-            status_code=400, detail="Nested containers must belong to the same area"
-        )
-    ancestor_id = parent.id
-    visited: set[UUID] = set()
-    while ancestor_id not in visited:
-        if ancestor_id == container.id:
-            raise HTTPException(status_code=400, detail="Container placement would create a cycle")
-        visited.add(ancestor_id)
-        ancestor_id = await session.scalar(
-            select(ContainerPlacement.parent_container_id).where(
-                ContainerPlacement.container_id == ancestor_id
-            )
-        )
-        if ancestor_id is None:
-            break
-    placement = await session.scalar(
-        select(ContainerPlacement).where(ContainerPlacement.container_id == container_id)
+    actor = ActorContext(
+        user_id=principal.user.id,
+        client=principal.method,
+        device_id=principal.device_id,
+        household_id=None,
     )
-    if placement is None:
-        placement = ContainerPlacement(container_id=container_id, **payload.model_dump())
-        session.add(placement)
-    else:
-        placement.parent_container_id = payload.parent_container_id
-        placement.relationship_type = payload.relationship_type
-        placement.position = payload.position
-    await session.commit()
-    await session.refresh(placement)
-    await realtime_hub.publish(area.household_id, entity="container-placement", action="updated", entity_id=placement.id, source=principal.method)
-    return placement
+    try:
+        return await place_container_capability(
+            session,
+            actor,
+            PlaceContainer(container_id=container_id, **payload.model_dump()),
+            realtime_hub,
+        )
+    except LocationNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except LocationAccessDenied as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except InvalidContainerPlacement as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.delete("/containers/{container_id}/placement", status_code=status.HTTP_204_NO_CONTENT)
