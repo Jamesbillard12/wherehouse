@@ -2,7 +2,7 @@
 
 This document records the evaluated component strategy for the existing WhereHouse web and mobile
 applications. It complements the product-level [UI direction](ui-direction.md) and the controlled
-[generative UI architecture](generative-ui.md). Library choices below are presentation-layer
+[generative UI architecture](../architecture/generative-ui.md). Library choices below are presentation-layer
 decisions, not shared application contracts.
 
 ## Current stack audit

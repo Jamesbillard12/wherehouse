@@ -51,19 +51,11 @@ Recommended target: Raspberry Pi 4 with 4 GB minimum, preferably Pi 5 with SSD s
 
 ## API
 
-Versioned REST API:
-
-- `/api/v1/households`
-- `/api/v1/items`
-- `/api/v1/containers`
-- `/api/v1/transfers`
-- `/api/v1/activities`
-- `/api/v1/checkouts`
-- `/api/v1/pairing`
-- `/api/v1/sync`
-- `/api/v1/labels`
-
-FastAPI generates OpenAPI. A TypeScript client is generated and consumed by both the web and mobile apps.
+The implemented `/api/v1` REST surface covers account/session, households, devices and pairing,
+areas, zones, containers and placements, items and placements/images, physical identifiers, and
+household realtime events. Transfers, activities, checkouts, a general sync API, and server PDF
+labels are not implemented. FastAPI exposes OpenAPI; the TypeScript client is currently handwritten,
+so generated clients or automated parity checks remain future-readiness work.
 
 ## Mobile pairing
 
@@ -85,49 +77,36 @@ The pairing and credential lifecycle is documented in
 
 PostgreSQL is canonical. SQLite is the mobile replica/cache.
 
-The companion app can work offline for:
-
-- search
-- scanning
-- item creation
-- item movement
-- container movement
-- transfers
-- checkouts and returns
-- activity checklist completion
-- container space updates
-
-Offline writes are stored as pending operations and synchronized when the server is available.
+The companion caches areas, zones, containers/placements, items/placements, and supports local
+browsing/search. Pending SQLite queues currently cover item creation and item updates; creation uses
+a stable client operation ID with a database uniqueness constraint and payload conflict detection.
+Do not infer offline item/container movement, transfer, checkout, activity, or capacity mutation
+support from the cache. Restart/reconnect/conflict/exactly-once behavior still needs release validation.
 
 ## Sync
 
-Initial shape:
-
-- `POST /api/v1/sync/push`
-- `GET /api/v1/sync/pull?cursor=...`
-
-Location conflicts should be surfaced rather than silently resolved.
+There is no general push/pull sync endpoint. Mobile fetches canonical resource collections and
+replays its item queues through ordinary resource endpoints. Household WebSocket events invalidate
+clients after mutations; events are in-process and are neither durable sync history nor audit.
+Conflict semantics beyond idempotent creation need definition and validation.
 
 ## Storage abstraction
 
-The backend uses a storage interface with at least:
+The image service supports configured local filesystem or S3-compatible primary media storage.
+This is separate from the not-yet-implemented provider-neutral backup/restore subsystem; see
+[storage and backup](storage-and-backup.md).
 
-- LocalStorageBackend
-- S3StorageBackend
+## AI
 
-This supports local Raspberry Pi deployments and cloud deployments with the same application code.
-
-## AI abstraction
-
-AI calls go through an internal AI service interface rather than directly from inventory code.
-
-Initial provider can be OpenAI. Future providers may include local models.
+No AI provider or orchestration is implemented. Core behavior has no AI dependency. Add a
+provider-neutral port only with a scheduled consumer and keep SDKs outside domain/application logic.
 
 ## QR labels
 
-The backend generates printable QR labels, initially as PDFs.
-
-Raw UUIDs are not printed. Public scannable IDs such as `itm_K8F4Q2` and `cnt_7RM9P1` resolve to internal UUIDs.
+The clients generate/display QR images and web prints labels through a print view. Opaque
+`PhysicalIdentifier` public IDs resolve to items or containers without exposing internal UUIDs;
+human-readable item/container codes remain compatibility identifiers. There is no server PDF label
+generator. Physical iOS and Android validation is not recorded in the repository.
 
 ## Monorepo
 
