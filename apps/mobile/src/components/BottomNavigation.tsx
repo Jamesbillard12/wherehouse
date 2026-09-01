@@ -4,7 +4,7 @@ import { Modal, Pressable, Text, View } from 'react-native'
 
 import { styles } from '../theme/styles'
 
-export type MobileTab = 'home' | 'containers' | 'add-item' | 'items'
+export type MobileTab = 'home' | 'containers' | 'add-item' | 'items' | 'more'
 
 export function BottomNavigation({ activeTab, onAddItem, onLocations, onNfc, onScan, onSelect }: {
   activeTab: MobileTab
@@ -23,7 +23,7 @@ export function BottomNavigation({ activeTab, onAddItem, onLocations, onNfc, onS
       <Pressable onPress={onLocations} style={styles.navTab}><Box color={activeTab === 'containers' ? '#4f46e5' : '#667085'} size={17} /><Text style={activeTab === 'containers' ? styles.navLabelActive : styles.navLabel}>Locations</Text></Pressable>
       <Pressable accessibilityHint="Opens app actions" accessibilityLabel="Open actions" onPress={() => setActionsOpen(true)} style={styles.scanTab}><Plus color="#fff" size={27} strokeWidth={2.8} /></Pressable>
       <Pressable onPress={() => onSelect('items')} style={styles.navTab}><Package color={activeTab === 'items' ? '#4f46e5' : '#667085'} size={17} /><Text style={activeTab === 'items' ? styles.navLabelActive : styles.navLabel}>Items</Text></Pressable>
-      <View style={styles.navTab}><MoreHorizontal color="#667085" size={18} /><Text style={styles.navLabel}>More</Text></View>
+      <Pressable onPress={() => onSelect('more')} style={styles.navTab}><MoreHorizontal color={activeTab === 'more' ? '#4f46e5' : '#667085'} size={18} /><Text style={activeTab === 'more' ? styles.navLabelActive : styles.navLabel}>More</Text></Pressable>
     </View>
     <Modal animationType="fade" onRequestClose={() => setActionsOpen(false)} transparent visible={actionsOpen}>
       <Pressable accessibilityRole="button" onPress={() => setActionsOpen(false)} style={styles.quickActionBackdrop}>

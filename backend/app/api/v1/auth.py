@@ -92,8 +92,6 @@ async def logout(credentials: BearerDep, principal: PrincipalDep, session: Sessi
 @router.get("/auth/me", response_model=MeResponse)
 async def me(principal: PrincipalDep, session: SessionDep) -> MeResponse:
     query = select(HouseholdUser).where(HouseholdUser.user_id == principal.user.id)
-    if principal.device_household_id is not None:
-        query = query.where(HouseholdUser.household_id == principal.device_household_id)
     memberships = list(await session.scalars(query))
     return MeResponse(
         user=AuthUser.model_validate(principal.user, from_attributes=True),

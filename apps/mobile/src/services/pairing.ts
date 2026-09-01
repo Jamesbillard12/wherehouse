@@ -13,6 +13,10 @@ export type PairedServer = {
   userId: string
 }
 
+export function isPairingUri(value: string): boolean {
+  return value.trim().startsWith('wherehouse://pair?')
+}
+
 export function parsePairingUri(value: string): { server: string; token: string } {
   const url = new URL(value.trim())
   if (url.protocol !== 'wherehouse:' || url.hostname !== 'pair') {
@@ -58,6 +62,10 @@ export async function pairDevice(
 export async function loadPairedServer(): Promise<PairedServer | null> {
   const value = await SecureStore.getItemAsync(PAIRING_KEY)
   return value ? (JSON.parse(value) as PairedServer) : null
+}
+
+export async function savePairedServer(server: PairedServer): Promise<void> {
+  await SecureStore.setItemAsync(PAIRING_KEY, JSON.stringify(server))
 }
 
 export async function forgetPairedServer(): Promise<void> {

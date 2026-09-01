@@ -1,0 +1,73 @@
+import { createHousehold, createPairingSession, getMe, listDevices, listHouseholds, revokeDevice, type Device, type Household, type MeResponse, type PairingSession } from '@wherehouse/api-client'
+import { ChevronLeft, ChevronRight, CircleUserRound, Database, House, Info, Laptop, Palette, Plus, Shield, Smartphone } from 'lucide-react-native'
+import { useEffect, useState } from 'react'
+import { Alert, Image, Pressable, Text, TextInput, View } from 'react-native'
+
+import type { PairedServer } from '../../services/pairing'
+import { styles } from '../../theme/styles'
+
+type Section = 'more' | 'account' | 'households' | 'household' | 'preferences' | 'privacy' | 'about'
+
+const entries = [
+  { id: 'account' as const, label: 'Account', icon: CircleUserRound },
+  { id: 'households' as const, label: 'Households', icon: House },
+  { id: 'preferences' as const, label: 'Preferences', icon: Palette },
+  { id: 'privacy' as const, label: 'Data & Privacy', icon: Shield },
+  { id: 'about' as const, label: 'About', icon: Info },
+]
+
+export function SettingsScreen({ server, onForget, onSwitch }: { server: PairedServer; onForget: () => void; onSwitch: (household: Household) => Promise<void> }) {
+  const [section, setSection] = useState<Section>('more')
+  const [me, setMe] = useState<MeResponse | null>(null)
+  const [households, setHouseholds] = useState<Household[]>([])
+  const [selected, setSelected] = useState<Household | null>(null)
+  const [devices, setDevices] = useState<Device[]>([])
+  const [pairing, setPairing] = useState<PairingSession | null>(null)
+  const [name, setName] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  async function refresh() { const [account, householdList] = await Promise.all([getMe(server.accessToken, server.baseUrl), listHouseholds(server.accessToken, server.baseUrl)]); setMe(account); setHouseholds(householdList) }
+  useEffect(() => { void refresh().catch((reason) => setError(reason instanceof Error ? reason.message : 'Could not load settings.')) }, [server.accessToken, server.baseUrl])
+  useEffect(() => {
+    if (section !== 'household' || !selected || me?.households.find((entry) => entry.household_id === selected.id)?.relationship_type !== 'owner') return
+    let cancelled = false
+    let loading = false
+    async function refreshDevices() {
+      if (loading || !selected) return
+      loading = true
+      try {
+        const next = await listDevices(server.accessToken, selected.id, server.baseUrl)
+        if (!cancelled) { setDevices(next); setError(null) }
+      } catch (reason) {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : 'Could not refresh connected devices.')
+      } finally { loading = false }
+    }
+    const interval = setInterval(() => void refreshDevices(), 2_000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [me, section, selected, server.accessToken, server.baseUrl])
+  async function chooseHousehold(household: Household) {
+    if (household.id !== server.householdId) {
+      await onSwitch(household)
+      return
+    }
+    setSelected(household)
+    setPairing(null)
+    setSection('household')
+    const owner = me?.households.find((entry) => entry.household_id === household.id)?.relationship_type === 'owner'
+    setDevices(owner ? await listDevices(server.accessToken, household.id, server.baseUrl) : [])
+  }
+  async function pairDevice(household: Household) { try { setPairing(await createPairingSession(server.accessToken, household.id, { instance_name: `${household.name} WhereHouse`, instance_type: server.baseUrl.includes('localhost') ? 'local' : 'cloud' }, server.baseUrl)) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not create a pairing link.') } }
+  function revoke(device: Device) { return new Promise<void>((resolve) => Alert.alert('Revoke device?', `${device.name} will no longer be able to sync.`, [{ text: 'Cancel', style: 'cancel', onPress: () => resolve() }, { text: 'Revoke', style: 'destructive', onPress: () => { void revokeDevice(server.accessToken, device.id, server.baseUrl).then(async () => { if (selected) setDevices(await listDevices(server.accessToken, selected.id, server.baseUrl)); resolve() }) } }])) }
+  async function addHousehold() { if (!name.trim()) return; const household = await createHousehold(server.accessToken, name.trim(), server.baseUrl); setName(''); await refresh(); await onSwitch(household); setSelected(household); setSection('household') }
+  const title = section === 'more' ? 'More' : section === 'privacy' ? 'Data & Privacy' : section === 'household' ? selected?.name ?? 'Household' : section[0].toUpperCase() + section.slice(1)
+  return <View style={styles.settingsRoot}>{section !== 'more' ? <Pressable accessibilityLabel="Back" onPress={() => setSection(section === 'household' ? 'households' : 'more')} style={styles.settingsBack}><ChevronLeft color="#4f46e5" size={20} /><Text style={styles.settingsBackText}>Back</Text></Pressable> : null}<Text style={styles.settingsTitle}>{title}</Text>{error ? <Text style={styles.error}>{error}</Text> : null}{section === 'more' ? <View style={styles.settingsList}>{entries.map(({ id, label, icon: Icon }) => <Pressable key={id} onPress={() => setSection(id)} style={styles.settingsRow}><Icon color="#4f46e5" size={20} /><Text style={styles.settingsRowText}>{label}</Text><ChevronRight color="#98a2b3" size={18} /></Pressable>)}</View> : section === 'account' ? <View style={styles.settingsCard}><Text style={styles.settingsLabel}>Display name</Text><Text style={styles.settingsValue}>{me?.user.display_name ?? 'Loading…'}</Text><Text style={styles.settingsLabel}>Email</Text><Text style={styles.settingsValue}>{me?.user.email ?? 'Loading…'}</Text><Pressable onPress={onForget} style={styles.settingsDanger}><Text style={styles.settingsDangerText}>Sign out and forget this device</Text></Pressable></View> : section === 'households' ? <><View style={styles.settingsList}>{households.map((household) => { const active = household.id === server.householdId; const role = me?.households.find((entry) => entry.household_id === household.id)?.relationship_type; return <Pressable accessibilityHint={active ? 'Opens household settings' : 'Switches to this household'} accessibilityLabel={`${household.name}${active ? ', active' : ''}`} key={household.id} onPress={() => void chooseHousehold(household)} style={styles.settingsRow}><House color="#4f46e5" size={20} /><View style={styles.settingsRowCopy}><Text style={styles.settingsRowText}>{household.name}</Text><Text style={styles.settingsMeta}>{role}{active ? ' · Active' : ' · Tap to switch'}</Text></View><ChevronRight color="#98a2b3" size={18} /></Pressable>})}</View><View style={styles.settingsCard}><Text style={styles.settingsLabel}>Add Household</Text><TextInput onChangeText={setName} placeholder="Household name" style={styles.settingsInput} value={name} /><Pressable onPress={() => void addHousehold()} style={styles.settingsPrimary}><Plus color="#fff" size={18} /><Text style={styles.settingsPrimaryText}>Add household</Text></Pressable></View></> : section === 'household' && selected ? <HouseholdDetail devices={devices} household={selected} isActive={selected.id === server.householdId} me={me} onPair={() => pairDevice(selected)} onRevoke={revoke} onSwitch={() => onSwitch(selected)} pairing={pairing} /> : section === 'preferences' ? <InfoCard title="Appearance">WhereHouse currently follows your system appearance.</InfoCard> : section === 'privacy' ? <InfoCard icon={<Database color="#4f46e5" size={22} />} title="Local data">Inventory cache and pending operations are isolated by household. Signing out removes credentials but does not delete authoritative inventory.</InfoCard> : <AboutCard />}</View>
+}
+
+function HouseholdDetail({ devices, household, isActive, me, onPair, onRevoke, onSwitch, pairing }: { devices: Device[]; household: Household; isActive: boolean; me: MeResponse | null; onPair: () => Promise<void>; onRevoke: (device: Device) => Promise<void>; onSwitch: () => Promise<void>; pairing: PairingSession | null }) {
+  const role = me?.households.find((entry) => entry.household_id === household.id)?.relationship_type
+  const activeDevices = devices.filter((device) => device.is_active)
+  return <><View style={styles.settingsCard}><Text style={styles.settingsLabel}>Relationship</Text><Text style={styles.settingsValue}>{role ?? 'member'}</Text>{!isActive ? <Pressable onPress={() => void onSwitch()} style={styles.settingsPrimary}><Text style={styles.settingsPrimaryText}>Switch to this household</Text></Pressable> : <Text style={styles.settingsActive}>Active household</Text>}</View><View style={styles.settingsCard}><Text style={styles.settingsSectionTitle}>Connected Devices</Text>{role !== 'owner' ? <Text style={styles.settingsMeta}>Only owners can manage connected devices.</Text> : <><Pressable onPress={() => void onPair()} style={styles.settingsPrimary}><Plus color="#fff" size={18} /><Text style={styles.settingsPrimaryText}>Pair another device</Text></Pressable>{pairing ? <><Text selectable style={styles.settingsPairingCode}>{pairing.pairing_uri}</Text><Text style={styles.settingsMeta}>Use this one-time link on the new device before {new Date(pairing.expires_at).toLocaleTimeString()}.</Text></> : null}{activeDevices.length ? activeDevices.map((device) => <View key={device.id} style={styles.settingsDevice}>{device.device_type === 'phone' ? <Smartphone color="#4f46e5" size={20} /> : <Laptop color="#4f46e5" size={20} />}<View style={styles.settingsRowCopy}><Text style={styles.settingsRowText}>{device.name}</Text><Text style={styles.settingsMeta}>{device.device_type}{device.id === me?.device_id ? ' · This device' : ''}</Text></View>{device.id !== me?.device_id ? <Pressable accessibilityLabel={`Revoke ${device.name}`} onPress={() => void onRevoke(device)}><Text style={styles.settingsDangerText}>Revoke</Text></Pressable> : null}</View>) : <Text style={styles.settingsMeta}>No connected devices.</Text>}</>}</View></>
+}
+
+function InfoCard({ children, icon, title }: { children: string; icon?: React.ReactNode; title: string }) { return <View style={styles.settingsCard}>{icon}<Text style={styles.settingsSectionTitle}>{title}</Text><Text style={styles.settingsMeta}>{children}</Text></View> }
+
+function AboutCard() { return <View style={styles.settingsCard}><Image accessibilityLabel="WhereHouse" resizeMode="contain" source={require('../../../../web/public/logo.png')} style={styles.settingsLogo} /><Text style={styles.settingsSectionTitle}>WhereHouse</Text><Text style={styles.settingsMeta}>Local-first household inventory and spatial organization.</Text></View> }

@@ -71,5 +71,5 @@ export function App() {
 
   const selected = households.find((household) => household.id === selectedId) ?? households[0]
   const membership = me.households.find((access) => access.household_id === selected.id)
-  return <Dashboard household={selected} households={households} isOwner={membership?.relationship_type === 'owner'} onSelect={(id) => { setSelectedId(id); localStorage.setItem(HOUSEHOLD_KEY, id) }} onSignOut={signOut} token={token} user={me} />
+  return <Dashboard household={selected} households={households} isOwner={membership?.relationship_type === 'owner'} onCreateHousehold={addHousehold} onSelect={(id) => { setSelectedId(id); localStorage.setItem(HOUSEHOLD_KEY, id) }} onSignOut={signOut} token={token} user={me} />
 }

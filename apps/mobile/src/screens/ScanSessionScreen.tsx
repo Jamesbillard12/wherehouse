@@ -53,7 +53,7 @@ export function ScanSessionScreen({ entries, onClose, onNfc, onOpen, onQr }: {
           return <Pressable key={entry.identifier.id} onPress={() => onOpen(entry)} style={styles.containerRow}><Package color="#4f46e5" size={18} /><View style={styles.containerCopy}><Text style={styles.containerName}>{target?.name ?? 'Unknown target'}</Text><Text style={styles.containerMeta}>{entry.identifier.target_type} · {entry.item?.code ?? entry.container?.code}</Text></View></Pressable>
         })}
       </ScrollView>
-      {!entries.length ? <Text style={styles.scannerHelp}>Scan QR labels continuously, or tap Add by NFC.</Text> : null}
+      {!entries.length ? <Text style={styles.scannerHelp}>Scan item and container labels, or a household pairing QR code. You can also tap Add by NFC.</Text> : null}
     </SafeAreaView>
   </View>
 }

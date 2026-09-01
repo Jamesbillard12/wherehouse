@@ -82,8 +82,6 @@ async def require_household_access(
     *,
     owner: bool = False,
 ) -> HouseholdUser:
-    if principal.device_household_id is not None and principal.device_household_id != household_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Household access denied")
     membership = await session.scalar(
         select(HouseholdUser).where(
             HouseholdUser.household_id == household_id,

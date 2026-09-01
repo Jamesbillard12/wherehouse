@@ -1,6 +1,13 @@
-export type DashboardView = 'overview' | 'items' | 'locations'
+export type SettingsSection = 'account' | 'households' | 'preferences' | 'privacy' | 'about'
+export type DashboardView = 'overview' | 'items' | 'locations' | 'settings'
+
+export function settingsSectionFromLocation(): SettingsSection {
+  const section = location.pathname.split('/')[2]
+  return section === 'households' || section === 'preferences' || section === 'privacy' || section === 'about' ? section : 'account'
+}
 
 export function viewFromLocation(): DashboardView {
   if (location.pathname === '/items') return 'items'
-  return location.pathname === '/locations' ? 'locations' : 'overview'
+  if (location.pathname === '/locations') return 'locations'
+  return location.pathname.startsWith('/settings') ? 'settings' : 'overview'
 }
