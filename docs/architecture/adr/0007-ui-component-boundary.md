@@ -64,7 +64,7 @@ renderers remain possible without changing application or schema semantics.
 
 ## Now
 
-Apply the detailed [UI component architecture](../ui-architecture.md) to new work. Retain Lucide and
+Apply the detailed [UI component architecture](../../design/ui-architecture.md) to new work. Retain Lucide and
 introduce semantic names. The bounded shadcn pilot uses Base UI Button, Input, Textarea, and Dialog
 source components for the web add-item dialog; expand it only through scheduled features. Validate
 gluestack on one representative mobile prototype before wider mobile adoption.

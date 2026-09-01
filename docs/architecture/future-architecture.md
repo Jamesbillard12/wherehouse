@@ -8,7 +8,7 @@ Natural-language assistants, MCP, controlled generative UI, QR-linked objects, o
 models, 3D views, and AR guidance are additional interfaces over the same household model.
 
 This is an evolutionary architecture. The system remains a modular monolith until operational
-evidence justifies another deployment shape. See [what to build now](build-now-vs-later.md).
+evidence justifies another deployment shape. See [what to build now](../product/build-now-vs-later.md).
 
 ## Repository assessment (August 2026)
 
@@ -20,14 +20,14 @@ evidence justifies another deployment shape. See [what to build now](build-now-v
 | Persistence | PostgreSQL, SQLAlchemy models, Alembic migrations | Stable UUIDs and additive migrations are a strong base |
 | Shared contracts | Handwritten TypeScript types and resource clients in `packages/api-client` | Useful today; must prevent drift from Pydantic/OpenAPI as clients expand |
 | Locations | Fixed Area and Zone prefix, arbitrary nested Container placements | Supports MVP and deep container nesting, but not one uniform arbitrary location tree |
-| Identity | UUID entity IDs plus public item/container codes and QR/NFC mode | Strong base; public identifiers should eventually be separate typed records |
-| Auth | Household membership and household-scoped device credentials | Strong base; capability scopes and audit context are not yet modeled |
-| Events | In-process realtime invalidations published from routes | Useful current consumer; not durable domain events or an audit record |
+| Identity | Stable UUIDs, compatibility codes, and first-class typed `PhysicalIdentifier` records | Strong medium-neutral base; lifecycle and physical validation need hardening |
+| Auth | Household membership, household-scoped device credentials, and basic actor context | Strong base; persisted capability scopes and audit context wait for integration consumers |
+| Events | In-process realtime invalidations published from routes and extracted item capabilities | Useful current consumer; not durable domain events or an audit record |
 
-Existing service modules mostly provide infrastructure (image storage, codes, realtime). Repository
-helpers are minimal, while create/update/move rules, commits, and event publication live in REST
-routes. The highest-value next architectural step is a small application layer, introduced one
-changed use case at a time.
+Infrastructure services cover image storage, codes and realtime. The application layer now includes
+create/delete/move item and identifier capabilities with a framework-neutral actor context, while
+substantial location, update and route orchestration remains transport-owned. Continue extraction
+one materially changed use case at a time rather than bulk rewriting.
 
 ## Target dependency direction
 
@@ -134,4 +134,4 @@ contents by default.
 6. Mobile offline writes need explicit conflict, idempotency, and version semantics as coverage grows.
 
 These risks do not justify an immediate rewrite. Their sequencing is captured in the
-[roadmap](roadmap.md) and decisions in [ADRs](adr/README.md).
+[roadmap](../product/roadmap.md) and decisions in [ADRs](adr/README.md).

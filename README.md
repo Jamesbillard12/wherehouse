@@ -2,120 +2,52 @@
 
 **Know what you have. Know where it is.**
 
-WhereHouse is a household inventory, storage, lending, transfer, and activity-preparation platform. It is designed to run either self-hosted on a Raspberry Pi or in the cloud while using the same API and client applications.
+WhereHouse is a local-first household inventory and spatial-organization platform for web, mobile,
+Raspberry Pi self-hosting, and cloud deployment. Core workflows already cover authentication and
+pairing, households/settings, inventory and location management, photos, QR/NFC identifiers, mobile
+caching/queued writes, and realtime invalidation. MVP hardening is underway; backup/restore,
+operational reliability, complete offline correctness, physical-device validation, and release-level
+testing remain gates. WhereHouse is not production-ready.
 
-## Core goals
-
-- Track household items and exactly where they are stored.
-- Model areas, zones, containers, nested container placement, and items.
-- Scan QR codes from the companion app to find, move, check out, and return items.
-- Use AI-assisted photo analysis to propose item details and storage locations.
-- Track item custody with checkouts and item movement with transfers.
-- Support reusable activity/loadout checklists such as camping trips.
-- Work offline in the companion app and synchronize when connectivity returns.
-- Generate printable QR labels for containers and items.
-- Support both Raspberry Pi self-hosting and cloud deployment.
+Advanced AI, MCP, assistants, generative UI, automation, 3D and AR are intentionally post-MVP.
+During MVP, capability, actor, confirmation, idempotency, identifier, contract and storage boundaries
+are being established so those systems can be added without duplicating business rules.
 
 ## Technology
 
-| Layer | Technology |
-| --- | --- |
-| Web | React + Vite + TypeScript |
-| Companion | React Native + Expo + TypeScript |
-| API | Python + FastAPI |
-| Validation | Pydantic |
-| ORM | SQLAlchemy 2 |
-| Migrations | Alembic |
-| Server database | PostgreSQL |
-| Companion database | SQLite |
-| Python tooling | uv, Ruff, Pytest |
-| TypeScript tooling | pnpm, Vitest |
-| API contract | OpenAPI-generated TypeScript client |
-| Local deployment | Docker Compose + Caddy |
-| Cloud web hosting | Netlify-compatible static build |
-| Cloud API | Containerized FastAPI deployment |
-| Object storage | Local filesystem or S3-compatible provider |
+React/Vite/TypeScript web; React Native/Expo/TypeScript mobile; FastAPI/Pydantic/SQLAlchemy/Alembic
+backend; PostgreSQL server data and SQLite mobile cache; pnpm/Vitest and uv/Pytest/Ruff; Docker
+Compose/Caddy local deployment; local or S3-compatible primary media storage.
 
 ## Repository layout
 
 ```text
-wherehouse/
-├── apps/
-│   ├── web/
-│   └── mobile/
-├── backend/
-├── packages/
-│   └── api-client/
-├── deploy/
-│   ├── docker/
-│   ├── raspberry-pi/
-│   └── cloud/
-├── docs/
-│   ├── architecture.md
-│   ├── domain-model.md
-│   └── mvp.md
-├── docker-compose.yml
-└── README.md
+apps/web/                Web client
+apps/mobile/             Mobile companion
+backend/                 API, application capabilities, persistence and tests
+packages/api-client/     Cross-client API contract/client
+deploy/                  Deployment implementation material
+docs/                    Canonical product, architecture, design and operations docs
 ```
-
-## Documentation
-
-- [Documentation index](docs/README.md)
-- [Architecture](docs/architecture.md)
-- [Domain model](docs/domain-model.md)
-- [MVP](docs/mvp.md)
-- [Authentication and pairing](docs/authentication.md)
-- [UI direction](docs/ui-direction.md)
-- [Future architecture](docs/future-architecture.md)
-- [Roadmap](docs/roadmap.md)
 
 ## Run locally
 
-With Node 22 selected through nvm, install everything once:
+With Node 22 selected through nvm:
 
 ```bash
 nvm use
 ./setup.sh
-```
-
-Start PostgreSQL, apply migrations, and run the API and web app:
-
-```bash
 ./dev.sh
 ```
 
-The web app is available at `http://localhost:5173`, the API at
-`http://localhost:8000`, and API documentation at `http://localhost:8000/api/docs`.
+Web is at `http://localhost:5173`, API at `http://localhost:8000`, and API docs at
+`http://localhost:8000/api/docs`. In another terminal run `./mobile.sh`; use `./ios-simulator.sh` or
+`./ios-device.sh` for those targets. `./dev.sh` uses the Mac LAN address in new pairing codes; set
+`PUBLIC_BASE_URL` in `.env` if needed. `./docker-up.sh` runs the container deployment at
+`http://localhost:8080`; `./stop.sh` stops it.
 
-In another terminal, start the Expo companion:
+## Documentation
 
-```bash
-nvm use
-./mobile.sh
-```
-
-Use the dedicated script for the target you are running:
-
-```bash
-./ios-simulator.sh
-# or, with an iPhone connected by USB or Wi-Fi:
-./ios-device.sh
-```
-
-The device script selects a connected iPhone, refreshes CocoaPods, makes Expo SQLite's generated
-header import unambiguous, clears stale native build products, signs the app, and installs it. This
-avoids Xcode resolving Apple's `sqlite3.h` after a Simulator build. Both scripts forward additional
-arguments to Expo and load the Node version in `.nvmrc` when NVM is installed. Keep `./dev.sh`
-running separately for API access.
-
-`./dev.sh` automatically uses the Mac's LAN address in new pairing codes so a physical phone on
-the same Wi-Fi network can reach the API. If detection fails or a different hostname is required,
-set `PUBLIC_BASE_URL` in `.env`, for example `http://192.168.1.20:8000`. Generate a new pairing code
-after changing this value. To run the complete containerized deployment at
-`http://localhost:8080`, use `./docker-up.sh`. Run `./stop.sh` to stop Docker services.
-
-## Status
-
-Early product implementation: web and companion clients, the versioned API, authentication and
-pairing, inventory/location management, mobile caching and queued writes, and realtime invalidation
-are in progress. See the [roadmap](docs/roadmap.md) for current and future phases.
+Start with the [documentation index](docs/README.md), [MVP definition](docs/product/mvp.md),
+[execution plan](docs/product/mvp-execution-plan.md), [release checklist](docs/product/mvp-release-checklist.md),
+[architecture](docs/architecture/README.md), and [deployment guidance](docs/deployment/README.md).

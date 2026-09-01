@@ -4,7 +4,7 @@ This document records the intended product experience for the WhereHouse web and
 applications. The reference mockup is a product-direction artifact, not a claim that every screen
 or feature shown has been implemented.
 
-![WhereHouse web and companion UI direction](../assets/ChatGPT%20Image%20Aug%2026%2C%202026%2C%2008_44_20%20PM.png)
+![WhereHouse web and companion UI direction](../../assets/ChatGPT%20Image%20Aug%2026%2C%202026%2C%2008_44_20%20PM.png)
 
 ## Experience principles
 
