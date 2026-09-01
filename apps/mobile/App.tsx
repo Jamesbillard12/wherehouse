@@ -29,7 +29,8 @@ import { styles } from './src/theme/styles'
 import { BottomNavigation, type MobileTab } from './src/components/BottomNavigation'
 import { ScannerScreen } from './src/components/ScannerScreen'
 import { AppHeader } from './src/components/AppHeader'
-import { ContainersScreen } from './src/screens/ContainersScreen'
+import { LocationSelectorSheet } from './src/components/LocationSelectorSheet'
+import { LocationsScreen } from './src/screens/LocationsScreen'
 import { HomeScreen } from './src/screens/HomeScreen'
 import { PairingScreen } from './src/screens/PairingScreen'
 import { AddItemScreen } from './src/screens/AddItemScreen'
@@ -61,7 +62,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<MobileTab>('home')
   const [inventory, setInventory] = useState<CachedInventory>(EMPTY_INVENTORY)
   const [syncing, setSyncing] = useState(false)
-  const [selectedContainer, setSelectedContainer] = useState<StorageContainer | null>(null)
+  const [selectedLocation, setSelectedLocation] = useState<ItemLocationChoice | null>(null)
+  const [locationSelectorOpen, setLocationSelectorOpen] = useState(false)
   const [addItemLocation, setAddItemLocation] = useState<ItemLocationChoice | undefined>()
   const [recentItemLocations, setRecentItemLocations] = useState<ItemLocationChoice[]>([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -260,12 +262,12 @@ export default function App() {
     try {
       const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
       const container = await client.getContainerByCode(code)
-      setSelectedContainer(container)
+      setSelectedLocation(containerLocationChoice(container, inventory))
       setActiveTab('containers')
     } catch (reason) {
       const cached = inventory.containers.find((container) => container.code === code.toUpperCase())
       if (cached) {
-        setSelectedContainer(cached)
+        setSelectedLocation(containerLocationChoice(cached, inventory))
         setActiveTab('containers')
       } else {
         setError(reason instanceof Error ? reason.message : 'Container not found.')
@@ -304,7 +306,7 @@ export default function App() {
     setError(null)
     try {
       const result = await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).resolveIdentifier(parsed.publicId)
-      if (result.container) { setSelectedContainer(result.container); setActiveTab('containers') }
+      if (result.container) { setSelectedLocation(containerLocationChoice(result.container, inventory)); setActiveTab('containers') }
       else if (result.item) { setEditingItem(result.item); setActiveTab('items') }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Identifier could not be resolved.')
@@ -332,7 +334,7 @@ export default function App() {
   function openScanSessionEntry(entry: IdentifierResolution) {
     setScanSessionOpen(false)
     if (entry.item) { setEditingItem(entry.item); setActiveTab('items') }
-    else if (entry.container) { setSelectedContainer(entry.container); setActiveTab('containers') }
+    else if (entry.container) { setSelectedLocation(containerLocationChoice(entry.container, inventory)); setActiveTab('containers') }
   }
 
   async function readNfc() {
@@ -365,6 +367,16 @@ export default function App() {
     }
   }
 
+  function openLocations() {
+    setLocationSelectorOpen(true)
+  }
+
+  function selectLocation(location: ItemLocationChoice) {
+    setSelectedLocation(location)
+    setLocationSelectorOpen(false)
+    setActiveTab('containers')
+  }
+
   if (scannerMode) {
     return <ScannerScreen mode={scannerMode} onCancel={() => setScannerMode(null)} onError={setError} onScan={(data) => { setError(null); setScannerMode(null); if (scannerMode === 'pairing') setPairingUri(data); else if (scannerMode === 'item-location') void selectItemLocationCode(data); else void identify(data) }} />
   }
@@ -385,20 +397,21 @@ export default function App() {
           showsVerticalScrollIndicator={false}
         >
           <AppHeader connected={Boolean(pairedServer)} />
-          <Text style={styles.title}>{pairedServer ? activeTab === 'containers' ? 'Containers' : activeTab === 'items' ? 'Items' : 'Companion ready' : 'Connect companion'}</Text>
+          <Text style={styles.title}>{pairedServer ? activeTab === 'containers' ? 'Locations' : activeTab === 'items' ? 'Items' : 'Companion ready' : 'Connect companion'}</Text>
           <Text style={styles.subtitle}>
-            {pairedServer ? activeTab === 'containers' ? 'Browse cached storage or scan a container label.' : activeTab === 'items' ? 'Find and update your household inventory.' : 'Your household will stay close, even when the signal does not.' : 'Pair this phone with your household to get started.'}
+            {pairedServer ? activeTab === 'containers' ? 'Browse areas, zones, containers, and everything stored inside.' : activeTab === 'items' ? 'Find and update your household inventory.' : 'Your household will stay close, even when the signal does not.' : 'Pair this phone with your household to get started.'}
           </Text>
           {busy ? (
             <ActivityIndicator style={styles.activity} color="#166534" size="large" />
-          ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={() => setActiveTab('containers')} onForget={() => void forget()} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanSession()} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
+          ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={openLocations} onForget={() => void forget()} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanSession()} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
             : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} syncing={syncing} />
-            : pairedServer ? <ContainersScreen error={error} inventory={inventory} onAddItem={(container) => { setAddItemLocation(containerLocationChoice(container, inventory)); setActiveTab('add-item') }} onRefresh={() => void refreshInventory()} onSelect={setSelectedContainer} onWriteNfc={writeContainerNfc} selected={selectedContainer} syncing={syncing} />
+            : pairedServer ? <LocationsScreen error={error} inventory={inventory} onAddItem={(location) => { setAddItemLocation(location); setActiveTab('add-item') }} onChangeLocation={openLocations} onOpenItem={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} onSelect={setSelectedLocation} onWriteNfc={async (containerId) => { const container = inventory.containers.find((entry) => entry.id === containerId); if (container) await writeContainerNfc(container) }} selected={selectedLocation} syncing={syncing} />
               : <PairingScreen error={error} onChange={setPairingUri} onPair={() => void pair()} onScan={() => void openScanner('pairing')} value={pairingUri} />}
         </ScrollView>
         {pairedServer ? (
-          <BottomNavigation activeTab={activeTab} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onNfc={() => void readNfc()} onScan={() => void openScanSession()} onSelect={(tab) => { setActiveTab(tab); if (tab === 'items') void refreshInventory() }} />
+          <BottomNavigation activeTab={activeTab} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onLocations={openLocations} onNfc={() => void readNfc()} onScan={() => void openScanSession()} onSelect={(tab) => { setActiveTab(tab); if (tab === 'items') void refreshInventory() }} />
         ) : null}
+        {pairedServer ? <LocationSelectorSheet inventory={inventory} onClose={() => setLocationSelectorOpen(false)} onSelect={selectLocation} syncing={syncing} visible={locationSelectorOpen} /> : null}
         <StatusBar style="auto" />
       </View>
     </SafeAreaView>
