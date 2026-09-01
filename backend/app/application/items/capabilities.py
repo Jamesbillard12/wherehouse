@@ -1,13 +1,19 @@
-from dataclasses import dataclass
+import hashlib
+import json
+from dataclasses import asdict, dataclass
+from decimal import Decimal
+from enum import Enum
 from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.context import ActorContext
 from app.models import Area, Container, HouseholdUser, Item, ItemPlacement, Zone
-from app.models.core import ContainerRelationship
+from app.models.core import ContainerRelationship, ItemIdentifierType
+from app.services.container_codes import next_item_code
 
 
 class MoveItemError(Exception):
@@ -25,6 +31,105 @@ class HouseholdAccessDenied(MoveItemError):
 
 class InvalidMove(MoveItemError):
     pass
+
+
+class IdempotencyConflict(MoveItemError):
+    pass
+
+
+@dataclass(frozen=True)
+class CreateItem:
+    name: str
+    identifier_type: ItemIdentifierType
+    quantity: Decimal
+    client_operation_id: str | None = None
+    description: str | None = None
+    unit: str | None = None
+    manufacturer: str | None = None
+    model: str | None = None
+    serial_number: str | None = None
+    notes: str | None = None
+
+
+def _json_value(value: object) -> object:
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, Decimal):
+        return str(value)
+    raise TypeError(f"Unsupported creation payload value: {type(value).__name__}")
+
+
+def _creation_payload_hash(command: CreateItem) -> str:
+    values = asdict(command)
+    values.pop("client_operation_id")
+    encoded = json.dumps(
+        values, sort_keys=True, separators=(",", ":"), default=_json_value
+    ).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+async def create_item(
+    session: AsyncSession,
+    actor: ActorContext,
+    household_id: UUID,
+    command: CreateItem,
+    events: "EventPublisher",
+) -> Item:
+    await _require_access(session, actor, household_id)
+    payload_hash = _creation_payload_hash(command)
+    if command.client_operation_id is not None:
+        existing = await session.scalar(
+            select(Item).where(
+                Item.household_id == household_id,
+                Item.creation_operation_id == command.client_operation_id,
+            )
+        )
+        if existing is not None:
+            if existing.creation_payload_hash != payload_hash:
+                raise IdempotencyConflict("Client operation ID was already used for another request")
+            return existing
+
+    values = asdict(command)
+    values.pop("client_operation_id")
+    item = Item(
+        household_id=household_id,
+        code=await next_item_code(session),
+        creation_operation_id=command.client_operation_id,
+        creation_payload_hash=payload_hash if command.client_operation_id else None,
+        **values,
+    )
+    session.add(item)
+    try:
+        await session.commit()
+        await session.refresh(item)
+    except IntegrityError:
+        await session.rollback()
+        if command.client_operation_id is None:
+            raise
+        existing = await session.scalar(
+            select(Item).where(
+                Item.household_id == household_id,
+                Item.creation_operation_id == command.client_operation_id,
+            )
+        )
+        if existing is None:
+            raise
+        if existing.creation_payload_hash != payload_hash:
+            raise IdempotencyConflict(
+                "Client operation ID was already used for another request"
+            )
+        return existing
+    except Exception:
+        await session.rollback()
+        raise
+    await events.publish(
+        household_id,
+        entity="item",
+        action="created",
+        entity_id=item.id,
+        source=actor.client,
+    )
+    return item
 
 
 async def delete_item(

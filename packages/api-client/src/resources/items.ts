@@ -9,6 +9,7 @@ export function createItem(
   token: string,
   householdId: string,
   payload: {
+    client_operation_id?: string
     name: string
     identifier_type: Item['identifier_type']
     description?: string

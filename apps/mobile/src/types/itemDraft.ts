@@ -6,6 +6,7 @@ export type ItemLocationChoice = {
 }
 
 export type ItemDraft = {
+  schemaVersion: 1
   localId: string
   name: string
   quantity: number
@@ -40,6 +41,7 @@ export type ItemUpdateDraft = {
 
 export function newItemDraft(location?: ItemLocationChoice): ItemDraft {
   return {
+    schemaVersion: 1,
     localId: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: '',
     quantity: 1,

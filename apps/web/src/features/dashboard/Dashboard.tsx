@@ -207,7 +207,7 @@ export function Dashboard({
         </div>
       </aside>
 
-      <section className="dashboard-content">
+      <section className={`dashboard-content ${activeView === 'overview' ? 'overview-content' : ''}`}>
         {activeView === 'items' ? (
           <ItemsView household={household} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
