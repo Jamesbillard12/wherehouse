@@ -17,16 +17,15 @@ export function logout(token: string): Promise<void> {
   return apiRequest('/auth/logout', { method: 'POST', token })
 }
 
-export function getMe(token: string): Promise<MeResponse> {
-  return apiRequest('/auth/me', { token })
+export function getMe(token: string, baseUrl?: string): Promise<MeResponse> {
+  return apiRequest('/auth/me', { baseUrl, token })
 }
 
-export function listHouseholds(token: string): Promise<Household[]> {
-  return apiRequest('/households', { token })
+export function listHouseholds(token: string, baseUrl?: string): Promise<Household[]> {
+  return apiRequest('/households', { baseUrl, token })
 }
 
-export function createHousehold(token: string, name: string): Promise<Household> {
-  return apiRequest('/households', { method: 'POST', token, body: { name } })
+export function createHousehold(token: string, name: string, baseUrl?: string): Promise<Household> {
+  return apiRequest('/households', { baseUrl, method: 'POST', token, body: { name } })
 }
-
 

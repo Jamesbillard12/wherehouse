@@ -1,6 +1,6 @@
 import { useCameraPermissions } from 'expo-camera'
 import { StatusBar } from 'expo-status-bar'
-import { createRemoteClient, parseIdentifierPayload, subscribeToHousehold, type IdentifierResolution, type Item, type StorageContainer } from '@wherehouse/api-client'
+import { createRemoteClient, listHouseholds, parseIdentifierPayload, subscribeToHousehold, type Household, type IdentifierResolution, type Item, type StorageContainer } from '@wherehouse/api-client'
 import { useEffect, useMemo, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
@@ -14,12 +14,13 @@ import {
 
 import {
   forgetPairedServer,
+  isPairingUri,
   loadPairedServer,
   pairDevice,
+  savePairedServer,
   type PairedServer,
 } from './src/services/pairing'
 import {
-  clearInventoryCache,
   cacheItemUpdate,
   loadCachedInventory,
   syncInventory,
@@ -42,6 +43,7 @@ import type { ItemDraft, ItemLocationChoice, ItemUpdateDraft } from './src/types
 import { containerLocationChoice, itemLocationChoices, placementLocationChoice } from './src/utils/itemLocations'
 import { readNfcIdentifier, writeNfcIdentifier } from './src/services/nfc'
 import { cacheItemImage } from './src/services/itemImages'
+import { SettingsScreen } from './src/features/settings/SettingsScreen'
 
 const EMPTY_INVENTORY: CachedInventory = {
   areas: [],
@@ -115,6 +117,19 @@ export default function App() {
   }, [pairedServer])
 
   useEffect(() => {
+    if (!pairedServer) return
+    let cancelled = false
+    void listHouseholds(pairedServer.accessToken, pairedServer.baseUrl).then(async (households) => {
+      const active = households.find((household) => household.id === pairedServer.householdId)
+      if (!active || active.name === pairedServer.instanceName || cancelled) return
+      const next = { ...pairedServer, instanceName: active.name }
+      await savePairedServer(next)
+      if (!cancelled) setPairedServer(next)
+    }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [pairedServer?.accessToken, pairedServer?.householdId])
+
+  useEffect(() => {
     setEditingItemImageUri(undefined)
     if (!pairedServer || !editingItem?.image_path) return
     let cancelled = false
@@ -180,12 +195,39 @@ export default function App() {
     }
   }
 
+  async function pairFromScan(value: string) {
+    const next = await pairDevice(value, `${Platform.OS} companion`)
+    setSelectedLocation(null)
+    setAddItemLocation(undefined)
+    setEditItemLocation(undefined)
+    setEditingItem(null)
+    setInventory(EMPTY_INVENTORY)
+    setScanSessionEntries([])
+    setScanSessionOpen(false)
+    setScannerMode(null)
+    setPairedServer(next)
+    setActiveTab('home')
+    setError(null)
+  }
+
   async function forget() {
     setBusy(true)
-    if (pairedServer) await clearInventoryCache(pairedServer.householdId)
     await forgetPairedServer()
     setPairedServer(null)
     setBusy(false)
+  }
+
+  async function switchHousehold(household: Household) {
+    if (!pairedServer || pairedServer.householdId === household.id) return
+    const next = { ...pairedServer, householdId: household.id, instanceName: household.name }
+    setSelectedLocation(null)
+    setAddItemLocation(undefined)
+    setEditItemLocation(undefined)
+    setEditingItem(null)
+    setInventory(EMPTY_INVENTORY)
+    await savePairedServer(next)
+    setPairedServer(next)
+    setActiveTab('home')
   }
 
   async function openScanner(mode: 'pairing' | 'identify' | 'item-location') {
@@ -300,6 +342,13 @@ export default function App() {
 
   async function identify(value: string) {
     if (!pairedServer) return
+    if (isPairingUri(value)) {
+      setBusy(true)
+      try { await pairFromScan(value) }
+      catch (reason) { setError(reason instanceof Error ? reason.message : 'Household pairing failed.') }
+      finally { setBusy(false) }
+      return
+    }
     const parsed = parseIdentifierPayload(value)
     if (!parsed || parsed.version !== 1) return openContainerCode(value)
     setBusy(true)
@@ -315,6 +364,10 @@ export default function App() {
 
   async function resolveForScanSession(value: string) {
     if (!pairedServer) return
+    if (isPairingUri(value)) {
+      await pairFromScan(value)
+      return
+    }
     const parsed = parseIdentifierPayload(value)
     if (!parsed || parsed.version !== 1) throw new Error('That is not a supported WhereHouse identifier.')
     const result = await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).resolveIdentifier(parsed.publicId)
@@ -397,14 +450,15 @@ export default function App() {
           showsVerticalScrollIndicator={false}
         >
           <AppHeader connected={Boolean(pairedServer)} />
-          <Text style={styles.title}>{pairedServer ? activeTab === 'containers' ? 'Locations' : activeTab === 'items' ? 'Items' : 'Companion ready' : 'Connect companion'}</Text>
+          <Text style={styles.title}>{pairedServer ? activeTab === 'containers' ? 'Locations' : activeTab === 'items' ? 'Items' : activeTab === 'more' ? 'Settings' : 'Companion ready' : 'Connect companion'}</Text>
           <Text style={styles.subtitle}>
-            {pairedServer ? activeTab === 'containers' ? 'Browse areas, zones, containers, and everything stored inside.' : activeTab === 'items' ? 'Find and update your household inventory.' : 'Your household will stay close, even when the signal does not.' : 'Pair this phone with your household to get started.'}
+            {pairedServer ? activeTab === 'containers' ? 'Browse areas, zones, containers, and everything stored inside.' : activeTab === 'items' ? 'Find and update your household inventory.' : activeTab === 'more' ? `Manage ${pairedServer.instanceName}, your account, and this app.` : 'Your household will stay close, even when the signal does not.' : 'Pair this phone with your household to get started.'}
           </Text>
           {busy ? (
             <ActivityIndicator style={styles.activity} color="#166534" size="large" />
-          ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={openLocations} onForget={() => void forget()} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanSession()} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
+          ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={openLocations} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanSession()} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
             : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} syncing={syncing} />
+            : pairedServer && activeTab === 'more' ? <SettingsScreen onForget={() => void forget()} onSwitch={switchHousehold} server={pairedServer} />
             : pairedServer ? <LocationsScreen error={error} inventory={inventory} onAddItem={(location) => { setAddItemLocation(location); setActiveTab('add-item') }} onChangeLocation={openLocations} onOpenItem={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} onSelect={setSelectedLocation} onWriteNfc={async (containerId) => { const container = inventory.containers.find((entry) => entry.id === containerId); if (container) await writeContainerNfc(container) }} selected={selectedLocation} syncing={syncing} />
               : <PairingScreen error={error} onChange={setPairingUri} onPair={() => void pair()} onScan={() => void openScanner('pairing')} value={pairingUri} />}
         </ScrollView>

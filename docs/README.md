@@ -8,6 +8,7 @@
 - [Authentication, devices, and pairing](authentication.md)
 - [Development](development.md)
 - [UI direction](ui-direction.md)
+- [Settings and household selection](settings.md)
 - [UI component architecture](ui-architecture.md)
 
 ## Future architecture

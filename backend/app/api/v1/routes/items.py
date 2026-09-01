@@ -83,7 +83,7 @@ async def delete_item(
         user_id=principal.user.id,
         client=principal.method,
         device_id=principal.device_id,
-        household_id=principal.device_household_id,
+        household_id=None,
     )
     try:
         await delete_item_capability(session, actor, item_id, realtime_hub)
@@ -190,7 +190,7 @@ async def place_item(
         user_id=principal.user.id,
         client=principal.method,
         device_id=principal.device_id,
-        household_id=principal.device_household_id,
+        household_id=None,
     )
     try:
         return await move_item(

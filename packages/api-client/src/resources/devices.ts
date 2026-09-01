@@ -5,20 +5,22 @@ export function createPairingSession(
   token: string,
   householdId: string,
   payload: { instance_name: string; instance_type: 'local' | 'cloud' },
+  baseUrl?: string,
 ): Promise<PairingSession> {
   return apiRequest(`/households/${householdId}/pairing-sessions`, {
+    baseUrl,
     method: 'POST',
     token,
     body: payload,
   })
 }
 
-export function listDevices(token: string, householdId: string): Promise<Device[]> {
-  return apiRequest(`/households/${householdId}/devices`, { token })
+export function listDevices(token: string, householdId: string, baseUrl?: string): Promise<Device[]> {
+  return apiRequest(`/households/${householdId}/devices`, { baseUrl, token })
 }
 
-export function revokeDevice(token: string, deviceId: string): Promise<void> {
-  return apiRequest(`/devices/${deviceId}`, { method: 'DELETE', token })
+export function revokeDevice(token: string, deviceId: string, baseUrl?: string): Promise<void> {
+  return apiRequest(`/devices/${deviceId}`, { baseUrl, method: 'DELETE', token })
 }
 
 export async function consumePairing(
@@ -36,4 +38,3 @@ export async function consumePairing(
   }
   return (await response.json()) as PairingResult
 }
-

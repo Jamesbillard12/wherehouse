@@ -42,8 +42,6 @@ async def list_households(principal: PrincipalDep, session: SessionDep) -> list[
         .where(HouseholdUser.user_id == principal.user.id)
         .order_by(Household.name)
     )
-    if principal.device_household_id is not None:
-        query = query.where(Household.id == principal.device_household_id)
     result = await session.scalars(query)
     return list(result)
 
@@ -70,4 +68,3 @@ async def add_household_user(
     await session.commit()
     await session.refresh(membership)
     return membership
-

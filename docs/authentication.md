@@ -24,8 +24,11 @@ require membership in the selected household. Owner access is required to pair o
 
 The companion must store the server URL, identifiers, and credential in Expo SecureStore. It must
 not store credentials in the SQLite replica. SQLite continues to hold cached domain records and
-pending offline operations. Device credentials are household-scoped, remain valid while offline,
-and are presented when queued operations synchronize.
+pending offline operations. A device registration remains household-scoped for auditing and
+revocation, while its credential represents the paired user and may select any household where that
+user has a current membership. Every request still checks membership, and administrative operations
+still check owner status in the target household. Credentials remain valid while offline and are
+presented when queued operations synchronize.
 
 `PUBLIC_BASE_URL` must be the URL reachable by the companion. Self-hosted deployments may use a
 LAN or HTTPS URL; cloud deployments should use their public HTTPS API URL.

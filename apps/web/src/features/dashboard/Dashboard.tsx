@@ -1,15 +1,4 @@
-import {
-  createPairingSession,
-  listDevices,
-  revokeDevice,
-  type Device,
-  type Household,
-  type MeResponse,
-  type PairingSession,
-  subscribeToHousehold,
-  type RealtimeStatus,
-} from '@wherehouse/api-client'
-import QRCode from 'qrcode'
+import { type Household, type MeResponse, subscribeToHousehold, type RealtimeStatus } from '@wherehouse/api-client'
 import {
   Activity,
   ArrowRightLeft,
@@ -19,33 +8,39 @@ import {
   ChevronRight,
   Clock3,
   House,
-  Laptop,
   MapPin,
   PackagePlus,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   Printer,
-  QrCode,
   Search,
   Settings,
-  Smartphone,
+  UserRound,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { ItemsView, itemLocation } from '../items/ItemsView'
 import { CompanionReviewQueue } from '../items/CompanionReviewQueue'
 import { AreaIcon, LocationsView } from '../locations/LocationsView'
-import { formatDate, greeting } from '../../shared/utils/date'
-import { message } from '../../shared/utils/errors'
+import { greeting } from '../../shared/utils/date'
 import { SIDEBAR_KEY } from '../../shared/utils/storage'
 import { type DashboardView, viewFromLocation } from '../../shared/utils/navigation'
 import { useOverviewInventory } from './useOverviewInventory'
+import { SettingsView } from '../settings/SettingsView'
+import { settingsSectionFromLocation, type SettingsSection } from '../../shared/utils/navigation'
+
+const sectionsForMenu: { id: SettingsSection; label: string }[] = [
+  { id: 'account', label: 'Account' }, { id: 'households', label: 'Households' },
+  { id: 'preferences', label: 'Preferences' }, { id: 'privacy', label: 'Data & Privacy' },
+  { id: 'about', label: 'About' },
+]
 
 export function Dashboard({
   household,
   households,
   isOwner,
+  onCreateHousehold,
   onSelect,
   onSignOut,
   token,
@@ -54,6 +49,7 @@ export function Dashboard({
   household: Household
   households: Household[]
   isOwner: boolean
+  onCreateHousehold: (name: string) => Promise<void>
   onSelect: (id: string) => void
   onSignOut: () => Promise<void>
   token: string
@@ -63,12 +59,9 @@ export function Dashboard({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem(SIDEBAR_KEY) === 'true',
   )
-  const [devices, setDevices] = useState<Device[]>([])
-  const [pairing, setPairing] = useState<PairingSession | null>(null)
-  const [pairingDeviceBaseline, setPairingDeviceBaseline] = useState(0)
-  const [qrCode, setQrCode] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>(settingsSectionFromLocation)
+  const accountMenuRef = useRef<HTMLDivElement>(null)
   const [realtimeRevision, setRealtimeRevision] = useState(0)
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting')
   const [reviewItemIds, setReviewItemIds] = useState<string[]>([])
@@ -115,13 +108,22 @@ export function Dashboard({
   }
 
   useEffect(() => {
-    if (!['/overview', '/items', '/locations'].includes(location.pathname)) {
+    if (!['/overview', '/items', '/locations'].includes(location.pathname) && !location.pathname.startsWith('/settings')) {
       history.replaceState({}, '', `/${activeView}`)
     }
-    const handleNavigation = () => setActiveView(viewFromLocation())
+    const handleNavigation = () => { setActiveView(viewFromLocation()); setSettingsSection(settingsSectionFromLocation()) }
     window.addEventListener('popstate', handleNavigation)
     return () => window.removeEventListener('popstate', handleNavigation)
   }, [])
+
+  useEffect(() => {
+    if (!accountMenuOpen) return
+    const close = (event: MouseEvent) => { if (!accountMenuRef.current?.contains(event.target as Node)) setAccountMenuOpen(false) }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setAccountMenuOpen(false); accountMenuRef.current?.querySelector<HTMLButtonElement>('button')?.focus() } }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape) }
+  }, [accountMenuOpen])
 
   useEffect(() => {
     if (activeView === 'overview' && location.hash) {
@@ -138,97 +140,35 @@ export function Dashboard({
     if (hash) requestAnimationFrame(() => document.querySelector(hash)?.scrollIntoView())
   }
 
-  async function refreshDevices(): Promise<Device[]> {
-    if (!isOwner) return []
-    try {
-      const nextDevices = await listDevices(token, household.id)
-      setDevices(nextDevices)
-      return nextDevices
-    } catch (reason) {
-      setError(message(reason))
-      return []
-    }
+  function navigateSettings(section: SettingsSection) {
+    const destination = `/settings/${section}`
+    history.pushState({}, '', destination)
+    setSettingsSection(section)
+    setActiveView('settings')
+    setAccountMenuOpen(false)
   }
 
-  useEffect(() => {
-    setPairing(null)
-    setQrCode('')
-    setError(null)
-  }, [household.id])
+  function navigateToPairing() {
+    history.pushState({}, '', '/settings/households#connected-devices')
+    setSettingsSection('households')
+    setActiveView('settings')
+    setAccountMenuOpen(false)
+    requestAnimationFrame(() => document.querySelector('#connected-devices')?.scrollIntoView())
+  }
 
-  useEffect(() => { if (overview.error) setError(overview.error) }, [overview.error])
-
-  useEffect(() => {
-    if (!isOwner) return
-
-    let cancelled = false
-    async function checkDevices() {
-      const nextDevices = await listDevices(token, household.id)
-      if (cancelled) return
-      const nextActiveDevices = nextDevices.filter((device) => device.is_active)
-      setDevices(nextDevices)
-      if (pairing && nextActiveDevices.length > pairingDeviceBaseline) {
-        setPairing(null)
-        setQrCode('')
-      }
-    }
-
-    void checkDevices().catch((reason) => !cancelled && setError(message(reason)))
-    const interval = window.setInterval(
-      () => void checkDevices().catch((reason) => !cancelled && setError(message(reason))),
-      pairing ? 2_000 : 15_000,
-    )
-    return () => {
-      cancelled = true
-      window.clearInterval(interval)
-    }
-  }, [household.id, isOwner, pairing?.id, pairingDeviceBaseline, token])
-
-  useEffect(() => {
-    if (!pairing) return
-    void QRCode.toDataURL(pairing.pairing_uri, { margin: 1, width: 320 }).then(setQrCode)
-  }, [pairing])
-
-  const activeDevices = useMemo(() => devices.filter((device) => device.is_active), [devices])
   const recentOverviewItems = [...overview.items]
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
     .slice(0, 3)
-
-  async function generatePairing() {
-    setBusy(true)
-    setError(null)
-    try {
-      const currentDevices = await refreshDevices()
-      setPairingDeviceBaseline(currentDevices.filter((device) => device.is_active).length)
-      const instanceType = location.hostname === 'localhost' ? 'local' : 'cloud'
-      setPairing(
-        await createPairingSession(token, household.id, {
-          instance_name: `${household.name} WhereHouse`,
-          instance_type: instanceType,
-        }),
-      )
-    } catch (reason) {
-      setError(message(reason))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function revoke(device: Device) {
-    if (!confirm(`Revoke ${device.name}? It will no longer be able to sync.`)) return
-    await revokeDevice(token, device.id)
-    await refreshDevices()
-  }
 
   return (
     <main className={`dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <header className="topbar">
         <span className="wordmark dark"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></span>
         <div className="global-search"><Search aria-hidden="true" /> <span>Search items, containers, locations</span></div>
-        <div className="account-menu">
+        <div className="account-menu" ref={accountMenuRef}>
           <span className="topbar-icon"><Bell aria-hidden="true" /></span>
-          <span className="avatar">{user.user.display_name.slice(0, 1).toUpperCase()}</span>
-          <button className="text-button" onClick={() => void onSignOut()}>Sign out</button>
+          <button aria-expanded={accountMenuOpen} aria-haspopup="menu" aria-label="Open user menu" className="avatar avatar-button" onClick={() => setAccountMenuOpen((open) => !open)}>{user.user.display_name.slice(0, 1).toUpperCase()}</button>
+          {accountMenuOpen ? <div className="user-menu" role="menu"><div className="user-menu-identity"><strong>{user.user.display_name}</strong><span>{user.user.email}</span></div>{sectionsForMenu.map(({ id, label }) => <a href={`/settings/${id}`} key={id} onClick={(event) => { event.preventDefault(); navigateSettings(id) }} role="menuitem">{label}</a>)}{isOwner ? <a href="/settings/households#connected-devices" onClick={(event) => { event.preventDefault(); navigateToPairing() }} role="menuitem">Pair device</a> : null}<button onClick={() => { setAccountMenuOpen(false); void onSignOut() }} role="menuitem"><UserRound aria-hidden="true" /> Sign out</button></div> : null}
         </div>
       </header>
 
@@ -260,8 +200,7 @@ export function Dashboard({
           <button aria-label="Activity" className="nav-item disabled" disabled title="Activity"><Activity aria-hidden="true" /><span>Activity</span></button>
           <button aria-label="Transfers" className="nav-item disabled" disabled title="Transfers"><ArrowRightLeft aria-hidden="true" /><span>Transfers</span></button>
           <button aria-label="Checkouts" className="nav-item disabled" disabled title="Checkouts"><Clock3 aria-hidden="true" /><span>Checkouts</span></button>
-          <a aria-label="Companion" className="nav-item" href="/overview#pair" onClick={(event) => { event.preventDefault(); navigate('overview', '#pair') }} title="Companion"><QrCode aria-hidden="true" /><span>Companion</span></a>
-          <button aria-label="Settings" className="nav-item disabled" disabled title="Settings"><Settings aria-hidden="true" /><span>Settings</span></button>
+          <a aria-label="Settings" className={`nav-item ${activeView === 'settings' ? 'active' : ''}`} href="/settings/account" onClick={(event) => { event.preventDefault(); navigateSettings('account') }} title="Settings"><Settings aria-hidden="true" /><span>Settings</span></a>
         </nav>
         <div className="sidebar-footer">
           <div className={`server-status ${realtimeStatus}`} title={`Realtime ${realtimeStatus}`}><i /><span>Realtime {realtimeStatus}</span></div>
@@ -273,6 +212,8 @@ export function Dashboard({
           <ItemsView household={household} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
           <LocationsView household={household} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealContainerAreaId={resolvedTarget?.type === 'container' ? resolvedTarget.areaId : undefined} revealContainerId={resolvedTarget?.type === 'container' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'container' ? resolvedTarget.scanKey : undefined} token={token} />
+        ) : activeView === 'settings' ? (
+          <SettingsView household={household} households={households} isOwner={isOwner} onCreateHousehold={onCreateHousehold} onNavigate={navigateSettings} onSelect={onSelect} section={settingsSection} token={token} user={user} />
         ) : (
         <>
         <div className="page-heading" id="overview">
@@ -323,56 +264,6 @@ export function Dashboard({
           <article><div className="quick-icon"><Printer aria-hidden="true" /></div><div><strong>Print labels</strong><span>Create QR labels for items and containers.</span></div><small>Coming next</small></article>
         </section>
 
-        <section className="panel pairing-panel" id="pair">
-          <div className="panel-copy">
-            <p className="eyebrow">Companion app</p>
-            <h2>Take your inventory with you.</h2>
-            <p className="muted">
-              Generate a one-time code, then scan it with the WhereHouse companion. It expires in
-              ten minutes and can only be used once.
-            </p>
-            {isOwner ? (
-              <button className="primary-button compact" disabled={busy} onClick={() => void generatePairing()}>
-                {busy ? 'Generating…' : pairing ? 'Generate a new code' : 'Pair a device'}
-              </button>
-            ) : <p className="notice">Only a household owner can pair devices.</p>}
-            {error ? <div className="alert">{error}</div> : null}
-          </div>
-          <div className={`qr-stage ${pairing ? 'ready' : ''}`}>
-            {pairing && qrCode ? (
-              <>
-                <img alt="One-time WhereHouse companion pairing QR code" src={qrCode} />
-                <strong>Scan with WhereHouse</strong>
-                <span>Expires {formatDate(pairing.expires_at)}</span>
-                <button className="text-button" onClick={() => void navigator.clipboard.writeText(pairing.pairing_uri)}>
-                  Copy pairing link
-                </button>
-              </>
-            ) : (
-              <><div className="qr-placeholder"><QrCode aria-hidden="true" /></div><span>Your pairing code will appear here.</span></>
-            )}
-          </div>
-        </section>
-
-        {isOwner ? (
-          <section className="panel device-panel">
-            <div className="panel-heading">
-              <div><p className="eyebrow">Access · {activeDevices.length} active</p><h2>Paired devices</h2></div>
-              <div className="live-status"><span /> Live</div>
-            </div>
-            {activeDevices.length ? (
-              <div className="device-list">
-                {activeDevices.map((device) => (
-                  <article key={device.id}>
-                    <div className="device-icon">{device.device_type === 'phone' ? <Smartphone aria-hidden="true" /> : <Laptop aria-hidden="true" />}</div>
-                    <div><strong>{device.name}</strong><span>{device.device_type} · Last seen {formatDate(device.last_seen_at)}</span></div>
-                    <button className="danger-button" onClick={() => void revoke(device)}>Revoke</button>
-                  </article>
-                ))}
-              </div>
-            ) : <div className="empty-state">No companion devices have been paired yet.</div>}
-          </section>
-        ) : null}
         </>
         )}
       </section>
