@@ -61,7 +61,7 @@ import { ContainerLabelModal } from './ContainerLabelModal'
 import { LocationContentsList } from '../../components/wherehouse/LocationContentsList'
 
 export { AreaIcon } from './locationOptions'
-export function LocationsView({ household, refreshKey = 0, token }: { household: Household; refreshKey?: number; token: string }) {
+export function LocationsView({ household, refreshKey = 0, revealContainerAreaId, revealContainerId, token }: { household: Household; refreshKey?: number; revealContainerAreaId?: string; revealContainerId?: string; token: string }) {
   const [areas, setAreas] = useState<Area[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [containers, setContainers] = useState<StorageContainer[]>([])
@@ -129,6 +129,19 @@ export function LocationsView({ household, refreshKey = 0, token }: { household:
     if (selectedAreaId) localStorage.setItem(areaKey(household.id), selectedAreaId)
     void loadAreaDetails(selectedAreaId).catch((reason) => setError(message(reason)))
   }, [household.id, refreshKey, selectedAreaId, token])
+
+  useEffect(() => {
+    if (!revealContainerId) return
+    if (revealContainerAreaId && revealContainerAreaId !== selectedAreaId) {
+      setSelectedAreaId(revealContainerAreaId)
+      return
+    }
+    const container = containers.find((entry) => entry.id === revealContainerId)
+    if (container) {
+      if (container.area_id !== selectedAreaId) setSelectedAreaId(container.area_id)
+      else setOpenContainerId(container.id)
+    }
+  }, [containers, revealContainerAreaId, revealContainerId, selectedAreaId])
 
   async function submitArea(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

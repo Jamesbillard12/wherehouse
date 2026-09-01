@@ -35,6 +35,7 @@ const IDENTIFIERS: { label: string; value: Item["identifier_type"] }[] = [
 
 export function EditItemScreen({
   choices,
+  imageUri,
   item,
   location,
   onCancel,
@@ -44,6 +45,7 @@ export function EditItemScreen({
   recent,
 }: {
   choices: ItemLocationChoice[];
+  imageUri?: string;
   item: Item;
   location?: ItemLocationChoice;
   onCancel: () => void;
@@ -123,8 +125,8 @@ export function EditItemScreen({
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.photoPanel}>
-          {draft.photoUri ? (
-            <Image source={{ uri: draft.photoUri }} style={styles.itemPhoto} />
+          {draft.photoUri || imageUri ? (
+            <Image source={{ uri: draft.photoUri || imageUri }} style={styles.itemPhoto} />
           ) : (
             <View style={styles.photoPlaceholder}>
               <ImageIcon color="#98a2b3" size={32} />

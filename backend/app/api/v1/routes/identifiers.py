@@ -12,6 +12,7 @@ from app.application.identifiers.capabilities import (
 from app.models import Container, Item, PhysicalIdentifier
 from app.models.core import IdentifierStatus
 from app.schemas.core import IdentifierCreate, IdentifierRead, IdentifierResolution
+from app.services.realtime import realtime_hub
 
 router = APIRouter()
 
@@ -48,6 +49,15 @@ async def assign_identifier(payload: IdentifierCreate, principal: PrincipalDep, 
 async def resolve(public_id: str, principal: PrincipalDep, session: SessionDep):
     identifier, target = await resolve_identifier(session, public_id)
     await require_household_access(identifier.household_id, principal, session)
+    await realtime_hub.publish(
+        identifier.household_id,
+        entity=identifier.target_type.value,
+        action="resolved",
+        entity_id=identifier.target_id,
+        source=principal.method,
+        event_type="identifier.resolved",
+        details={"area_id": str(target.area_id)} if isinstance(target, Container) else None,
+    )
     return {"identifier": identifier_read(identifier), "item": target if isinstance(target, Item) else None, "container": target if isinstance(target, Container) else None}
 
 

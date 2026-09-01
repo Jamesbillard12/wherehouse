@@ -39,6 +39,7 @@ import { pendingItemCount, queueItem, queueItemUpdate, recentLocations, syncPend
 import type { ItemDraft, ItemLocationChoice, ItemUpdateDraft } from './src/types/itemDraft'
 import { containerLocationChoice, itemLocationChoices, placementLocationChoice } from './src/utils/itemLocations'
 import { readNfcIdentifier, writeNfcIdentifier } from './src/services/nfc'
+import { cacheItemImage } from './src/services/itemImages'
 
 const EMPTY_INVENTORY: CachedInventory = {
   areas: [],
@@ -65,6 +66,7 @@ export default function App() {
   const [pendingCount, setPendingCount] = useState(0)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [editItemLocation, setEditItemLocation] = useState<ItemLocationChoice | undefined>()
+  const [editingItemImageUri, setEditingItemImageUri] = useState<string | undefined>()
   const [cameraPermission, requestCameraPermission] = useCameraPermissions()
   const locationChoices = useMemo(() => itemLocationChoices(inventory), [inventory])
 
@@ -106,6 +108,16 @@ export default function App() {
     })()
     return () => { cancelled = true }
   }, [pairedServer])
+
+  useEffect(() => {
+    setEditingItemImageUri(undefined)
+    if (!pairedServer || !editingItem?.image_path) return
+    let cancelled = false
+    void cacheItemImage(pairedServer, editingItem)
+      .then((uri) => { if (!cancelled) setEditingItemImageUri(uri) })
+      .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'Item image could not be loaded.') })
+    return () => { cancelled = true }
+  }, [editingItem, pairedServer])
 
   useEffect(() => {
     if (!pairedServer || pendingCount === 0) return
@@ -328,7 +340,7 @@ export default function App() {
 
   if (pairedServer && activeTab === 'add-item') return <SafeAreaView style={styles.safeArea}><AddItemScreen choices={locationChoices} initialLocation={addItemLocation} onCancel={() => setActiveTab('home')} onSave={saveItem} onScanLocation={() => void openScanner('item-location')} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
 
-  if (pairedServer && editingItem) return <SafeAreaView style={styles.safeArea}><EditItemScreen choices={locationChoices} item={editingItem} location={editItemLocation ?? placementLocationChoice(inventory.itemPlacements.find((entry) => entry.item_id === editingItem.id), inventory)} onCancel={() => { setEditingItem(null); setEditItemLocation(undefined) }} onSave={updateItem} onScanLocation={() => void openScanner('item-location')} onWriteNfc={() => writeItemNfc(editingItem)} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
+  if (pairedServer && editingItem) return <SafeAreaView style={styles.safeArea}><EditItemScreen choices={locationChoices} imageUri={editingItemImageUri} item={editingItem} location={editItemLocation ?? placementLocationChoice(inventory.itemPlacements.find((entry) => entry.item_id === editingItem.id), inventory)} onCancel={() => { setEditingItem(null); setEditItemLocation(undefined) }} onSave={updateItem} onScanLocation={() => void openScanner('item-location')} onWriteNfc={() => writeItemNfc(editingItem)} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
 
   return (
     <SafeAreaView style={styles.safeArea}>

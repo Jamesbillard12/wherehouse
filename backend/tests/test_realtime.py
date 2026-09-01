@@ -43,3 +43,26 @@ async def test_hub_stops_delivery_after_disconnect() -> None:
     await hub.publish(household_id, entity="area", action="deleted", entity_id=uuid4(), source="user_session")
 
     assert websocket.messages == []
+
+
+async def test_hub_publishes_identifier_resolution_context() -> None:
+    hub = RealtimeHub()
+    household_id = uuid4()
+    websocket = RecordingWebSocket()
+    await hub.connect(household_id, cast(WebSocket, websocket))
+    container_id = uuid4()
+    area_id = uuid4()
+
+    await hub.publish(
+        household_id,
+        entity="container",
+        action="resolved",
+        entity_id=container_id,
+        source="device",
+        event_type="identifier.resolved",
+        details={"area_id": str(area_id)},
+    )
+
+    assert websocket.messages[0]["type"] == "identifier.resolved"
+    assert websocket.messages[0]["entity_id"] == str(container_id)
+    assert websocket.messages[0]["area_id"] == str(area_id)

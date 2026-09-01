@@ -1,13 +1,14 @@
 import { API_VERSION } from './types'
 
 export type RealtimeEvent = {
-  type: 'inventory.changed'
+  type: 'inventory.changed' | 'identifier.resolved'
   household_id: string
   entity: 'area' | 'zone' | 'container' | 'container-placement' | 'item' | 'item-placement'
   action: string
   entity_id: string
   source: 'device' | 'user_session'
   occurred_at: string
+  area_id?: string
 }
 
 export type RealtimeStatus = 'connecting' | 'connected' | 'disconnected'
@@ -41,7 +42,7 @@ export function subscribeToHousehold(options: {
         attempt = 0
         options.onStatus?.('connected')
         options.onReady?.()
-      } else if (message.type === 'inventory.changed') {
+    } else if (message.type === 'inventory.changed' || message.type === 'identifier.resolved') {
         options.onEvent(message)
       }
     }
