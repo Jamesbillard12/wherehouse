@@ -61,7 +61,7 @@ import { ContainerLabelModal } from './ContainerLabelModal'
 import { LocationContentsList } from '../../components/wherehouse/LocationContentsList'
 
 export { AreaIcon } from './locationOptions'
-export function LocationsView({ household, refreshKey = 0, revealContainerAreaId, revealContainerId, token }: { household: Household; refreshKey?: number; revealContainerAreaId?: string; revealContainerId?: string; token: string }) {
+export function LocationsView({ household, refreshKey = 0, revealContainerAreaId, revealContainerId, revealScanKey, token }: { household: Household; refreshKey?: number; revealContainerAreaId?: string; revealContainerId?: string; revealScanKey?: string; token: string }) {
   const [areas, setAreas] = useState<Area[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [containers, setContainers] = useState<StorageContainer[]>([])
@@ -141,7 +141,7 @@ export function LocationsView({ household, refreshKey = 0, revealContainerAreaId
       if (container.area_id !== selectedAreaId) setSelectedAreaId(container.area_id)
       else setOpenContainerId(container.id)
     }
-  }, [containers, revealContainerAreaId, revealContainerId, selectedAreaId])
+  }, [containers, revealContainerAreaId, revealContainerId, revealScanKey, selectedAreaId])
 
   async function submitArea(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

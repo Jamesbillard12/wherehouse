@@ -1,6 +1,6 @@
 import { useCameraPermissions } from 'expo-camera'
 import { StatusBar } from 'expo-status-bar'
-import { createRemoteClient, parseIdentifierPayload, subscribeToHousehold, type Item, type StorageContainer } from '@wherehouse/api-client'
+import { createRemoteClient, parseIdentifierPayload, subscribeToHousehold, type IdentifierResolution, type Item, type StorageContainer } from '@wherehouse/api-client'
 import { useEffect, useMemo, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
@@ -35,6 +35,7 @@ import { PairingScreen } from './src/screens/PairingScreen'
 import { AddItemScreen } from './src/screens/AddItemScreen'
 import { ItemsScreen } from './src/screens/ItemsScreen'
 import { EditItemScreen } from './src/screens/EditItemScreen'
+import { ScanSessionScreen } from './src/screens/ScanSessionScreen'
 import { pendingItemCount, queueItem, queueItemUpdate, recentLocations, syncPendingItems, syncPendingItemUpdates } from './src/services/itemQueue'
 import type { ItemDraft, ItemLocationChoice, ItemUpdateDraft } from './src/types/itemDraft'
 import { containerLocationChoice, itemLocationChoices, placementLocationChoice } from './src/utils/itemLocations'
@@ -67,6 +68,8 @@ export default function App() {
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [editItemLocation, setEditItemLocation] = useState<ItemLocationChoice | undefined>()
   const [editingItemImageUri, setEditingItemImageUri] = useState<string | undefined>()
+  const [scanSessionOpen, setScanSessionOpen] = useState(false)
+  const [scanSessionEntries, setScanSessionEntries] = useState<IdentifierResolution[]>([])
   const [cameraPermission, requestCameraPermission] = useCameraPermissions()
   const locationChoices = useMemo(() => itemLocationChoices(inventory), [inventory])
 
@@ -308,10 +311,38 @@ export default function App() {
     } finally { setBusy(false) }
   }
 
+  async function resolveForScanSession(value: string) {
+    if (!pairedServer) return
+    const parsed = parseIdentifierPayload(value)
+    if (!parsed || parsed.version !== 1) throw new Error('That is not a supported WhereHouse identifier.')
+    const result = await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).resolveIdentifier(parsed.publicId)
+    setScanSessionEntries((current) => current.some((entry) => entry.identifier.target_type === result.identifier.target_type && entry.identifier.target_id === result.identifier.target_id) ? current : [...current, result])
+  }
+
+  async function openScanSession() {
+    setError(null)
+    if (!cameraPermission?.granted) {
+      const permission = await requestCameraPermission()
+      if (!permission.granted) return setError('Camera access is required to scan QR codes.')
+    }
+    setScanSessionEntries([])
+    setScanSessionOpen(true)
+  }
+
+  function openScanSessionEntry(entry: IdentifierResolution) {
+    setScanSessionOpen(false)
+    if (entry.item) { setEditingItem(entry.item); setActiveTab('items') }
+    else if (entry.container) { setSelectedContainer(entry.container); setActiveTab('containers') }
+  }
+
   async function readNfc() {
     setError(null)
     try { await identify(await readNfcIdentifier()) }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'NFC read failed.') }
+  }
+
+  async function addNfcToScanSession() {
+    await resolveForScanSession(await readNfcIdentifier())
   }
 
   async function writeItemNfc(item: Item) {
@@ -338,6 +369,9 @@ export default function App() {
     return <ScannerScreen mode={scannerMode} onCancel={() => setScannerMode(null)} onError={setError} onScan={(data) => { setError(null); setScannerMode(null); if (scannerMode === 'pairing') setPairingUri(data); else if (scannerMode === 'item-location') void selectItemLocationCode(data); else void identify(data) }} />
   }
 
+
+  if (scanSessionOpen) return <ScanSessionScreen entries={scanSessionEntries} onClose={() => setScanSessionOpen(false)} onNfc={addNfcToScanSession} onOpen={openScanSessionEntry} onQr={resolveForScanSession} />
+
   if (pairedServer && activeTab === 'add-item') return <SafeAreaView style={styles.safeArea}><AddItemScreen choices={locationChoices} initialLocation={addItemLocation} onCancel={() => setActiveTab('home')} onSave={saveItem} onScanLocation={() => void openScanner('item-location')} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
 
   if (pairedServer && editingItem) return <SafeAreaView style={styles.safeArea}><EditItemScreen choices={locationChoices} imageUri={editingItemImageUri} item={editingItem} location={editItemLocation ?? placementLocationChoice(inventory.itemPlacements.find((entry) => entry.item_id === editingItem.id), inventory)} onCancel={() => { setEditingItem(null); setEditItemLocation(undefined) }} onSave={updateItem} onScanLocation={() => void openScanner('item-location')} onWriteNfc={() => writeItemNfc(editingItem)} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
@@ -357,7 +391,7 @@ export default function App() {
           </Text>
           {busy ? (
             <ActivityIndicator style={styles.activity} color="#166534" size="large" />
-          ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={() => setActiveTab('containers')} onForget={() => void forget()} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanner('identify')} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
+          ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={() => setActiveTab('containers')} onForget={() => void forget()} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanSession()} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
             : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} syncing={syncing} />
             : pairedServer ? <ContainersScreen error={error} inventory={inventory} onAddItem={(container) => { setAddItemLocation(containerLocationChoice(container, inventory)); setActiveTab('add-item') }} onRefresh={() => void refreshInventory()} onSelect={setSelectedContainer} onWriteNfc={writeContainerNfc} selected={selectedContainer} syncing={syncing} />
               : <PairingScreen error={error} onChange={setPairingUri} onPair={() => void pair()} onScan={() => void openScanner('pairing')} value={pairingUri} />}

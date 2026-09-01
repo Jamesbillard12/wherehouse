@@ -174,7 +174,7 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, item,
   )
 }
 
-export function ItemsView({ household, refreshKey = 0, revealItemId, token }: { household: Household; refreshKey?: number; revealItemId?: string; token: string }) {
+export function ItemsView({ household, refreshKey = 0, revealItemId, revealScanKey, token }: { household: Household; refreshKey?: number; revealItemId?: string; revealScanKey?: string; token: string }) {
   const [items, setItems] = useState<Item[]>([])
   const [placements, setPlacements] = useState<ItemPlacement[]>([])
   const [areas, setAreas] = useState<Area[]>([])
@@ -218,7 +218,7 @@ export function ItemsView({ household, refreshKey = 0, revealItemId, token }: { 
 
   useEffect(() => {
     if (revealItemId) setSelectedItem(items.find((item) => item.id === revealItemId) ?? null)
-  }, [items, revealItemId])
+  }, [items, revealItemId, revealScanKey])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

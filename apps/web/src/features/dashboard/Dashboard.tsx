@@ -73,7 +73,7 @@ export function Dashboard({
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting')
   const [reviewItemIds, setReviewItemIds] = useState<string[]>([])
   const [reviewQueueOpen, setReviewQueueOpen] = useState(false)
-  const [resolvedTarget, setResolvedTarget] = useState<{ type: 'item' | 'container'; id: string; areaId?: string } | null>(null)
+  const [resolvedTarget, setResolvedTarget] = useState<{ type: 'item' | 'container'; id: string; areaId?: string; scanKey: string } | null>(null)
   const overview = useOverviewInventory(household.id, token, realtimeRevision)
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export function Dashboard({
     token,
     onEvent: (event) => {
       if (event.type === 'identifier.resolved' && (event.entity === 'item' || event.entity === 'container')) {
-        setResolvedTarget({ type: event.entity, id: event.entity_id, areaId: event.area_id })
+        setResolvedTarget({ type: event.entity, id: event.entity_id, areaId: event.area_id, scanKey: event.occurred_at })
         navigate(event.entity === 'item' ? 'items' : 'locations')
         return
       }
@@ -270,9 +270,9 @@ export function Dashboard({
 
       <section className="dashboard-content">
         {activeView === 'items' ? (
-          <ItemsView household={household} refreshKey={realtimeRevision} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} token={token} />
+          <ItemsView household={household} refreshKey={realtimeRevision} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
-          <LocationsView household={household} refreshKey={realtimeRevision} revealContainerAreaId={resolvedTarget?.type === 'container' ? resolvedTarget.areaId : undefined} revealContainerId={resolvedTarget?.type === 'container' ? resolvedTarget.id : undefined} token={token} />
+          <LocationsView household={household} refreshKey={realtimeRevision} revealContainerAreaId={resolvedTarget?.type === 'container' ? resolvedTarget.areaId : undefined} revealContainerId={resolvedTarget?.type === 'container' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'container' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : (
         <>
         <div className="page-heading" id="overview">
