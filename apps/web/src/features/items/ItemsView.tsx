@@ -169,12 +169,12 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, item,
         {item.notes ? <div className="item-detail-copy"><strong>Notes</strong><p>{item.notes}</p></div> : null}
         <div className="dialog-actions"><button className="secondary-action" onClick={onClose}>Close</button><button className="secondary-action" onClick={() => setShowLabel(true)}><Printer aria-hidden="true" /> Print QR</button><button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</button></div></>}
       </section>
-      {showLabel ? <ItemLabelModal item={item} onClose={() => setShowLabel(false)} /> : null}
+      {showLabel ? <ItemLabelModal item={item} onClose={() => setShowLabel(false)} token={token} /> : null}
     </div>
   )
 }
 
-export function ItemsView({ household, refreshKey = 0, token }: { household: Household; refreshKey?: number; token: string }) {
+export function ItemsView({ household, onRevealConsumed, refreshKey = 0, revealItemId, revealScanKey, token }: { household: Household; onRevealConsumed?: () => void; refreshKey?: number; revealItemId?: string; revealScanKey?: string; token: string }) {
   const [items, setItems] = useState<Item[]>([])
   const [placements, setPlacements] = useState<ItemPlacement[]>([])
   const [areas, setAreas] = useState<Area[]>([])
@@ -215,6 +215,15 @@ export function ItemsView({ household, refreshKey = 0, token }: { household: Hou
     setError(null)
     void loadInventory().catch((reason) => setError(message(reason))).finally(() => setLoading(false))
   }, [household.id, refreshKey, token])
+
+  useEffect(() => {
+    if (!revealItemId) return
+    const item = items.find((entry) => entry.id === revealItemId)
+    if (item) {
+      setSelectedItem(item)
+      onRevealConsumed?.()
+    }
+  }, [items, onRevealConsumed, revealItemId, revealScanKey])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

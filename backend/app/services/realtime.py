@@ -27,10 +27,11 @@ class RealtimeHub:
                 self._connections.pop(household_id, None)
 
     async def publish(
-        self, household_id: UUID, *, entity: str, action: str, entity_id: UUID, source: str
+        self, household_id: UUID, *, entity: str, action: str, entity_id: UUID, source: str,
+        event_type: str = "inventory.changed", details: dict[str, str] | None = None,
     ) -> None:
         event = {
-            "type": "inventory.changed",
+            "type": event_type,
             "household_id": str(household_id),
             "entity": entity,
             "action": action,
@@ -38,6 +39,8 @@ class RealtimeHub:
             "source": source,
             "occurred_at": datetime.now(UTC).isoformat(),
         }
+        if details:
+            event.update(details)
         async with self._lock:
             connections = tuple(self._connections.get(household_id, ()))
         stale: list[WebSocket] = []

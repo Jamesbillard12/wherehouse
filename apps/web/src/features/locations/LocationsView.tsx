@@ -61,7 +61,7 @@ import { ContainerLabelModal } from './ContainerLabelModal'
 import { LocationContentsList } from '../../components/wherehouse/LocationContentsList'
 
 export { AreaIcon } from './locationOptions'
-export function LocationsView({ household, refreshKey = 0, token }: { household: Household; refreshKey?: number; token: string }) {
+export function LocationsView({ household, onRevealConsumed, refreshKey = 0, revealContainerAreaId, revealContainerId, revealScanKey, token }: { household: Household; onRevealConsumed?: () => void; refreshKey?: number; revealContainerAreaId?: string; revealContainerId?: string; revealScanKey?: string; token: string }) {
   const [areas, setAreas] = useState<Area[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [containers, setContainers] = useState<StorageContainer[]>([])
@@ -129,6 +129,22 @@ export function LocationsView({ household, refreshKey = 0, token }: { household:
     if (selectedAreaId) localStorage.setItem(areaKey(household.id), selectedAreaId)
     void loadAreaDetails(selectedAreaId).catch((reason) => setError(message(reason)))
   }, [household.id, refreshKey, selectedAreaId, token])
+
+  useEffect(() => {
+    if (!revealContainerId) return
+    if (revealContainerAreaId && revealContainerAreaId !== selectedAreaId) {
+      setSelectedAreaId(revealContainerAreaId)
+      return
+    }
+    const container = containers.find((entry) => entry.id === revealContainerId)
+    if (container) {
+      if (container.area_id !== selectedAreaId) setSelectedAreaId(container.area_id)
+      else {
+        setOpenContainerId(container.id)
+        onRevealConsumed?.()
+      }
+    }
+  }, [containers, onRevealConsumed, revealContainerAreaId, revealContainerId, revealScanKey, selectedAreaId])
 
   async function submitArea(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -534,7 +550,7 @@ export function LocationsView({ household, refreshKey = 0, token }: { household:
           </section>
         </div>
       ) : null}
-      {showContainerLabel && selectedContainer ? <ContainerLabelModal container={selectedContainer} onClose={() => setShowContainerLabel(false)} /> : null}
+      {showContainerLabel && selectedContainer ? <ContainerLabelModal container={selectedContainer} onClose={() => setShowContainerLabel(false)} token={token} /> : null}
       {showNestedItemForm && openContainer ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setShowNestedItemForm(false)}><section aria-labelledby="nested-item-dialog-title" aria-modal="true" className="location-dialog" role="dialog"><div className="dialog-heading"><div><p className="eyebrow">Add to {openContainer.name}</p><h2 id="nested-item-dialog-title">Add an item</h2></div><button aria-label="Close" onClick={() => setShowNestedItemForm(false)}>×</button></div><form onSubmit={submitNestedItem}>
         <label>Name<input autoFocus name="name" placeholder="Cordless drill" required /></label>
         <div className="form-row"><label>Quantity<input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><input name="unit" placeholder="pieces, boxes, feet" /></label></div>

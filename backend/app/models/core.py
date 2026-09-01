@@ -66,6 +66,22 @@ class ItemIdentifierType(str, enum.Enum):
     BOTH = "both"
 
 
+class IdentifierTargetType(str, enum.Enum):
+    ITEM = "item"
+    CONTAINER = "container"
+
+
+class IdentifierMedium(str, enum.Enum):
+    QR = "qr"
+    NFC = "nfc"
+
+
+class IdentifierStatus(str, enum.Enum):
+    PENDING = "pending"
+    ACTIVE = "active"
+    REVOKED = "revoked"
+
+
 class Household(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "households"
 
@@ -263,3 +279,27 @@ class ItemPlacement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     area: Mapped[Area | None] = relationship()
     zone: Mapped[Zone | None] = relationship()
     container: Mapped[Container | None] = relationship()
+
+
+class PhysicalIdentifier(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "physical_identifiers"
+    __table_args__ = (
+        UniqueConstraint("public_id", name="uq_physical_identifier_public_id"),
+    )
+
+    household_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    public_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    target_type: Mapped[IdentifierTargetType] = mapped_column(
+        Enum(IdentifierTargetType, name="identifier_target_type", values_callable=enum_values), nullable=False
+    )
+    target_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    medium: Mapped[IdentifierMedium] = mapped_column(
+        Enum(IdentifierMedium, name="identifier_medium", values_callable=enum_values), nullable=False
+    )
+    status: Mapped[IdentifierStatus] = mapped_column(
+        Enum(IdentifierStatus, name="identifier_status", values_callable=enum_values),
+        nullable=False, default=IdentifierStatus.PENDING,
+    )
+    payload_version: Mapped[int] = mapped_column(nullable=False, default=1)

@@ -80,6 +80,14 @@ Represents a relationship between containers.
 
 Example: Camping Bin ON Shelf 3.
 
+## Physical identifiers
+
+`PhysicalIdentifier` binds an opaque, public, versioned identifier to an item or container and a
+medium (`qr` or `nfc`). Identifiers have an independent pending/active/revoked lifecycle. QR and NFC encode
+the same canonical payload and resolve through the same authorized capability; internal UUIDs and
+inventory data are never encoded on the physical medium. See
+[ADR-0008](adr/0008-physical-identifiers.md).
+
 ## Items
 
 ### Item

@@ -139,4 +139,12 @@ export const styles = StyleSheet.create({
   closeButtonText: { color: '#fff', fontWeight: '700' },
   finder: { alignSelf: 'center', width: 260, height: 260, borderWidth: 3, borderColor: '#4ade80', borderRadius: 24, backgroundColor: 'transparent' },
   scannerHelp: { alignSelf: 'center', maxWidth: 300, color: '#fff', fontSize: 16, lineHeight: 23, textAlign: 'center', fontWeight: '600' },
+  quickActionBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(16, 24, 40, 0.45)' },
+  quickActionSheet: { gap: 10, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 34, backgroundColor: '#fff' },
+  quickActionHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 },
+  quickActionTitle: { color: '#101828', fontSize: 20, fontWeight: '800' },
+  quickActionSubtitle: { marginTop: 3, color: '#667085', fontSize: 12 },
+  quickActionOption: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: '#e1e6ef', borderRadius: 13, paddingHorizontal: 16, backgroundColor: '#fff' },
+  quickActionOptionTitle: { color: '#101828', fontSize: 15, fontWeight: '800' },
+  quickActionOptionMeta: { marginTop: 2, color: '#667085', fontSize: 11 },
 })

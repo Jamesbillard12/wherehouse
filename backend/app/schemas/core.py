@@ -9,6 +9,9 @@ from app.models.core import (
     ContainerRelationship,
     ContainerType,
     HouseholdRelationship,
+    IdentifierMedium,
+    IdentifierStatus,
+    IdentifierTargetType,
     ItemIdentifierType,
 )
 
@@ -208,3 +211,29 @@ class ItemPlacementRead(ORMModel):
     relationship_type: ContainerRelationship | None
     created_at: datetime
     updated_at: datetime
+
+
+class IdentifierCreate(BaseModel):
+    target_type: IdentifierTargetType
+    target_id: UUID
+    medium: IdentifierMedium
+
+
+class IdentifierRead(ORMModel):
+    id: UUID
+    household_id: UUID
+    public_id: str
+    target_type: IdentifierTargetType
+    target_id: UUID
+    medium: IdentifierMedium
+    status: IdentifierStatus
+    payload_version: int
+    payload: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class IdentifierResolution(BaseModel):
+    identifier: IdentifierRead
+    item: ItemRead | None = None
+    container: ContainerRead | None = None

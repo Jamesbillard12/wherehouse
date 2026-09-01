@@ -16,9 +16,11 @@
           "photosPermission": "Allow WhereHouse to choose photos for inventory items.",
           "cameraPermission": "Allow WhereHouse to photograph inventory items."
         }
-      ]
+      ],
+      ["react-native-nfc-manager", { "nfcPermission": "Allow WhereHouse to read and write inventory NFC tags." }]
     ],
     "version": "0.0.1",
+    "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -26,6 +28,10 @@
       "bundleIdentifier": "app.wherehouse.companion"
     },
     "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
       "package": "app.wherehouse.companion"
     }
   }

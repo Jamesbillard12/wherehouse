@@ -22,6 +22,7 @@
     "lucide-react-native": "^1.37.0",
     "react": "19.1.0",
     "react-native": "0.81.4",
+    "react-native-nfc-manager": "^3.17.2",
     "react-native-safe-area-context": "~5.6.2",
     "react-native-svg": "^15.15.5"
   },
