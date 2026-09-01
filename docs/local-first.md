@@ -50,11 +50,12 @@ visible configured provider and data boundary.
 
 ## Offline and future sync
 
-The mobile app currently caches canonical server data and queues limited writes. Expand this around a
-versioned operation envelope containing operation ID, idempotency key, actor/device, household,
-client schema version, base entity revision, timestamp, capability name, and validated payload.
-Server results are canonical. Do not silently use last-write-wins for item moves: surface conflicts
-when two actors changed physical location.
+The mobile app currently caches canonical server data and queues limited writes. Queued item drafts
+carry a schema version, and their stable local IDs make server-side item creation idempotent across
+retries. Expand this into a versioned operation envelope containing actor/device, household, base
+entity revision, timestamp, capability name, and validated payload as more writes are queued. Server
+results are canonical. Do not silently use last-write-wins for item moves: surface conflicts when two
+actors changed physical location.
 
 Realtime WebSockets are invalidation hints, not replication or durability. Reconnect always fetches
 canonical state. The current in-process hub suits one API process; multi-process deployment can add

@@ -7,11 +7,16 @@ from sqlalchemy import select
 from app.api.dependencies import PrincipalDep, SessionDep, require_household_access
 from app.application.context import ActorContext
 from app.application.items.capabilities import (
+    CreateItem,
     EntityNotFound,
     HouseholdAccessDenied,
+    IdempotencyConflict,
     InvalidMove,
     MoveItem,
     move_item,
+)
+from app.application.items.capabilities import (
+    create_item as create_item_capability,
 )
 from app.application.items.capabilities import delete_item as delete_item_capability
 from app.models import Item, ItemPlacement
@@ -23,7 +28,6 @@ from app.schemas.core import (
     ItemRead,
     ItemUpdate,
 )
-from app.services.container_codes import next_item_code
 from app.services.image_storage import get_image_storage
 from app.services.realtime import realtime_hub
 
@@ -47,13 +51,24 @@ async def create_item(
     principal: PrincipalDep,
     session: SessionDep,
 ) -> Item:
-    await require_household_access(household_id, principal, session)
-    item = Item(household_id=household_id, code=await next_item_code(session), **payload.model_dump())
-    session.add(item)
-    await session.commit()
-    await session.refresh(item)
-    await realtime_hub.publish(household_id, entity="item", action="created", entity_id=item.id, source=principal.method)
-    return item
+    actor = ActorContext(
+        user_id=principal.user.id,
+        client=principal.method,
+        device_id=principal.device_id,
+        household_id=None,
+    )
+    try:
+        return await create_item_capability(
+            session,
+            actor,
+            household_id,
+            CreateItem(**payload.model_dump()),
+            realtime_hub,
+        )
+    except HouseholdAccessDenied as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
+    except IdempotencyConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
 
 
 @router.patch("/items/{item_id}", response_model=ItemRead)

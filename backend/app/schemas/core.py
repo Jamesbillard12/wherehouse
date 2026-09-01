@@ -147,7 +147,7 @@ class ContainerPlacementRead(ORMModel):
     updated_at: datetime
 
 
-class ItemCreate(BaseModel):
+class ItemFields(BaseModel):
     name: str = Field(min_length=1, max_length=300)
     identifier_type: ItemIdentifierType = ItemIdentifierType.NONE
     description: str | None = None
@@ -159,7 +159,11 @@ class ItemCreate(BaseModel):
     notes: str | None = None
 
 
-class ItemUpdate(ItemCreate):
+class ItemCreate(ItemFields):
+    client_operation_id: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class ItemUpdate(ItemFields):
     pass
 
 

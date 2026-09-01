@@ -74,6 +74,7 @@ async function syncPendingItemsOnce(server: PairedServer): Promise<SyncResult> {
       if (!itemId) {
         const metadata = [draft.category ? `Category: ${draft.category}` : '', draft.condition ? `Condition: ${draft.condition}` : '', draft.tags?.length ? `Tags: ${draft.tags.join(', ')}` : '', draft.notes ?? ''].filter(Boolean).join('\n')
         const item = await client.createItem(server.householdId, {
+          client_operation_id: draft.localId,
           name: draft.name,
           identifier_type: 'none',
           quantity: draft.quantity,

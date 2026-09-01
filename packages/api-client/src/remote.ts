@@ -20,6 +20,7 @@ export function createRemoteClient(baseUrl: string, token: string) {
     getContainerByCode: (code: string) =>
       authenticatedRequest<StorageContainer>(`/containers/by-code/${encodeURIComponent(code)}`),
     createItem: (householdId: string, payload: {
+      client_operation_id?: string
       name: string
       identifier_type: Item['identifier_type']
       description?: string

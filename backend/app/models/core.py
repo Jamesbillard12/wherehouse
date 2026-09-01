@@ -217,7 +217,14 @@ class ContainerPlacement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class Item(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "items"
-    __table_args__ = (UniqueConstraint("code", name="uq_item_code"),)
+    __table_args__ = (
+        UniqueConstraint("code", name="uq_item_code"),
+        UniqueConstraint(
+            "household_id",
+            "creation_operation_id",
+            name="uq_item_household_creation_operation",
+        ),
+    )
 
     household_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -241,6 +248,8 @@ class Item(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    creation_operation_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    creation_payload_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class ItemPlacement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
