@@ -397,7 +397,7 @@ export default function App() {
               : <PairingScreen error={error} onChange={setPairingUri} onPair={() => void pair()} onScan={() => void openScanner('pairing')} value={pairingUri} />}
         </ScrollView>
         {pairedServer ? (
-          <BottomNavigation activeTab={activeTab} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onSelect={(tab) => { setActiveTab(tab); if (tab === 'items') void refreshInventory() }} />
+          <BottomNavigation activeTab={activeTab} onScan={() => void openScanSession()} onSelect={(tab) => { setActiveTab(tab); if (tab === 'items') void refreshInventory() }} />
         ) : null}
         <StatusBar style="auto" />
       </View>
