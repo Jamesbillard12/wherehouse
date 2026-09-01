@@ -270,9 +270,9 @@ export function Dashboard({
 
       <section className="dashboard-content">
         {activeView === 'items' ? (
-          <ItemsView household={household} refreshKey={realtimeRevision} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
+          <ItemsView household={household} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
-          <LocationsView household={household} refreshKey={realtimeRevision} revealContainerAreaId={resolvedTarget?.type === 'container' ? resolvedTarget.areaId : undefined} revealContainerId={resolvedTarget?.type === 'container' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'container' ? resolvedTarget.scanKey : undefined} token={token} />
+          <LocationsView household={household} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealContainerAreaId={resolvedTarget?.type === 'container' ? resolvedTarget.areaId : undefined} revealContainerId={resolvedTarget?.type === 'container' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'container' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : (
         <>
         <div className="page-heading" id="overview">

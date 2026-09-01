@@ -61,7 +61,7 @@ import { ContainerLabelModal } from './ContainerLabelModal'
 import { LocationContentsList } from '../../components/wherehouse/LocationContentsList'
 
 export { AreaIcon } from './locationOptions'
-export function LocationsView({ household, refreshKey = 0, revealContainerAreaId, revealContainerId, revealScanKey, token }: { household: Household; refreshKey?: number; revealContainerAreaId?: string; revealContainerId?: string; revealScanKey?: string; token: string }) {
+export function LocationsView({ household, onRevealConsumed, refreshKey = 0, revealContainerAreaId, revealContainerId, revealScanKey, token }: { household: Household; onRevealConsumed?: () => void; refreshKey?: number; revealContainerAreaId?: string; revealContainerId?: string; revealScanKey?: string; token: string }) {
   const [areas, setAreas] = useState<Area[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [containers, setContainers] = useState<StorageContainer[]>([])
@@ -139,9 +139,12 @@ export function LocationsView({ household, refreshKey = 0, revealContainerAreaId
     const container = containers.find((entry) => entry.id === revealContainerId)
     if (container) {
       if (container.area_id !== selectedAreaId) setSelectedAreaId(container.area_id)
-      else setOpenContainerId(container.id)
+      else {
+        setOpenContainerId(container.id)
+        onRevealConsumed?.()
+      }
     }
-  }, [containers, revealContainerAreaId, revealContainerId, revealScanKey, selectedAreaId])
+  }, [containers, onRevealConsumed, revealContainerAreaId, revealContainerId, revealScanKey, selectedAreaId])
 
   async function submitArea(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
