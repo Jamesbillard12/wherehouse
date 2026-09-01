@@ -31,6 +31,7 @@ import { BottomNavigation, type MobileTab } from './src/components/BottomNavigat
 import { ScannerScreen } from './src/components/ScannerScreen'
 import { AppHeader } from './src/components/AppHeader'
 import { LocationSelectorSheet } from './src/components/LocationSelectorSheet'
+import { ConfirmModal } from './src/components/ConfirmModal'
 import { LocationsScreen } from './src/screens/LocationsScreen'
 import { HomeScreen } from './src/screens/HomeScreen'
 import { PairingScreen } from './src/screens/PairingScreen'
@@ -41,7 +42,7 @@ import { ScanSessionScreen } from './src/screens/ScanSessionScreen'
 import { pendingItemCount, queueItem, queueItemUpdate, recentLocations, syncPendingItems, syncPendingItemUpdates } from './src/services/itemQueue'
 import type { ItemDraft, ItemLocationChoice, ItemUpdateDraft } from './src/types/itemDraft'
 import { containerLocationChoice, itemLocationChoices, placementLocationChoice } from './src/utils/itemLocations'
-import { readNfcIdentifier, writeNfcIdentifier } from './src/services/nfc'
+import { EmptyNfcTagError, readNfcIdentifier, writeNfcIdentifier } from './src/services/nfc'
 import { cacheItemImage } from './src/services/itemImages'
 import { SettingsScreen } from './src/features/settings/SettingsScreen'
 
@@ -74,6 +75,8 @@ export default function App() {
   const [editingItemImageUri, setEditingItemImageUri] = useState<string | undefined>()
   const [scanSessionOpen, setScanSessionOpen] = useState(false)
   const [scanSessionEntries, setScanSessionEntries] = useState<IdentifierResolution[]>([])
+  const [emptyNfcPromptOpen, setEmptyNfcPromptOpen] = useState(false)
+  const [linkNewItemToNfc, setLinkNewItemToNfc] = useState(false)
   const [cameraPermission, requestCameraPermission] = useCameraPermissions()
   const locationChoices = useMemo(() => itemLocationChoices(inventory), [inventory])
 
@@ -264,6 +267,19 @@ export default function App() {
     setPendingCount(await pendingItemCount(pairedServer.householdId))
     setRecentItemLocations(await recentLocations(pairedServer.householdId))
     setAddItemLocation(draft.location)
+    if (linkNewItemToNfc) {
+      let result = await syncPendingItems(pairedServer)
+      let itemId = result.itemIds[draft.localId]
+      if (!itemId) {
+        result = await syncPendingItems(pairedServer)
+        itemId = result.itemIds[draft.localId]
+      }
+      if (!itemId) throw new Error('The item was saved on this phone, but it must sync before the NFC tag can be linked. Try again when connected.')
+      await writeItemNfc(itemId)
+      setPendingCount(await pendingItemCount(pairedServer.householdId))
+      setInventory(await syncInventory(pairedServer))
+      return 'synced'
+    }
     void syncPendingItems(pairedServer)
       .then(async () => {
         setPendingCount(await pendingItemCount(pairedServer.householdId))
@@ -393,16 +409,24 @@ export default function App() {
   async function readNfc() {
     setError(null)
     try { await identify(await readNfcIdentifier()) }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'NFC read failed.') }
+    catch (reason) {
+      if (reason instanceof EmptyNfcTagError) setEmptyNfcPromptOpen(true)
+      else setError(reason instanceof Error ? reason.message : 'NFC read failed.')
+    }
   }
 
   async function addNfcToScanSession() {
-    await resolveForScanSession(await readNfcIdentifier())
+    try { await resolveForScanSession(await readNfcIdentifier()) }
+    catch (reason) {
+      if (!(reason instanceof EmptyNfcTagError)) throw reason
+      setScanSessionOpen(false)
+      setEmptyNfcPromptOpen(true)
+    }
   }
 
-  async function writeItemNfc(item: Item) {
+  async function writeItemNfc(item: Item | string) {
     if (!pairedServer) return
-    const identifier = await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).createIdentifier('item', item.id, 'nfc')
+    const identifier = await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).createIdentifier('item', typeof item === 'string' ? item : item.id, 'nfc')
     await writeNfcIdentifier(identifier.payload)
     await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).activateIdentifier(identifier.id)
   }
@@ -437,7 +461,7 @@ export default function App() {
 
   if (scanSessionOpen) return <ScanSessionScreen entries={scanSessionEntries} onClose={() => setScanSessionOpen(false)} onNfc={addNfcToScanSession} onOpen={openScanSessionEntry} onQr={resolveForScanSession} />
 
-  if (pairedServer && activeTab === 'add-item') return <SafeAreaView style={styles.safeArea}><AddItemScreen choices={locationChoices} initialLocation={addItemLocation} onCancel={() => setActiveTab('home')} onSave={saveItem} onScanLocation={() => void openScanner('item-location')} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
+  if (pairedServer && activeTab === 'add-item') return <SafeAreaView style={styles.safeArea}><AddItemScreen choices={locationChoices} initialLocation={addItemLocation} linkNfc={linkNewItemToNfc} onCancel={() => { setLinkNewItemToNfc(false); setActiveTab('home') }} onSave={saveItem} onScanLocation={() => void openScanner('item-location')} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
 
   if (pairedServer && editingItem) return <SafeAreaView style={styles.safeArea}><EditItemScreen choices={locationChoices} imageUri={editingItemImageUri} item={editingItem} location={editItemLocation ?? placementLocationChoice(inventory.itemPlacements.find((entry) => entry.item_id === editingItem.id), inventory)} onCancel={() => { setEditingItem(null); setEditItemLocation(undefined) }} onSave={updateItem} onScanLocation={() => void openScanner('item-location')} onWriteNfc={() => writeItemNfc(editingItem)} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
 
@@ -466,6 +490,14 @@ export default function App() {
           <BottomNavigation activeTab={activeTab} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onLocations={openLocations} onNfc={() => void readNfc()} onScan={() => void openScanSession()} onSelect={(tab) => { setActiveTab(tab); if (tab === 'items') void refreshInventory() }} />
         ) : null}
         {pairedServer ? <LocationSelectorSheet inventory={inventory} onClose={() => setLocationSelectorOpen(false)} onSelect={selectLocation} syncing={syncing} visible={locationSelectorOpen} /> : null}
+        <ConfirmModal
+          confirmLabel="Create item"
+          description="Would you like to create a new item and link this NFC tag to it? You will tap the tag again after saving the item."
+          onCancel={() => setEmptyNfcPromptOpen(false)}
+          onConfirm={() => { setEmptyNfcPromptOpen(false); setLinkNewItemToNfc(true); setAddItemLocation(undefined); setActiveTab('add-item') }}
+          title="This NFC tag isn't registered"
+          visible={emptyNfcPromptOpen}
+        />
         <StatusBar style="auto" />
       </View>
     </SafeAreaView>

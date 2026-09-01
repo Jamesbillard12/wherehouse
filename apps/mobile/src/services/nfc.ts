@@ -2,6 +2,13 @@ import NfcManager, { Ndef, NfcTech } from 'react-native-nfc-manager'
 
 let started = false
 
+export class EmptyNfcTagError extends Error {
+  constructor() {
+    super('This NFC tag does not contain a WhereHouse link.')
+    this.name = 'EmptyNfcTagError'
+  }
+}
+
 async function start() {
   if (!started) {
     await NfcManager.start()
@@ -15,7 +22,9 @@ export async function readNfcIdentifier(): Promise<string> {
   try {
     await NfcManager.requestTechnology(NfcTech.Ndef, { alertMessage: 'Hold your phone near a WhereHouse tag.' })
     const tag = await NfcManager.getTag()
-    const record = tag?.ndefMessage?.find((entry) => Ndef.isType(entry, Ndef.TNF_WELL_KNOWN, Ndef.RTD_URI))
+    const message = tag?.ndefMessage ?? []
+    if (!message.length) throw new EmptyNfcTagError()
+    const record = message.find((entry) => Ndef.isType(entry, Ndef.TNF_WELL_KNOWN, Ndef.RTD_URI))
     if (!record) throw new Error('This NFC tag does not contain a WhereHouse link.')
     return Ndef.uri.decodePayload(Uint8Array.from(record.payload))
   } finally {

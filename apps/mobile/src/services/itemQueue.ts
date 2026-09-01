@@ -7,8 +7,9 @@ import type { PairedServer } from './pairing'
 
 type PendingRow = { local_id: string; payload: string; remote_item_id: string | null }
 type SyncResult = { failed: number; synced: number }
+type CreationSyncResult = SyncResult & { itemIds: Record<string, string> }
 
-const creationSyncs = new Map<string, Promise<SyncResult>>()
+const creationSyncs = new Map<string, Promise<CreationSyncResult>>()
 const updateSyncs = new Map<string, Promise<SyncResult>>()
 
 export async function queueItem(householdId: string, draft: ItemDraft): Promise<void> {
@@ -53,7 +54,7 @@ async function rememberLocation(householdId: string, location: ItemLocationChoic
   )
 }
 
-export function syncPendingItems(server: PairedServer): Promise<SyncResult> {
+export function syncPendingItems(server: PairedServer): Promise<CreationSyncResult> {
   const existing = creationSyncs.get(server.householdId)
   if (existing) return existing
   const sync = syncPendingItemsOnce(server).finally(() => creationSyncs.delete(server.householdId))
@@ -61,12 +62,13 @@ export function syncPendingItems(server: PairedServer): Promise<SyncResult> {
   return sync
 }
 
-async function syncPendingItemsOnce(server: PairedServer): Promise<SyncResult> {
+async function syncPendingItemsOnce(server: PairedServer): Promise<CreationSyncResult> {
   const db = await database()
   const rows = await db.getAllAsync<PendingRow>('SELECT local_id, payload, remote_item_id FROM pending_items WHERE household_id = ? ORDER BY created_at', server.householdId)
   const client = createRemoteClient(server.baseUrl, server.accessToken)
   let synced = 0
   let failed = 0
+  const itemIds: Record<string, string> = {}
   for (const row of rows) {
     const draft = JSON.parse(row.payload) as ItemDraft
     try {
@@ -85,6 +87,7 @@ async function syncPendingItemsOnce(server: PairedServer): Promise<SyncResult> {
         itemId = item.id
         await db.runAsync('UPDATE pending_items SET remote_item_id = ? WHERE local_id = ?', itemId, row.local_id)
       }
+      itemIds[row.local_id] = itemId
       if (draft.location) {
         await client.placeItem(itemId, {
           [`${draft.location.kind}_id`]: draft.location.id,
@@ -103,7 +106,7 @@ async function syncPendingItemsOnce(server: PairedServer): Promise<SyncResult> {
       await db.runAsync('UPDATE pending_items SET last_error = ? WHERE local_id = ?', reason instanceof Error ? reason.message : 'Sync failed', row.local_id)
     }
   }
-  return { failed, synced }
+  return { failed, itemIds, synced }
 }
 
 export function syncPendingItemUpdates(server: PairedServer): Promise<SyncResult> {

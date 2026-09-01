@@ -59,6 +59,7 @@ import { areaKey } from '../../shared/utils/storage'
 import { AreaIcon, AreaIconPicker, CONTAINER_TYPES } from './locationOptions'
 import { ContainerLabelModal } from './ContainerLabelModal'
 import { LocationContentsList } from '../../components/wherehouse/LocationContentsList'
+import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
 
 export { AreaIcon } from './locationOptions'
 export function LocationsView({ household, onRevealConsumed, refreshKey = 0, revealContainerAreaId, revealContainerId, revealScanKey, token }: { household: Household; onRevealConsumed?: () => void; refreshKey?: number; revealContainerAreaId?: string; revealContainerId?: string; revealScanKey?: string; token: string }) {
@@ -83,6 +84,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'area'; name: string; description: string } | { type: 'container'; container: StorageContainer; description: string } | null>(null)
 
   async function loadAreas(preferredId?: string) {
     const nextAreas = await listAreas(token, household.id)
@@ -189,12 +191,17 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
     const detail = containers.length || zones.length
       ? ` This also removes its ${zones.length} zones and ${containers.length} containers.`
       : ''
-    if (!confirm(`Delete ${selectedArea.name}?${detail} This cannot be undone.`)) return
+    setDeleteTarget({ type: 'area', name: selectedArea.name, description: `${detail.trim()}${detail ? ' ' : ''}This cannot be undone.` })
+  }
+
+  async function confirmRemoveArea() {
+    if (!selectedArea) return
     setSaving(true)
     setError(null)
     try {
       await deleteArea(token, selectedArea.id)
       await loadAreas()
+      setDeleteTarget(null)
     } catch (reason) {
       setError(message(reason))
     } finally {
@@ -353,12 +360,16 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
     const childWarning = childCount
       ? ` ${childCount} nested container${childCount === 1 ? '' : 's'} will remain in the area without this parent.`
       : ''
-    if (!confirm(`Delete ${container.name} (${container.code})?${childWarning} Item placements in this container will be cleared. This cannot be undone.`)) return
+    setDeleteTarget({ type: 'container', container, description: `${childWarning.trim()}${childWarning ? ' ' : ''}Item placements in this container will be cleared. This cannot be undone.` })
+  }
+
+  async function confirmRemoveContainer(container: StorageContainer) {
     setSaving(true)
     setError(null)
     try {
       await deleteContainer(token, container.id)
       await loadAreaDetails(selectedAreaId)
+      setDeleteTarget(null)
     } catch (reason) {
       setError(message(reason))
     } finally {
@@ -581,6 +592,16 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
         <div className="placement-summary"><Container aria-hidden="true" /><span><strong>Placed in {openContainer.name}</strong><small>{openContainer.code}</small></span></div>
         <div className="dialog-actions"><button className="secondary-action" onClick={() => setShowNestedItemForm(false)} type="button">Cancel</button><button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</button></div>
       </form></section></div> : null}
+      <ConfirmDialog
+        busy={saving}
+        confirmLabel={deleteTarget?.type === 'area' ? 'Delete area' : 'Delete container'}
+        description={deleteTarget?.description ?? ''}
+        destructive
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget?.type === 'area' ? confirmRemoveArea() : deleteTarget ? confirmRemoveContainer(deleteTarget.container) : undefined}
+        open={Boolean(deleteTarget)}
+        title={deleteTarget?.type === 'area' ? `Delete ${deleteTarget.name}?` : deleteTarget ? `Delete ${deleteTarget.container.name} (${deleteTarget.container.code})?` : 'Delete location?'}
+      />
     </div>
   )
 }
