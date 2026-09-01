@@ -1,6 +1,8 @@
 import { type MeResponse } from '@wherehouse/api-client'
 import { type FormEvent, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
+
 import { message } from '../../shared/utils/errors'
 
 export function HouseholdSetup({
@@ -31,7 +33,7 @@ export function HouseholdSetup({
     <main className="setup-layout">
       <nav className="simple-nav">
         <span className="wordmark dark"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></span>
-        <button className="text-button" onClick={() => void onSignOut()}>Sign out</button>
+        <Button className="text-button" onClick={() => void onSignOut()}>Sign out</Button>
       </nav>
       <section className="setup-card">
         <span className="step-number">01</span>
@@ -44,12 +46,11 @@ export function HouseholdSetup({
             <input autoFocus name="name" placeholder="The Billard household" required />
           </label>
           {error ? <div className="alert">{error}</div> : null}
-          <button className="primary-button" disabled={busy} type="submit">
+          <Button className="primary-button" disabled={busy} type="submit">
             {busy ? 'Creating…' : 'Create household'}
-          </button>
+          </Button>
         </form>
       </section>
     </main>
   )
 }
-

@@ -12,7 +12,7 @@
 .section-title > button { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 8px; padding: 0; background: transparent; color: var(--action); }
 .section-title > button:hover { border-color: #c7d2fe; background: #eef2ff; }
 .section-title > button svg { width: 17px; height: 17px; }
-.area-list > button { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; border: 0; border-bottom: 1px solid #edf0f5; padding: 0.95rem 1rem; background: #fff; color: var(--ink); text-align: left; }
+.area-list > button { width: 100%; height: auto; min-height: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; justify-content: initial; gap: 0.75rem; border: 0; border-bottom: 1px solid #edf0f5; border-radius: 0; padding: 0.95rem 1rem; background: #fff; color: var(--ink); font-size: inherit; font-weight: inherit; text-align: left; white-space: normal; }
 .area-list > button:last-child { border-bottom: 0; }
 .area-list > button.selected { background: #f3f4ff; color: #3730a3; }
 .area-list > button > span:nth-child(2) { min-width: 0; display: grid; gap: 0.25rem; }
@@ -71,7 +71,7 @@
 .location-container-row:hover { background: #fafaff; }
 .location-item-row:hover { background: #fbfefc; }
 .container-copy { min-width: 0; display: grid; gap: 0.35rem; }
-.container-open { width: 100%; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.container-open { width: 100%; height: auto; min-height: 0; justify-content: initial; justify-items: start; border: 0; border-radius: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left; white-space: normal; }
 .container-open:hover strong { color: var(--action); }
 .container-copy > div { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
 .container-copy > span { overflow: hidden; color: var(--muted-text); font-size: 0.72rem; text-overflow: ellipsis; white-space: nowrap; }
@@ -124,10 +124,11 @@
 .items-table tr:last-child td { border-bottom: 0; }
 .items-table td:first-child { display: grid; gap: 0.25rem; color: var(--ink); }
 .items-table td:first-child small { max-width: 300px; overflow: hidden; color: var(--muted-text); font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
-.item-details-button { display: grid; gap: 0.25rem; border: 0; padding: 0; background: transparent; color: var(--ink); text-align: left; }
+.item-details-button { display: grid; gap: 0.25rem; color: var(--ink); text-align: left; text-decoration: none; }
 .item-details-button:hover strong { color: var(--action); }
 .item-details-button:focus-visible { border-radius: 4px; outline: 3px solid rgb(79 70 229 / 18%); outline-offset: 3px; }
-.location-path { color: #4338ca; font-weight: 700; }
+.location-path { color: #4338ca; font-weight: 700; text-decoration: none; }
+.location-path:hover { text-decoration: underline; }
 .unplaced-badge { border-radius: 99px; padding: 0.25rem 0.5rem; background: #f2f4f7; color: #667085; font-size: 0.66rem; font-weight: 700; }
 .location-empty { min-height: 330px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 1.5rem; text-align: center; }
 .location-empty > strong { font-size: 1rem; }
@@ -180,7 +181,7 @@
 .dialog-action-spacer { flex: 1; }
 .location-dialog > .dialog-actions { margin-inline: 0; }
 .item-details-dialog { width: min(620px, 100%); }
-.item-image-panel { position: relative; width: calc(100% - 3rem); aspect-ratio: 16 / 7; margin: 1.5rem 1.5rem 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #f8f9fc; }
+.item-image-panel { position: relative; width: min(400px, calc(100% - 3rem)); aspect-ratio: 1; margin: 1.5rem auto 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #f8f9fc; }
 .item-image-panel > img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .item-image-placeholder { width: 100%; height: 100%; display: grid; place-content: center; justify-items: center; gap: 0.35rem; color: #98a2b3; text-align: center; }
 .item-image-placeholder svg { width: 34px; height: 34px; margin-bottom: 0.2rem; stroke-width: 1.5; }
@@ -190,6 +191,18 @@
 .item-image-action:hover { background: #14213d; }
 .item-image-action svg { width: 15px; height: 15px; }
 .item-image-action input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.image-crop-dialog [data-slot="dialog-title"] { display: flex; align-items: center; gap: 0.5rem; }
+.image-crop-dialog [data-slot="dialog-title"] svg { width: 18px; height: 18px; color: var(--action); }
+.image-crop-preview { position: relative; width: min(400px, 100%); aspect-ratio: 1; margin-inline: auto; overflow: hidden; border-radius: 12px; background: #17211b; cursor: grab; touch-action: none; user-select: none; }
+.image-crop-preview:active { cursor: grabbing; }
+.image-crop-preview > img { position: absolute; top: 50%; left: 50%; max-width: none; pointer-events: none; user-select: none; }
+.image-crop-frame { position: absolute; inset: 0; border: 2px solid rgb(255 255 255 / 90%); border-radius: 12px; box-shadow: inset 0 0 0 1px rgb(16 24 40 / 35%); pointer-events: none; }
+.image-crop-frame::before, .image-crop-frame::after { position: absolute; content: ''; background: rgb(255 255 255 / 45%); }
+.image-crop-frame::before { top: 33.333%; bottom: 33.333%; left: 0; right: 0; border-block: 1px solid rgb(255 255 255 / 45%); background: transparent; }
+.image-crop-frame::after { top: 0; bottom: 0; left: 33.333%; right: 33.333%; border-inline: 1px solid rgb(255 255 255 / 45%); background: transparent; }
+.image-crop-zoom { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; color: var(--muted-text); }
+.image-crop-zoom svg { width: 16px; height: 16px; }
+.image-crop-zoom input { width: 100%; accent-color: var(--action); }
 .item-detail-location { display: flex; align-items: center; gap: 0.75rem; margin: 1.5rem 1.5rem 0; border-radius: 10px; padding: 0.9rem 1rem; background: #f3f4ff; color: var(--action); }
 .item-detail-location > svg { flex: 0 0 auto; width: 20px; height: 20px; }
 .item-detail-location > span { min-width: 0; display: grid; gap: 0.2rem; }

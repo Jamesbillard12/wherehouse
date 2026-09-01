@@ -93,7 +93,7 @@ export async function uploadContainerImage(token: string, containerId: string, i
 }
 
 export async function getContainerImage(token: string, containerId: string): Promise<Blob> {
-  const response = await fetch(`/api/${API_VERSION}/containers/${containerId}/image`, { headers: { Authorization: `Bearer ${token}` } })
+  const response = await fetch(`/api/${API_VERSION}/containers/${containerId}/image`, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } })
   if (!response.ok) throw new Error(`Image download failed (${response.status}).`)
   return response.blob()
 }
@@ -134,4 +134,3 @@ export function setContainerSpace(
     token,
   })
 }
-

@@ -200,7 +200,7 @@ async def get_container_image(
     stored = get_image_storage().get(container.image_path)
     if stored is None:
         raise HTTPException(status_code=404, detail="Container image not found")
-    return Response(content=stored.content, media_type=stored.content_type, headers={"Cache-Control": "private, max-age=3600"})
+    return Response(content=stored.content, media_type=stored.content_type, headers={"Cache-Control": "private, no-store"})
 
 
 @router.delete("/containers/{container_id}", status_code=status.HTTP_204_NO_CONTENT)

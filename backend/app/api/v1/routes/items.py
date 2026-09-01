@@ -173,7 +173,7 @@ async def get_item_image(
     return Response(
         content=stored.content,
         media_type=stored.content_type,
-        headers={"Cache-Control": "private, max-age=3600"},
+        headers={"Cache-Control": "private, no-store"},
     )
 
 
