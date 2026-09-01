@@ -31,29 +31,29 @@ const item = {
   updated_at: '2026-01-01T00:00:00Z',
 } satisfies Item
 
-describe('item deletion', () => {
+describe('item archival', () => {
   beforeEach(() => deleteItemRequest.mockReset())
 
-  it('requires confirmation before deleting and removes the selected item', async () => {
+  it('requires confirmation before archiving and removes the selected item', async () => {
     const user = userEvent.setup()
     const onDeleted = vi.fn()
     deleteItemRequest.mockResolvedValue(undefined)
     render(<ItemDetailsModal areas={[]} containerPlacements={[]} containers={[]} item={item} locationLabel="Unplaced" onClose={vi.fn()} onDeleted={onDeleted} onUpdated={vi.fn()} token="token" zones={[]} />)
 
-    await user.click(screen.getByRole('button', { name: 'Delete Cordless drill' }))
+    await user.click(screen.getByRole('button', { name: 'Archive Cordless drill' }))
 
-    expect(screen.getByText('Delete Cordless drill?')).toBeInTheDocument()
+    expect(screen.getByText('Archive Cordless drill?')).toBeInTheDocument()
     expect(deleteItemRequest).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Delete item' }))
+    await user.click(screen.getByRole('button', { name: 'Archive item' }))
 
     await waitFor(() => expect(deleteItemRequest).toHaveBeenCalledWith('token', 'item-1'))
     expect(onDeleted).toHaveBeenCalledWith('item-1')
   })
 
-  it('can open directly in delete confirmation mode from a row action', () => {
+  it('can open directly in archive confirmation mode from a row action', () => {
     render(<ItemDetailsModal areas={[]} containerPlacements={[]} containers={[]} initialMode="delete" item={item} locationLabel="Unplaced" onClose={vi.fn()} onDeleted={vi.fn()} onUpdated={vi.fn()} token="token" zones={[]} />)
 
-    expect(screen.getByText('Delete Cordless drill?')).toBeInTheDocument()
+    expect(screen.getByText('Archive Cordless drill?')).toBeInTheDocument()
   })
 })

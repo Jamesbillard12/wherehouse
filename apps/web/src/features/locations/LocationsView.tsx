@@ -13,7 +13,6 @@ import {
   listItems,
   listZones,
   placeContainer,
-  placeItem,
   removeContainerPlacement,
   setContainerSpace,
   updateAreaIcon,
@@ -419,10 +418,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
         description: String(data.get('description')).trim() || undefined,
         quantity: Number(data.get('quantity')),
         unit: String(data.get('unit')).trim() || undefined,
-      })
-      await placeItem(token, item.id, {
-        container_id: openContainerId,
-        relationship_type: 'in',
+        placement: { container_id: openContainerId, relationship_type: 'in' },
       })
       await loadAreaDetails(selectedAreaId)
       setShowNestedItemForm(false)

@@ -26,6 +26,23 @@ validation**, and **release validation** separately. Unsupported items must be r
 - [ ] Scan container/item; QR; NFC read/write/read-back verification; empty NFC registration
 - [ ] Offline browsing and every documented queued write; replay/reconnect; forget/re-pair
 
+## Phase 1 inventory validation sequence
+
+Run this once in web and once on a mobile simulator/emulator, then repeat the photo steps on a
+physical iOS and Android device before claiming physical validation:
+
+1. Create `Garage`, `North Wall`, `Shelf`, and child container `Yellow Bin`.
+2. Reject placing `Shelf` below `Yellow Bin` and verify the hierarchy remains unchanged.
+3. Create `Camping Stove` with quantity, metadata, photo, and initial placement in `Yellow Bin`.
+4. Verify both clients display `Garage > North Wall > Shelf > Yellow Bin` from canonical API state.
+5. Edit the item and move it to another valid location; verify both clients converge without reload
+   or database intervention.
+6. Replace the photo, then archive the item through the destructive confirmation and verify it leaves
+   active lists on both clients.
+
+Automated backend, web, type, and lint checks are implementation evidence only. Record simulator or
+emulator results separately from physical-device camera/library and cross-client realtime evidence.
+
 ## Offline and realtime
 
 - [ ] Disconnect before and during mutation; queue persists through app restart

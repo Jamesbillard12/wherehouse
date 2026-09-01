@@ -314,6 +314,16 @@ export default function App() {
     return 'queued'
   }
 
+  async function archiveItem(item: Item): Promise<void> {
+    if (!pairedServer) throw new Error('Pair this phone before archiving items.')
+    await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).deleteItem(item.id)
+    setInventory((current) => ({
+      ...current,
+      items: current.items.filter((entry) => entry.id !== item.id),
+      itemPlacements: current.itemPlacements.filter((entry) => entry.item_id !== item.id),
+    }))
+  }
+
   async function openContainerCode(value: string) {
     if (!pairedServer) return
     const trimmed = value.trim()
@@ -469,7 +479,7 @@ export default function App() {
 
   if (pairedServer && activeTab === 'add-item') return <SafeAreaView style={styles.safeArea}><AddItemScreen choices={locationChoices} initialLocation={addItemLocation} linkNfc={linkNewItemToNfc} onCancel={() => { setLinkNewItemToNfc(false); setActiveTab('home') }} onSave={saveItem} onScanLocation={() => void openScanner('item-location')} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
 
-  if (pairedServer && editingItem) return <SafeAreaView style={styles.safeArea}><EditItemScreen choices={locationChoices} imageUri={editingItemImageUri} item={editingItem} location={editItemLocation ?? placementLocationChoice(inventory.itemPlacements.find((entry) => entry.item_id === editingItem.id), inventory)} onCancel={() => { setEditingItem(null); setEditItemLocation(undefined) }} onSave={updateItem} onScanLocation={() => void openScanner('item-location')} onWriteNfc={() => writeItemNfc(editingItem)} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
+  if (pairedServer && editingItem) return <SafeAreaView style={styles.safeArea}><EditItemScreen choices={locationChoices} imageUri={editingItemImageUri} item={editingItem} location={editItemLocation ?? placementLocationChoice(inventory.itemPlacements.find((entry) => entry.item_id === editingItem.id), inventory)} onArchive={() => archiveItem(editingItem)} onCancel={() => { setEditingItem(null); setEditItemLocation(undefined) }} onSave={updateItem} onScanLocation={() => void openScanner('item-location')} onWriteNfc={() => writeItemNfc(editingItem)} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
 
   return (
     <SafeAreaView style={styles.safeArea}>

@@ -83,17 +83,15 @@ async function syncPendingItemsOnce(server: PairedServer): Promise<CreationSyncR
           unit: draft.unit,
           manufacturer: draft.manufacturer,
           notes: metadata || undefined,
+          ...(draft.location ? { placement: {
+            [`${draft.location.kind}_id`]: draft.location.id,
+            ...(draft.location.kind === 'container' ? { relationship_type: 'in' as const } : {}),
+          } } : {}),
         })
         itemId = item.id
         await db.runAsync('UPDATE pending_items SET remote_item_id = ? WHERE local_id = ?', itemId, row.local_id)
       }
       itemIds[row.local_id] = itemId
-      if (draft.location) {
-        await client.placeItem(itemId, {
-          [`${draft.location.kind}_id`]: draft.location.id,
-          ...(draft.location.kind === 'container' ? { relationship_type: 'in' as const } : {}),
-        })
-      }
       if (draft.photoUri) {
         const response = await fetch(draft.photoUri)
         await client.uploadItemImage(itemId, await response.blob(), draft.photoMimeType)
@@ -126,8 +124,7 @@ async function syncPendingItemUpdatesOnce(server: PairedServer): Promise<SyncRes
   for (const row of rows) {
     const draft = JSON.parse(row.payload) as ItemUpdateDraft
     try {
-      await client.updateItem(row.item_id, { name: draft.name, identifier_type: draft.identifierType, description: draft.description, quantity: draft.quantity, unit: draft.unit, manufacturer: draft.manufacturer, model: draft.model, serial_number: draft.serialNumber, notes: draft.notes })
-      if (draft.location) await client.placeItem(row.item_id, { [`${draft.location.kind}_id`]: draft.location.id, ...(draft.location.kind === 'container' ? { relationship_type: 'in' as const } : {}) })
+      await client.updateItem(row.item_id, { name: draft.name, identifier_type: draft.identifierType, description: draft.description, quantity: draft.quantity, unit: draft.unit, manufacturer: draft.manufacturer, model: draft.model, serial_number: draft.serialNumber, notes: draft.notes, ...(draft.location ? { placement: { [`${draft.location.kind}_id`]: draft.location.id, ...(draft.location.kind === 'container' ? { relationship_type: 'in' as const } : {}) } } : {}) })
       if (draft.photoUri) {
         const response = await fetch(draft.photoUri)
         await client.uploadItemImage(row.item_id, await response.blob(), draft.photoMimeType)
