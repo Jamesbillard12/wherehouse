@@ -4,6 +4,7 @@ import { useId } from 'react'
 
 export type ContainerContent = {
   container: StorageContainer
+  itemQuantity: number
   locationDescription: string
 }
 
@@ -11,7 +12,9 @@ export function LocationContentsList({
   containers,
   items,
   onDeleteContainer,
+  onDeleteItem,
   onEditContainer,
+  onEditItem,
   onOpenContainer,
   onOpenItem,
   onToggleContainerSpace,
@@ -20,7 +23,9 @@ export function LocationContentsList({
   containers: ContainerContent[]
   items: Item[]
   onDeleteContainer: (container: StorageContainer) => void
+  onDeleteItem: (item: Item) => void
   onEditContainer: (container: StorageContainer) => void
+  onEditItem: (item: Item) => void
   onOpenContainer: (container: StorageContainer) => void
   onOpenItem: (item: Item) => void
   onToggleContainerSpace: (container: StorageContainer) => void
@@ -34,11 +39,11 @@ export function LocationContentsList({
         <section aria-labelledby={`${headingId}-containers`} className="location-content-group location-content-group-containers">
           <h3 id={`${headingId}-containers`}><span>Containers</span><strong>{containers.length}</strong></h3>
           <div className="container-list">
-            {containers.map(({ container, locationDescription }) => (
+            {containers.map(({ container, itemQuantity, locationDescription }) => (
               <article className="location-container-row" key={container.id}>
                 <div className="location-entry-icon location-container-icon"><Container aria-hidden="true" /></div>
                 <button className="container-copy container-open" onClick={() => onOpenContainer(container)}>
-                  <div><strong>{container.name}</strong><span className="type-badge container-kind-badge">Container</span><span className="type-badge">{container.container_type.replace('_', ' ')}</span>{container.identifier_type !== 'none' ? <span className="identifier-badge">{container.identifier_type !== 'nfc' ? <QrCode aria-hidden="true" /> : null}{container.identifier_type !== 'qr' ? <Radio aria-hidden="true" /> : null}{container.identifier_type === 'both' ? 'QR + NFC' : container.identifier_type.toUpperCase()}</span> : null}{container.is_out_of_space ? <span className="full-badge">Full</span> : null}</div>
+                  <div><strong>{container.name}</strong><span className="type-badge container-kind-badge">Container</span><span className="type-badge">{container.container_type.replace('_', ' ')}</span><span className="type-badge quantity-badge">{itemQuantity} {itemQuantity === 1 ? 'item' : 'items'}</span>{container.identifier_type !== 'none' ? <span className="identifier-badge">{container.identifier_type !== 'nfc' ? <QrCode aria-hidden="true" /> : null}{container.identifier_type !== 'qr' ? <Radio aria-hidden="true" /> : null}{container.identifier_type === 'both' ? 'QR + NFC' : container.identifier_type.toUpperCase()}</span> : null}{container.is_out_of_space ? <span className="full-badge">Full</span> : null}</div>
                   <span>{locationDescription}</span>
                 </button>
                 <div className="container-actions"><button aria-label={`Edit ${container.name}`} className="edit-container-button" onClick={() => onEditContainer(container)} title={`Edit ${container.name}`}><Pencil aria-hidden="true" /></button><button aria-label={`Delete ${container.name}`} className="delete-container-button" disabled={saving} onClick={() => onDeleteContainer(container)} title={`Delete ${container.name}`}><Trash2 aria-hidden="true" /></button><button className="space-button" onClick={() => onToggleContainerSpace(container)}>{container.is_out_of_space ? 'Mark available' : 'Mark full'}</button><ChevronRight aria-hidden="true" className="location-entry-chevron" /></div>
@@ -56,10 +61,10 @@ export function LocationContentsList({
               <article className="location-item-row" key={item.id}>
                 <div className="location-entry-icon location-item-icon"><Package aria-hidden="true" /></div>
                 <button className="container-copy container-open" onClick={() => onOpenItem(item)}>
-                  <div><strong>{item.name}</strong><span className="type-badge item-kind-badge">Item</span></div>
+                  <div><strong>{item.name}</strong><span className="type-badge item-kind-badge">Item</span><span className="type-badge quantity-badge">{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</span></div>
                   <span>{item.description || 'No description'}</span>
                 </button>
-                <div className="location-item-summary"><strong>{Number(item.quantity)}</strong>{item.unit ? <span>{item.unit}</span> : null}<ChevronRight aria-hidden="true" className="location-entry-chevron" /></div>
+                <div className="container-actions"><button aria-label={`Edit ${item.name}`} className="edit-container-button" onClick={() => onEditItem(item)} title={`Edit ${item.name}`}><Pencil aria-hidden="true" /></button><button aria-label={`Delete ${item.name}`} className="delete-container-button" disabled={saving} onClick={() => onDeleteItem(item)} title={`Delete ${item.name}`}><Trash2 aria-hidden="true" /></button><ChevronRight aria-hidden="true" className="location-entry-chevron" /></div>
               </article>
             ))}
           </div>

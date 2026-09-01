@@ -78,6 +78,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
   const [containerImageBusy, setContainerImageBusy] = useState(false)
   const [showContainerLabel, setShowContainerLabel] = useState(false)
   const [selectedDetailItem, setSelectedDetailItem] = useState<Item | null>(null)
+  const [selectedItemMode, setSelectedItemMode] = useState<'details' | 'edit' | 'delete'>('details')
   const [showNestedItemForm, setShowNestedItemForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -426,6 +427,25 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
     if (selectedZoneFilter) return placement.zone_id === selectedZoneFilter
     return placement.area_id === selectedAreaId || zones.some((zone) => zone.id === placement.zone_id)
   })
+  function itemQuantityInContainer(containerId: string): number {
+    const containedIds = new Set([containerId])
+    let addedDescendant = true
+    while (addedDescendant) {
+      addedDescendant = false
+      for (const placement of placements) {
+        if (placement.parent_container_id && containedIds.has(placement.parent_container_id) && !containedIds.has(placement.container_id)) {
+          containedIds.add(placement.container_id)
+          addedDescendant = true
+        }
+      }
+    }
+    return items.reduce((total, item) => {
+      const placement = itemPlacements.find((entry) => entry.item_id === item.id)
+      return placement?.container_id && containedIds.has(placement.container_id)
+        ? total + Number(item.quantity)
+        : total
+    }, 0)
+  }
 
   return (
     <div className="locations-view">
@@ -486,13 +506,15 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
                   const placement = placementByContainer.get(container.id)
                   const parent = placement ? containerById.get(placement.parent_container_id) : null
                   const zone = zones.find((entry) => entry.id === container.zone_id)
-                  return { container, locationDescription: [zone?.name, parent ? `${placement?.relationship_type.replace('_', ' ')} ${parent.name}` : null, container.code].filter(Boolean).join(' · ') || 'Directly in area' }
+                  return { container, itemQuantity: itemQuantityInContainer(container.id), locationDescription: [zone?.name, parent ? `${placement?.relationship_type.replace('_', ' ')} ${parent.name}` : null, container.code].filter(Boolean).join(' · ') || 'Directly in area' }
                 })}
                 items={visibleItems}
                 onDeleteContainer={(container) => void removeContainer(container)}
+                onDeleteItem={(item) => { setSelectedItemMode('delete'); setSelectedDetailItem(item) }}
                 onEditContainer={editContainer}
+                onEditItem={(item) => { setSelectedItemMode('edit'); setSelectedDetailItem(item) }}
                 onOpenContainer={(container) => setOpenContainerId(container.id)}
-                onOpenItem={setSelectedDetailItem}
+                onOpenItem={(item) => { setSelectedItemMode('details'); setSelectedDetailItem(item) }}
                 onToggleContainerSpace={(container) => void toggleSpace(container)}
                 saving={saving}
               />
@@ -505,7 +527,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
         <div className="location-empty first-area"><div className="empty-illustration"><Warehouse aria-hidden="true" /></div><strong>Create your first area</strong><p>Start with a major physical location such as a garage, attic, shed, trailer, or workshop.</p><button className="primary-button compact" onClick={() => setFormMode('area')}><Plus aria-hidden="true" /> Add area</button></div>
       )}
 
-      {selectedDetailItem ? <ItemDetailsModal areas={areas} containerPlacements={placements} containers={containers} item={selectedDetailItem} locationLabel={itemLocation(itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id), areas, zones, containers, placements)} onClose={() => setSelectedDetailItem(null)} onPlacementUpdated={(updated) => setItemPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedDetailItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id)} token={token} zones={zones} /> : null}
+      {selectedDetailItem ? <ItemDetailsModal areas={areas} containerPlacements={placements} containers={containers} initialMode={selectedItemMode} item={selectedDetailItem} locationLabel={itemLocation(itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id), areas, zones, containers, placements)} onClose={() => setSelectedDetailItem(null)} onDeleted={(itemId) => { setSelectedDetailItem(null); setItems((current) => current.filter((item) => item.id !== itemId)); setItemPlacements((current) => current.filter((entry) => entry.item_id !== itemId)) }} onPlacementUpdated={(updated) => setItemPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedDetailItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id)} token={token} zones={zones} /> : null}
 
       {formMode ? (
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setFormMode(null)}>

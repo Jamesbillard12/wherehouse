@@ -10,13 +10,13 @@ decisions, not shared application contracts.
 | Concern | Web | Mobile |
 | --- | --- | --- |
 | Runtime | React 19, Vite 7, TypeScript | React Native 0.81, Expo 54, React 19, TypeScript |
-| Components | Native HTML composed directly in feature components | React Native primitives plus `AppHeader`, `BottomNavigation`, `ScannerScreen`, `ItemLocationPicker`, and `QuantityStepper` |
-| Styling | Global hand-written CSS split into base, dashboard, inventory, and responsive files | One large shared `StyleSheet` with a few inline icon colors |
+| Components | Native HTML plus an incremental shadcn/Base UI primitive layer | React Native primitives plus `AppHeader`, `BottomNavigation`, `ScannerScreen`, `ItemLocationPicker`, and `QuantityStepper` |
+| Styling | Tailwind CSS v4 for new primitives alongside global hand-written CSS split into base, dashboard, inventory, and responsive files | One large shared `StyleSheet` with a few inline icon colors |
 | Tokens | A small set of CSS custom properties for colors and button dimensions; many literal values remain | No token module; colors, spacing, type, radii, and elevation are literal values in the shared stylesheet |
 | Icons | `lucide-react` | `lucide-react-native` |
 | Forms | Native HTML forms and local React state; no form library | `TextInput`, `Pressable`, local state, and focused draft/edit hooks; no form library |
-| Component library | None | None |
-| Tailwind | Not installed or configured | Not installed; NativeWind is not installed |
+| Component library | shadcn Nova source components backed by Base UI; first pilot is the add-item dialog | None |
+| Tailwind | Tailwind CSS v4 through the Vite plugin | Not installed; NativeWind is not installed |
 
 The clients share API types and inventory concepts, not UI implementations. Duplication is mostly
 visual constants and repeated concepts—cards, buttons, inputs, item/location rows, status colors,
@@ -67,6 +67,20 @@ the already-selected Lucide icon family, and permits incremental ownership. Tail
 new web implementation dependency, not a shared styling contract. Existing selectors may coexist
 while touched features move toward tokens and primitives. Adopting shadcn does **not** require a
 major one-time migration, and no current screen should be converted solely for consistency.
+
+### Initial web pilot
+
+The first bounded adoption uses the shadcn `base-nova` style, Base UI, Lucide, CSS variables, and
+Tailwind CSS v4. Configuration lives in `apps/web/components.json`; generated and subsequently owned
+source lives in `apps/web/src/components/ui`. The initial primitive set is Button, Input, Textarea,
+and Dialog. WhereHouse colors are mapped to shadcn's semantic variables in `apps/web/src/styles.css`,
+while existing screen CSS remains active.
+
+The add-item dialog is the pilot consumer. It validates focus containment and restoration, Escape
+and backdrop dismissal, form submission, and disabled saving behavior. Other bespoke dialogs remain
+unchanged until their features are touched. Native `select` is intentionally retained in the pilot;
+adopt the shadcn Select only when a feature needs its richer composition and the interaction change
+can be tested directly.
 
 ## Mobile foundation evaluation
 
@@ -146,10 +160,10 @@ packages/ui-schema/                     once a generative UI consumer is schedul
 ## Now and deferred
 
 Now: use this decision for new work, keep Lucide as the common icon family, name new reusable product
-components semantically, and establish token mappings alongside the first incremental shadcn/mobile
-foundation work. The first web adoption should be a bounded feature or dialog with accessibility and
-visual-regression checks. The first mobile step is the prototype described above.
+components semantically, and extend the installed web primitives only for scheduled feature work.
+Migrate existing dialogs incrementally with interaction and visual checks. The first mobile step is
+the prototype described above.
 
-Deferred: Tailwind/shadcn installation, full web migration, gluestack installation or full mobile
-migration, a shared token package, generative UI schema/renderer/runtime registry, 3D or AR
-implementation, cross-platform component abstraction, and a large design-system rebuild.
+Deferred: full web migration, gluestack installation or full mobile migration, a shared token
+package, generative UI schema/renderer/runtime registry, 3D or AR implementation, cross-platform
+component abstraction, and a large design-system rebuild.

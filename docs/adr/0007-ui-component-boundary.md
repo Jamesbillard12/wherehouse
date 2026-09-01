@@ -5,10 +5,10 @@
 
 ## Context
 
-WhereHouse currently uses React with hand-written CSS on web and React Native primitives with a
-shared `StyleSheet` on mobile. Both use Lucide. There is no component or form library, Tailwind is not
-installed, the existing screens work, and visual constants have begun to drift. Future generative
-and spatial UI need portable product semantics without forcing identical web and mobile rendering.
+WhereHouse began with React and hand-written CSS on web and React Native primitives with a shared
+`StyleSheet` on mobile. Both use Lucide. The web now has an incremental shadcn/Base UI and Tailwind
+foundation, while existing screens remain predominantly CSS-based. Future generative and spatial UI
+need portable product semantics without forcing identical web and mobile rendering.
 
 ## Decision
 
@@ -64,13 +64,13 @@ renderers remain possible without changing application or schema semantics.
 
 ## Now
 
-Apply the detailed [UI component architecture](../ui-architecture.md) to new work. Retain Lucide,
-introduce semantic names, and add platform primitive/semantic directories only with their first real
-component. Validate shadcn on one bounded web feature and gluestack on one representative mobile
-prototype before wider adoption.
+Apply the detailed [UI component architecture](../ui-architecture.md) to new work. Retain Lucide and
+introduce semantic names. The bounded shadcn pilot uses Base UI Button, Input, Textarea, and Dialog
+source components for the web add-item dialog; expand it only through scheduled features. Validate
+gluestack on one representative mobile prototype before wider mobile adoption.
 
 ## Deferred
 
-Full web/mobile migration, installed component foundations, shared token and UI-schema packages,
+Full web/mobile migration, a mobile component foundation, shared token and UI-schema packages,
 runtime registries/renderers, cross-platform component implementations, and 3D/AR components remain
 deferred until scheduled consumers justify them.

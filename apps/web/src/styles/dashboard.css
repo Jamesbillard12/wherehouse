@@ -42,7 +42,7 @@
 .stat-grid article { display: grid; gap: 0.35rem; border: 1px solid var(--line); border-radius: 10px; padding: 1.35rem 1.5rem; background: #fff; box-shadow: 0 2px 8px rgb(23 33 61 / 4%); }
 .stat-grid article + article { border-left: 1px solid var(--line); }
 .stat-grid strong { font: 800 2rem/1 'Manrope', sans-serif; }
-.stat-grid span { color: var(--muted); font-size: 0.76rem; }
+.stat-grid span { color: var(--muted-text); font-size: 0.76rem; }
 .overview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; max-width: 1100px; margin: 1rem auto; }
 .overview-card { display: flex; min-height: 280px; flex-direction: column; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 1.3rem; background: #fff; box-shadow: 0 2px 8px rgb(23 33 61 / 4%); }
 .card-heading { display: flex; width: 100%; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
@@ -51,7 +51,7 @@
 .empty-illustration { display: grid; place-items: center; width: 44px; height: 44px; margin: auto auto 0.8rem; border-radius: 10px; background: #eef2ff; color: var(--action); font-size: 1.25rem; }
 .empty-illustration svg { width: 22px; height: 22px; }
 .overview-card > strong { align-self: center; font-size: 0.86rem; }
-.overview-card > p { max-width: 240px; align-self: center; margin: 0.45rem auto 1.1rem; color: var(--muted); font-size: 0.73rem; line-height: 1.45; text-align: center; }
+.overview-card > p { max-width: 240px; align-self: center; margin: 0.45rem auto 1.1rem; color: var(--muted-text); font-size: 0.73rem; line-height: 1.45; text-align: center; }
 .overview-list { width: 100%; display: grid; margin-bottom: 1rem; }
 .overview-list > button { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.65rem; border: 0; border-bottom: 1px solid var(--line); padding: 0.65rem 0; background: transparent; color: var(--ink); text-align: left; }
 .overview-list > button:first-child { padding-top: 0; }
@@ -59,7 +59,7 @@
 .overview-list > button > span:nth-child(2) { min-width: 0; display: grid; gap: 0.2rem; }
 .overview-list > button strong, .overview-list > button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .overview-list > button strong { font-size: 0.76rem; }
-.overview-list > button small { color: var(--muted); font-size: 0.65rem; }
+.overview-list > button small { color: var(--muted-text); font-size: 0.65rem; }
 .overview-list > button > svg { width: 14px; height: 14px; color: #98a2b3; }
 .overview-list > button:hover strong { color: var(--action); }
 .overview-list .area-icon { width: 34px; height: 34px; }
@@ -68,7 +68,7 @@
 .quick-grid article { display: grid; grid-template-columns: auto 1fr; gap: 0.8rem; position: relative; border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem; background: #fff; }
 .quick-grid article > div:nth-child(2) { display: grid; gap: 0.25rem; }
 .quick-grid article strong { font-size: 0.82rem; text-transform: capitalize; }
-.quick-grid article span { color: var(--muted); font-size: 0.7rem; }
+.quick-grid article span { color: var(--muted-text); font-size: 0.7rem; }
 .quick-grid article small { grid-column: 2; color: #98a2b3; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; }
 .quick-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; background: #eef2ff; color: var(--action); font-size: 1.15rem; }
 .quick-icon svg { width: 19px; height: 19px; }
@@ -85,12 +85,12 @@
 .qr-placeholder svg { width: 42px; height: 42px; stroke-width: 1.5; }
 .notice { border-left: 3px solid #d2a83e; padding-left: 0.8rem; color: #765e23; font-size: 0.85rem; }
 .panel-heading { display: flex; align-items: end; justify-content: space-between; padding: 2rem; }
-.live-status { display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.live-status { display: flex; align-items: center; gap: 0.5rem; color: var(--muted-text); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
 .live-status span { width: 7px; height: 7px; border-radius: 50%; background: #5da065; box-shadow: 0 0 0 3px #dce8dc; }
 .device-list article { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; border-top: 1px solid #e6e6dd; padding: 1rem 2rem; }
 .device-list article > div:nth-child(2) { display: grid; gap: 0.25rem; }
-.device-list article span { color: var(--muted); font-size: 0.76rem; }
+.device-list article span { color: var(--muted-text); font-size: 0.76rem; }
 .device-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #edf3ed; color: var(--forest); font-size: 1.25rem; }
 .device-icon svg { width: 19px; height: 19px; }
 .danger-button { border: 0; background: none; color: var(--danger); font-size: 0.78rem; font-weight: 700; }
-.empty-state { border-top: 1px solid #e6e6dd; padding: 2rem; color: var(--muted); font-size: 0.86rem; }
+.empty-state { border-top: 1px solid #e6e6dd; padding: 2rem; color: var(--muted-text); font-size: 0.86rem; }

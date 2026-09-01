@@ -1,3 +1,14 @@
 packages:
   - apps/*
   - packages/*
+
+# Keep native optional dependencies usable from both native Apple Silicon and
+# Rosetta Node installations on development Macs.
+supportedArchitectures:
+  os:
+    - current
+  cpu:
+    - arm64
+    - x64
+  libc:
+    - current

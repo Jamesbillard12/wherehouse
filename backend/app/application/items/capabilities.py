@@ -27,6 +27,33 @@ class InvalidMove(MoveItemError):
     pass
 
 
+async def delete_item(
+    session: AsyncSession,
+    actor: ActorContext,
+    item_id: UUID,
+    events: "EventPublisher",
+) -> None:
+    item = await session.get(Item, item_id)
+    if item is None or item.is_archived:
+        raise EntityNotFound("Item")
+    await _require_access(session, actor, item.household_id)
+
+    item.is_archived = True
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+
+    await events.publish(
+        item.household_id,
+        entity="item",
+        action="deleted",
+        entity_id=item.id,
+        source=actor.client,
+    )
+
+
 class EventPublisher(Protocol):
     async def publish(
         self,

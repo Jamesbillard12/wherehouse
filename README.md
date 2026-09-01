@@ -94,6 +94,20 @@ nvm use
 ./mobile.sh
 ```
 
+Use the dedicated script for the target you are running:
+
+```bash
+./ios-simulator.sh
+# or, with an iPhone connected by USB or Wi-Fi:
+./ios-device.sh
+```
+
+The device script selects a connected iPhone, refreshes CocoaPods, makes Expo SQLite's generated
+header import unambiguous, clears stale native build products, signs the app, and installs it. This
+avoids Xcode resolving Apple's `sqlite3.h` after a Simulator build. Both scripts forward additional
+arguments to Expo and load the Node version in `.nvmrc` when NVM is installed. Keep `./dev.sh`
+running separately for API access.
+
 `./dev.sh` automatically uses the Mac's LAN address in new pairing codes so a physical phone on
 the same Wi-Fi network can reach the API. If detection fails or a different hostname is required,
 set `PUBLIC_BASE_URL` in `.env`, for example `http://192.168.1.20:8000`. Generate a new pairing code

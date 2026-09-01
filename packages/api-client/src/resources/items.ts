@@ -41,6 +41,10 @@ export function updateItem(
   return apiRequest(`/items/${itemId}`, { method: 'PATCH', token, body: payload })
 }
 
+export function deleteItem(token: string, itemId: string): Promise<void> {
+  return apiRequest(`/items/${itemId}`, { method: 'DELETE', token })
+}
+
 export function listItemPlacements(token: string, householdId: string): Promise<ItemPlacement[]> {
   return apiRequest(`/households/${householdId}/item-placements`, { token })
 }
