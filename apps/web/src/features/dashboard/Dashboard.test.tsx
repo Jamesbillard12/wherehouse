@@ -122,6 +122,7 @@ describe('Dashboard settings navigation', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Create new' }))
     await userEvent.click(screen.getByRole('menuitem', { name: /Item/ }))
     expect(location.pathname).toBe('/overview')
+    expect(screen.getByText('Quick create')).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Add an item' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(location.pathname).toBe('/overview')
@@ -136,16 +137,17 @@ describe('Dashboard settings navigation', () => {
     expect(screen.getByRole('menuitem', { name: /Container/ })).toBeDisabled()
     await userEvent.click(screen.getByRole('menuitem', { name: /Area/ }))
 
-    expect(location.pathname).toBe('/locations')
+    expect(location.pathname).toBe('/overview')
     expect(await screen.findByRole('heading', { name: 'Add an area' })).toBeInTheDocument()
   })
 
-  it('navigates to items after sidebar item creation succeeds', async () => {
+  it('creates an item without navigating away from the current page', async () => {
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.click(screen.getByRole('button', { name: 'Create new' }))
     await userEvent.click(screen.getByRole('menuitem', { name: /Item/ }))
     await userEvent.type(await screen.findByRole('textbox', { name: 'Name' }), 'New Item')
     await userEvent.click(screen.getByRole('button', { name: 'Create item' }))
-    await waitFor(() => expect(location.pathname).toBe('/items'))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Add an item' })).not.toBeInTheDocument())
+    expect(location.pathname).toBe('/overview')
   })
 })

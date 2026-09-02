@@ -1,8 +1,6 @@
 import type { Item } from "@wherehouse/api-client";
 import {
-  Camera,
   Check,
-  Image as ImageIcon,
   Radio,
   Trash2,
   X,
@@ -10,7 +8,6 @@ import {
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -27,6 +24,7 @@ import { QuantityStepper } from "../components/QuantityStepper";
 import { useItemEdit } from "../hooks/useItemEdit";
 import { styles } from "../theme/styles";
 import type { ItemLocationChoice, ItemUpdateDraft } from "../types/itemDraft";
+import { ItemPhotoField } from "../features/items/ItemPhotoField";
 
 const IDENTIFIERS: { label: string; value: Item["identifier_type"] }[] = [
   { label: "Neither", value: "none" },
@@ -142,34 +140,7 @@ export function EditItemScreen({
         contentContainerStyle={styles.addItemContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.photoPanel}>
-          {draft.photoUri || imageUri ? (
-            <Image source={{ uri: draft.photoUri || imageUri }} style={styles.itemPhoto} />
-          ) : (
-            <View style={styles.photoPlaceholder}>
-              <ImageIcon color="#98a2b3" size={32} />
-              <Text style={styles.photoPrompt}>
-                {item.image_path ? "Current image saved" : "No image yet"}
-              </Text>
-            </View>
-          )}
-          <View style={styles.photoActions}>
-            <Pressable
-              onPress={() => void photo(capturePhoto)}
-              style={styles.photoButtonPrimary}
-            >
-              <Camera color="#fff" size={18} />
-              <Text style={styles.photoButtonPrimaryText}>Take photo</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => void photo(choosePhoto)}
-              style={styles.photoButton}
-            >
-              <ImageIcon color="#4f46e5" size={18} />
-              <Text style={styles.photoButtonText}>Library</Text>
-            </Pressable>
-          </View>
-        </View>
+        <ItemPhotoField emptyHint={item.image_path ? "Current image saved" : "No image yet"} onCamera={() => void photo(capturePhoto)} onLibrary={() => void photo(choosePhoto)} uri={draft.photoUri || imageUri} />
         <View style={styles.quickFields}>
           <Text style={styles.fieldLabel}>Item name</Text>
           <TextInput

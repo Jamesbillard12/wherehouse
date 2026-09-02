@@ -28,7 +28,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | Backup and restore | Not implemented | No supported orchestration, format, verification, or restore exercise |
 | Raspberry Pi deployment | Partially implemented | Docker instructions exist; clean Pi/reboot/update/storage validation is absent |
 | Cloud deployment | Partially implemented | Guidance exists; not an MVP release substitute for supported local operation |
-| Application capabilities/actor context | Partially implemented | Create/update/delete/move item, container nesting, and identifiers lead; other route-owned location CRUD remains |
+| Application capabilities/actor context | Partially implemented | Create/update/delete/move item, container nesting, and identifiers lead; typed frontend feature actions now remove quick-create navigation coupling, while other route-owned location CRUD remains |
 | Confirmations | Partially implemented | Reusable client UI exists; portable evidence/policy boundary is incomplete |
 | Audit attribution | Not implemented | Realtime is not audit; required before external automated writes, not necessarily tag |
 | Categories/tags, checkout/return, history | Deferred from MVP | No substantial current implementation |
@@ -157,6 +157,12 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 - **Dependencies/non-goals:** observe phases 1–7; no MCP, AI, assistant, generative UI or broker build.
 - **Exit criteria:** no known MVP decision forces a major rewrite for documented future adapters.
 - **Risk/branch:** aspirational interfaces masking route logic. `refactor/mvp-capability-boundaries`.
+
+Frontend component ownership is now governed by
+[the component architecture](../architecture/frontend-component-architecture.md). The first slice adds
+typed global feature actions and removes quick-create navigation used only to mount create dialogs. The
+audit records oversized web/mobile orchestrators that still require behavior-preserving extraction before
+this architecture gate can be considered complete.
 
 ## Phase 9: Release candidate validation
 

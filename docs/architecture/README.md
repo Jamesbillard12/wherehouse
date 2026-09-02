@@ -1,6 +1,7 @@
 # Architecture
 
 - [Current architecture](current-architecture.md)
+- [Frontend component architecture](frontend-component-architecture.md)
 - [Future architecture](future-architecture.md)
 - [Domain model](domain-model.md)
 - [Authentication and pairing](authentication.md)

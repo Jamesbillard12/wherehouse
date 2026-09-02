@@ -36,6 +36,8 @@ import { SIDEBAR_KEY } from '../../shared/utils/storage'
 import { type DashboardView, viewFromLocation } from '../../shared/utils/navigation'
 import { useOverviewInventory } from './useOverviewInventory'
 import { SettingsView } from '../settings/SettingsView'
+import { FeatureActionsProvider, useFeatureActions } from '../app/FeatureActions'
+import { GlobalFeatureHost } from '../app/GlobalFeatureHost'
 import { settingsSectionFromLocation, type SettingsSection } from '../../shared/utils/navigation'
 
 const sectionsForMenu: { id: SettingsSection; label: string }[] = [
@@ -55,7 +57,11 @@ const settingsSearchTerms: Record<SettingsSection, string> = {
   about: 'about version application',
 }
 
-export function Dashboard({
+export function Dashboard(props: Parameters<typeof DashboardContent>[0]) {
+  return <FeatureActionsProvider><DashboardContent {...props} /></FeatureActionsProvider>
+}
+
+function DashboardContent({
   household,
   households,
   isOwner,
@@ -92,13 +98,11 @@ export function Dashboard({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searchBusy, setSearchBusy] = useState(false)
   const [searchError, setSearchError] = useState(false)
-  const [createItemRequestKey, setCreateItemRequestKey] = useState(0)
-  const [sidebarCreateOpen, setSidebarCreateOpen] = useState(false)
   const [quickCreateOpen, setQuickCreateOpen] = useState(false)
-  const [locationCreateRequest, setLocationCreateRequest] = useState<{ key: number; type: 'area' | 'zone' | 'container' } | null>(null)
   const [householdSelectOpen, setHouseholdSelectOpen] = useState(false)
   const [selectedOverviewItem, setSelectedOverviewItem] = useState<Item | null>(null)
   const overview = useOverviewInventory(household.id, token, realtimeRevision)
+  const { actions: featureActions } = useFeatureActions()
 
   useEffect(() => {
     setSearchQuery('')
@@ -187,14 +191,14 @@ export function Dashboard({
 
   function createLocation(type: 'area' | 'zone' | 'container') {
     setQuickCreateOpen(false)
-    setLocationCreateRequest({ key: Date.now(), type })
-    navigate('locations')
+    if (type === 'area') featureActions.createArea()
+    else if (type === 'zone') featureActions.createZone({ areaId: overview.areas[0]?.id })
+    else featureActions.createContainer({ areaId: overview.areas[0]?.id })
   }
 
   function createItemFromSidebar() {
     setQuickCreateOpen(false)
-    if (activeView === 'items') setCreateItemRequestKey((current) => current + 1)
-    else setSidebarCreateOpen(true)
+    featureActions.createItem()
   }
 
   useEffect(() => {
@@ -329,9 +333,9 @@ export function Dashboard({
 
       <section className={`dashboard-content ${activeView === 'overview' ? 'overview-content' : ''}`}>
         {activeView === 'items' ? (
-          <ItemsView createRequestKey={createItemRequestKey} household={household} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
+          <ItemsView household={household} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
-          <LocationsView createRequest={locationCreateRequest ?? undefined} household={household} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? resolvedTarget?.areaId} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : resolvedTarget?.containerId)} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.scanKey} revealZoneId={locationTarget?.zoneId ?? resolvedTarget?.zoneId} token={token} />
+          <LocationsView household={household} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? resolvedTarget?.areaId} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : resolvedTarget?.containerId)} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.scanKey} revealZoneId={locationTarget?.zoneId ?? resolvedTarget?.zoneId} token={token} />
         ) : activeView === 'settings' ? (
           <SettingsView household={household} households={households} isOwner={isOwner} onCreateHousehold={onCreateHousehold} onNavigate={navigateSettings} onSelect={onSelect} section={settingsSection} token={token} user={user} />
         ) : (
@@ -382,7 +386,7 @@ export function Dashboard({
         </>
         )}
       </section>
-      {sidebarCreateOpen ? <div className="creation-workflow-host"><ItemsView createRequestKey={1} household={household} onCreateOpenChange={setSidebarCreateOpen} onCreated={() => navigate('items')} onOpenLocation={() => undefined} token={token} /></div> : null}
+      <GlobalFeatureHost household={household} onChanged={() => setRealtimeRevision((current) => current + 1)} token={token} />
       {reviewItemIds.length && !reviewQueueOpen ? <Button className="review-queue-launcher" onClick={() => setReviewQueueOpen(true)}><PackagePlus aria-hidden="true" /><span>{reviewItemIds.length}</span> Review companion items</Button> : null}
       {reviewQueueOpen && reviewItemIds.length ? <CompanionReviewQueue inventory={overview} itemIds={reviewItemIds} onClose={() => setReviewQueueOpen(false)} onReviewed={markReviewed} onUpdated={() => setRealtimeRevision((current) => current + 1)} token={token} /> : null}
     </main>

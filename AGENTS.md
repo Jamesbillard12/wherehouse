@@ -38,6 +38,14 @@ Web prefers incremental shadcn/Base UI and Tailwind; mobile retains native React
 evaluates gluestack through a bounded need. Share WhereHouse semantic tokens/behavior, not primitive
 props. Put cross-client contracts in `packages/api-client`; platform behavior stays in its client.
 
+Before adding UI, inspect existing primitives, feature modules, forms, dialogs, and hooks for reuse.
+Pages/screens compose reusable features; do not make a page the exclusive owner of an interaction or
+navigate merely to mount it. Create/edit experiences share forms or field groups when their data overlaps.
+Place UI at the narrowest correct level: generic primitive → cross-feature WhereHouse component → feature
+component → page/screen. Keep state at the narrowest useful scope, prefer composition over mega-components,
+and evaluate extraction before adding responsibility to an oversized component. Tests belong with the
+feature boundary; update architecture docs when introducing a durable pattern.
+
 ## Workflow and verification
 
 Inspect local guidance and actual code, make the smallest coherent change, and preserve separation of
