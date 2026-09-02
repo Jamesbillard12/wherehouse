@@ -217,13 +217,13 @@ export function Dashboard({
             {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
           </Button>
         </div>
-        <Button aria-label="Add item" className="sidebar-add-item" onClick={() => { setCreateItemRequestKey((current) => current + 1); navigate('items') }}><Plus aria-hidden="true" /><span>Add item</span></Button>
         <div className="sidebar-household">
           <p className="nav-label">Household</p>
           <select value={household.id} onChange={(event) => onSelect(event.target.value)}>
           {households.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
           </select>
         </div>
+        <Button aria-label="Add item" className="sidebar-add-item" onClick={() => { setCreateItemRequestKey((current) => current + 1); navigate('items') }}><Plus aria-hidden="true" /><span>Add item</span></Button>
         <nav>
           <a aria-label="Overview" className={`nav-item ${activeView === 'overview' ? 'active' : ''}`} href="/overview" onClick={(event) => { event.preventDefault(); navigate('overview') }} title="Overview"><House aria-hidden="true" /><span>Overview</span></a>
           <a aria-label="Locations" className={`nav-item ${activeView === 'locations' ? 'active' : ''}`} href="/locations" onClick={(event) => { event.preventDefault(); navigate('locations') }} title="Locations"><MapPin aria-hidden="true" /><span>Locations</span></a>
