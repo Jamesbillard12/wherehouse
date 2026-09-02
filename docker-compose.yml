@@ -25,6 +25,8 @@ services:
       IMAGE_STORAGE_BACKEND: local
       UPLOAD_DIR: /data/uploads
       PUBLIC_BASE_URL: http://localhost:8080
+      BACKUP_LOCAL_DIR: /data/backups
+      BACKUP_STAGING_DIR: /data/backup-staging
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,8 +40,12 @@ services:
       IMAGE_STORAGE_BACKEND: local
       UPLOAD_DIR: /data/uploads
       PUBLIC_BASE_URL: http://localhost:8080
+      BACKUP_LOCAL_DIR: /data/backups
+      BACKUP_STAGING_DIR: /data/backup-staging
     volumes:
       - wherehouse-uploads:/data/uploads
+      - wherehouse-backups:/data/backups
+      - wherehouse-backup-staging:/data/backup-staging
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -56,3 +62,5 @@ services:
 volumes:
   wherehouse-postgres:
   wherehouse-uploads:
+  wherehouse-backups:
+  wherehouse-backup-staging:
