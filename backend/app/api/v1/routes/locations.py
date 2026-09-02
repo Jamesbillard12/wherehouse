@@ -93,7 +93,12 @@ async def update_area(
 ) -> Area:
     area = await require(session, Area, area_id, "Area")
     await require_household_access(area.household_id, principal, session)
-    area.icon = payload.icon
+    if payload.name is not None:
+        area.name = payload.name
+    if payload.icon is not None:
+        area.icon = payload.icon
+    if "description" in payload.model_fields_set:
+        area.description = payload.description
     await session.commit()
     await session.refresh(area)
     await realtime_hub.publish(area.household_id, entity="area", action="updated", entity_id=area.id, source=principal.method)

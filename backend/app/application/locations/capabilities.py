@@ -172,6 +172,8 @@ async def place_container(
         raise LocationAccessDenied("Household access denied")
     if parent_area.household_id != area.household_id or parent.area_id != container.area_id:
         raise InvalidContainerPlacement("Nested containers must belong to the same household and area")
+    if parent.zone_id != container.zone_id:
+        raise InvalidContainerPlacement("Nested containers must belong to the same zone")
 
     ancestor_id: UUID | None = parent.id
     visited: set[UUID] = set()

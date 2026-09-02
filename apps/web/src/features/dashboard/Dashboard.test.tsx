@@ -119,7 +119,8 @@ describe('Dashboard settings navigation', () => {
 
   it('keeps the current page when sidebar item creation is cancelled', async () => {
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Add item' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create new' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /Item/ }))
     expect(location.pathname).toBe('/overview')
     expect(await screen.findByRole('heading', { name: 'Add an item' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -127,9 +128,22 @@ describe('Dashboard settings navigation', () => {
     expect(screen.queryByRole('heading', { name: 'Add an item' })).not.toBeInTheDocument()
   })
 
+  it('opens area creation from the sidebar create menu', async () => {
+    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Create new' }))
+    expect(screen.getByRole('menuitem', { name: /Zone/ })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: /Container/ })).toBeDisabled()
+    await userEvent.click(screen.getByRole('menuitem', { name: /Area/ }))
+
+    expect(location.pathname).toBe('/locations')
+    expect(await screen.findByRole('heading', { name: 'Add an area' })).toBeInTheDocument()
+  })
+
   it('navigates to items after sidebar item creation succeeds', async () => {
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Add item' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create new' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /Item/ }))
     await userEvent.type(await screen.findByRole('textbox', { name: 'Name' }), 'New Item')
     await userEvent.click(screen.getByRole('button', { name: 'Create item' }))
     await waitFor(() => expect(location.pathname).toBe('/items'))

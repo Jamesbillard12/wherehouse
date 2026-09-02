@@ -15,7 +15,7 @@ import {
   placeContainer,
   removeContainerPlacement,
   setContainerSpace,
-  updateAreaIcon,
+  updateArea,
   updateContainer,
   uploadContainerImage,
   uploadItemImage,
@@ -50,7 +50,7 @@ import {
   Warehouse,
   type LucideIcon,
 } from 'lucide-react'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 
@@ -67,7 +67,7 @@ import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 import { PageHeader } from '../../components/wherehouse/PageHeader'
 
 export { AreaIcon } from './locationOptions'
-export function LocationsView({ household, onRevealConsumed, refreshKey = 0, revealAreaId, revealContainerId, revealItem, revealItemId, revealScanKey, revealZoneId, token }: { household: Household; onRevealConsumed?: () => void; refreshKey?: number; revealAreaId?: string; revealContainerId?: string; revealItem?: Item; revealItemId?: string; revealScanKey?: string; revealZoneId?: string; token: string }) {
+export function LocationsView({ createRequest, household, onRevealConsumed, refreshKey = 0, revealAreaId, revealContainerId, revealItem, revealItemId, revealScanKey, revealZoneId, token }: { createRequest?: { key: number; type: 'area' | 'zone' | 'container' }; household: Household; onRevealConsumed?: () => void; refreshKey?: number; revealAreaId?: string; revealContainerId?: string; revealItem?: Item; revealItemId?: string; revealScanKey?: string; revealZoneId?: string; token: string }) {
   const [areas, setAreas] = useState<Area[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [containers, setContainers] = useState<StorageContainer[]>([])
@@ -77,9 +77,11 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
   const [openContainerId, setOpenContainerId] = useState<string | null>(null)
   const [selectedZoneFilter, setSelectedZoneFilter] = useState('')
   const [selectedAreaId, setSelectedAreaId] = useState('')
-  const [formMode, setFormMode] = useState<'area' | 'zone' | 'edit-zone' | 'container' | 'edit-container' | 'icon' | null>(null)
+  const [formMode, setFormMode] = useState<'area' | 'edit-area' | 'zone' | 'edit-zone' | 'container' | 'edit-container' | null>(null)
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null)
   const [selectedContainer, setSelectedContainer] = useState<StorageContainer | null>(null)
+  const [containerFormZoneId, setContainerFormZoneId] = useState('')
+  const [containerFormParentId, setContainerFormParentId] = useState('')
   const [containerImageUrl, setContainerImageUrl] = useState('')
   const [containerImageBusy, setContainerImageBusy] = useState(false)
   const [containerImageRevision, setContainerImageRevision] = useState(0)
@@ -94,6 +96,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'area'; name: string; description: string } | { type: 'container'; container: StorageContainer; description: string } | null>(null)
+  const handledCreateRequest = useRef(0)
 
   async function loadAreas(preferredId?: string) {
     const nextAreas = await listAreas(token, household.id)
@@ -128,6 +131,9 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
 
   useEffect(() => {
     setLoading(true)
+  }, [household.id, token])
+
+  useEffect(() => {
     setError(null)
     void loadAreas()
       .catch((reason) => setError(message(reason)))
@@ -135,12 +141,33 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
   }, [household.id, refreshKey, token])
 
   useEffect(() => {
-    setError(null)
     setOpenContainerId(null)
     setSelectedZoneFilter('')
     if (selectedAreaId) localStorage.setItem(areaKey(household.id), selectedAreaId)
+  }, [household.id, selectedAreaId])
+
+  useEffect(() => {
+    setError(null)
     void loadAreaDetails(selectedAreaId).catch((reason) => setError(message(reason)))
   }, [household.id, refreshKey, selectedAreaId, token])
+
+  useEffect(() => {
+    if (formMode !== 'container' && formMode !== 'edit-container') return
+    const placement = selectedContainer
+      ? placements.find((entry) => entry.container_id === selectedContainer.id)
+      : null
+    const parentId = placement?.parent_container_id ?? openContainerId ?? ''
+    const parent = containers.find((entry) => entry.id === parentId)
+    setContainerFormZoneId(selectedContainer?.zone_id ?? parent?.zone_id ?? selectedZoneFilter)
+    setContainerFormParentId(parentId)
+  }, [formMode, selectedContainer, openContainerId, placements, containers, selectedZoneFilter])
+
+  useEffect(() => {
+    if (!createRequest || createRequest.key === handledCreateRequest.current) return
+    if (createRequest.type !== 'area' && !selectedAreaId) return
+    handledCreateRequest.current = createRequest.key
+    setFormMode(createRequest.type)
+  }, [createRequest, selectedAreaId])
 
   useEffect(() => {
     if (!revealItemId) return
@@ -217,14 +244,19 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
     }
   }
 
-  async function submitAreaIcon(event: FormEvent<HTMLFormElement>) {
+  async function submitAreaEdit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selectedArea) return
     setSaving(true)
     setError(null)
     const data = new FormData(event.currentTarget)
     try {
-      const updated = await updateAreaIcon(token, selectedArea.id, String(data.get('icon')))
+      const description = String(data.get('description')).trim()
+      const updated = await updateArea(token, selectedArea.id, {
+        name: String(data.get('name')).trim(),
+        icon: String(data.get('icon')),
+        description: description || null,
+      })
       setAreas((current) => current.map((area) => area.id === updated.id ? updated : area))
       setFormMode(null)
     } catch (reason) {
@@ -535,9 +567,11 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
 
           <section className="area-detail">
             <div className="area-detail-heading">
-              <div className="selected-area-title"><span className="area-icon large"><AreaIcon name={selectedArea?.icon ?? 'warehouse'} /></span><div><p className="eyebrow">Selected area</p><h2>{selectedArea?.name}</h2>{selectedArea?.description ? <p>{selectedArea.description}</p> : null}</div></div>
+              <div className="selected-area-title">
+                <span className="area-icon large"><AreaIcon name={selectedArea?.icon ?? 'warehouse'} /></span>
+                <div><p className="eyebrow">Selected area</p><div className="area-name"><h2>{selectedArea?.name}</h2><Button aria-label={`Rename ${selectedArea?.name}`} onClick={() => setFormMode('edit-area')} title="Rename area"><Pencil aria-hidden="true" /></Button></div>{selectedArea?.description ? <p>{selectedArea.description}</p> : null}</div>
+              </div>
               <div className="area-actions">
-                <Button aria-label="Change area icon" className="icon-action" onClick={() => setFormMode('icon')} title="Change icon"><AreaIcon name={selectedArea?.icon ?? 'warehouse'} /></Button>
                 <Button className="secondary-action" onClick={() => setFormMode('zone')}><Plus aria-hidden="true" /> Add zone</Button>
                 <Button className="primary-button compact" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add container</Button>
                 <Button aria-label={`Delete ${selectedArea?.name}`} className="icon-action danger" disabled={saving} onClick={() => void removeArea()} title="Delete area"><Trash2 aria-hidden="true" /></Button>
@@ -587,12 +621,12 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
       {formMode ? (
         <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setNewContainerImage(null); setFormMode(null) } }}>
           <section aria-labelledby="location-dialog-title" aria-modal="true" className="location-dialog" role="dialog">
-            <div className="dialog-heading"><div><p className="eyebrow">Location setup</p><h2 id="location-dialog-title">{formMode === 'area' ? 'Add an area' : formMode === 'zone' ? `Add a zone to ${selectedArea?.name}` : formMode === 'edit-zone' ? `Edit ${selectedZone?.name}` : formMode === 'edit-container' ? `Edit ${selectedContainer?.name}` : formMode === 'icon' ? `Choose an icon for ${selectedArea?.name}` : `Add a container to ${selectedArea?.name}`}</h2></div><Button aria-label="Close" onClick={() => { setNewContainerImage(null); setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }}>×</Button></div>
-            <form onSubmit={formMode === 'area' ? submitArea : formMode === 'zone' ? submitZone : formMode === 'edit-zone' ? submitZoneEdit : formMode === 'edit-container' ? submitContainerEdit : formMode === 'icon' ? submitAreaIcon : submitContainer}>
+            <div className="dialog-heading"><div><p className="eyebrow">Location setup</p><h2 id="location-dialog-title">{formMode === 'area' ? 'Add an area' : formMode === 'edit-area' ? `Edit ${selectedArea?.name}` : formMode === 'zone' ? `Add a zone to ${selectedArea?.name}` : formMode === 'edit-zone' ? `Edit ${selectedZone?.name}` : formMode === 'edit-container' ? `Edit ${selectedContainer?.name}` : `Add a container to ${selectedArea?.name}`}</h2></div><Button aria-label="Close" onClick={() => { setNewContainerImage(null); setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }}>×</Button></div>
+            <form onSubmit={formMode === 'area' ? submitArea : formMode === 'edit-area' ? submitAreaEdit : formMode === 'zone' ? submitZone : formMode === 'edit-zone' ? submitZoneEdit : formMode === 'edit-container' ? submitContainerEdit : submitContainer}>
               {formMode === 'edit-container' ? <div className="item-image-panel container-image-panel">{containerImageUrl ? <img alt={selectedContainer?.name} src={containerImageUrl} /> : <div className="item-image-placeholder"><ImageIcon aria-hidden="true" /><strong>No image yet</strong><span>Add a photo to make this container easier to identify.</span></div>}<label className="item-image-action"><Camera aria-hidden="true" /><span>{containerImageBusy ? 'Uploading…' : containerImageUrl ? 'Replace image' : 'Add image'}</span><input accept="image/jpeg,image/png,image/webp" disabled={containerImageBusy} onChange={(event) => { setContainerImageToCrop(event.target.files?.[0] ?? null); event.target.value = '' }} type="file" /></label></div> : null}
               {formMode === 'container' ? <CreateImageField label="Container image" onFileChange={setNewContainerImage} /> : null}
-              {formMode !== 'icon' ? <label>Name<input autoFocus defaultValue={formMode === 'edit-zone' ? selectedZone?.name : formMode === 'edit-container' ? selectedContainer?.name : ''} name="name" placeholder={formMode === 'area' ? 'Garage' : formMode === 'zone' || formMode === 'edit-zone' ? 'North wall' : 'Camping bin'} required /></label> : null}
-              {formMode === 'area' || formMode === 'icon' ? <AreaIconPicker defaultValue={formMode === 'icon' ? selectedArea?.icon : undefined} /> : null}
+              <label>Name<input autoFocus defaultValue={formMode === 'edit-area' ? selectedArea?.name : formMode === 'edit-zone' ? selectedZone?.name : formMode === 'edit-container' ? selectedContainer?.name : ''} name="name" placeholder={formMode === 'area' ? 'Garage' : formMode === 'zone' || formMode === 'edit-zone' ? 'North wall' : 'Camping bin'} required /></label>
+              {formMode === 'area' || formMode === 'edit-area' ? <AreaIconPicker defaultValue={formMode === 'edit-area' ? selectedArea?.icon : undefined} /> : null}
               {formMode === 'container' || formMode === 'edit-container' ? <>
                 <div className="form-row">
                   {formMode === 'edit-container' ? <label>Type<input className="readonly-input" readOnly value={CONTAINER_TYPES.find((type) => type.value === selectedContainer?.container_type)?.label ?? 'Other'} /></label> : <label>Type<select defaultValue="bin" name="containerType">{CONTAINER_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>}
@@ -615,15 +649,20 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
                     )
                   })}
                 </fieldset>
-                <label>Zone <span className="optional">Optional</span><select defaultValue={selectedContainer?.zone_id ?? ''} name="zoneId"><option value="">Directly in area</option>{zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label>
+                <label>Zone <span className="optional">Optional</span><select name="zoneId" onChange={(event) => {
+                  const zoneId = event.target.value
+                  setContainerFormZoneId(zoneId)
+                  const parent = containers.find((entry) => entry.id === containerFormParentId)
+                  if (parent && (parent.zone_id ?? '') !== zoneId) setContainerFormParentId('')
+                }} value={containerFormZoneId}><option value="">Directly in area</option>{zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label>
                 <div className="form-row">
-                  <label>Parent container <span className="optional">Optional</span><select defaultValue={selectedContainer ? placements.find((placement) => placement.container_id === selectedContainer.id)?.parent_container_id ?? '' : openContainerId ?? ''} name="parentId"><option value="">No parent</option>{containers.filter((container) => container.id !== selectedContainer?.id).map((container) => <option key={container.id} value={container.id}>{container.name}</option>)}</select></label>
+                  <label>Parent container <span className="optional">Optional</span><select name="parentId" onChange={(event) => setContainerFormParentId(event.target.value)} value={containerFormParentId}><option value="">No parent</option>{containers.filter((container) => container.id !== selectedContainer?.id && (container.zone_id ?? '') === containerFormZoneId).map((container) => <option key={container.id} value={container.id}>{container.name}</option>)}</select></label>
                   <label>Relationship<select defaultValue={selectedContainer ? placements.find((placement) => placement.container_id === selectedContainer.id)?.relationship_type ?? 'in' : 'in'} name="relationshipType"><option value="in">In</option><option value="on">On</option><option value="under">Under</option><option value="attached_to">Attached to</option></select></label>
                 </div>
                 <label className="checkbox-label"><input defaultChecked={selectedContainer?.is_movable ?? true} name="isMovable" type="checkbox" /> This container can be moved</label>
               </> : null}
-              {formMode !== 'icon' ? <label>Description <span className="optional">Optional</span><textarea defaultValue={formMode === 'edit-zone' ? selectedZone?.description ?? '' : formMode === 'edit-container' ? selectedContainer?.description ?? '' : ''} name="description" placeholder="Add a helpful note…" rows={3} /></label> : null}
-              <div className="dialog-actions"><Button className="secondary-action" onClick={() => { setNewContainerImage(null); setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }} type="button">Cancel</Button>{formMode === 'edit-container' ? <Button className="secondary-action" onClick={() => setShowContainerLabel(true)} type="button"><Printer aria-hidden="true" /> Print QR</Button> : null}<Button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : formMode === 'area' ? 'Create area' : formMode === 'zone' ? 'Create zone' : formMode === 'edit-zone' || formMode === 'edit-container' ? 'Save changes' : formMode === 'icon' ? 'Save icon' : 'Create container'}</Button></div>
+              <label>Description <span className="optional">Optional</span><textarea defaultValue={formMode === 'edit-area' ? selectedArea?.description ?? '' : formMode === 'edit-zone' ? selectedZone?.description ?? '' : formMode === 'edit-container' ? selectedContainer?.description ?? '' : ''} name="description" placeholder="Add a helpful note…" rows={3} /></label>
+              <div className="dialog-actions"><Button className="secondary-action" onClick={() => { setNewContainerImage(null); setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }} type="button">Cancel</Button>{formMode === 'edit-container' ? <Button className="secondary-action" onClick={() => setShowContainerLabel(true)} type="button"><Printer aria-hidden="true" /> Print QR</Button> : null}<Button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : formMode === 'area' ? 'Create area' : formMode === 'zone' ? 'Create zone' : formMode === 'edit-area' || formMode === 'edit-zone' || formMode === 'edit-container' ? 'Save changes' : 'Create container'}</Button></div>
             </form>
           </section>
         </div>

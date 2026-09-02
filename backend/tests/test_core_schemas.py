@@ -10,11 +10,18 @@ from app.models.core import (
     ItemIdentifierType,
 )
 from app.schemas.core import (
+    AreaUpdate,
     ContainerCreate,
     HouseholdUserCreate,
     ItemCreate,
     ItemPlacementCreate,
 )
+
+
+def test_area_update_accepts_name_or_icon() -> None:
+    assert AreaUpdate(name="Garage").model_dump(exclude_none=True) == {"name": "Garage"}
+    assert AreaUpdate(icon="warehouse").model_dump(exclude_none=True) == {"icon": "warehouse"}
+    assert AreaUpdate(description=None).model_fields_set == {"description"}
 
 
 def test_household_relationship_values_are_stable() -> None:
