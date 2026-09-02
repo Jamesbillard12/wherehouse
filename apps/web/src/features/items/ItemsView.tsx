@@ -229,7 +229,7 @@ export function AddItemDialog({ areas, containerPlacements, containers, finalFoc
   )
 }
 
-export function ItemsView({ createRequestKey = 0, household, onOpenLocation, onRevealConsumed, refreshKey = 0, revealItemId, revealScanKey, token }: { createRequestKey?: number; household: Household; onOpenLocation: (target: { areaId: string; containerId?: string; zoneId?: string }) => void; onRevealConsumed?: () => void; refreshKey?: number; revealItemId?: string; revealScanKey?: string; token: string }) {
+export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange, onCreated, onOpenLocation, onRevealConsumed, refreshKey = 0, revealItemId, revealScanKey, token }: { createRequestKey?: number; household: Household; onCreateOpenChange?: (open: boolean) => void; onCreated?: (item: Item) => void; onOpenLocation: (target: { areaId: string; containerId?: string; zoneId?: string }) => void; onRevealConsumed?: () => void; refreshKey?: number; revealItemId?: string; revealScanKey?: string; token: string }) {
   const [items, setItems] = useState<Item[]>([])
   const [placements, setPlacements] = useState<ItemPlacement[]>([])
   const [areas, setAreas] = useState<Area[]>([])
@@ -311,6 +311,8 @@ export function ItemsView({ createRequestKey = 0, household, onOpenLocation, onR
       })
       await loadInventory()
       setShowForm(false)
+      onCreateOpenChange?.(false)
+      onCreated?.(item)
     } catch (reason) {
       setError(message(reason))
     } finally {
@@ -341,7 +343,7 @@ export function ItemsView({ createRequestKey = 0, household, onOpenLocation, onR
         ) : <div className="location-empty"><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>No items yet</strong><p>Add your first item and place it directly in an area, zone, or container.</p><Button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add first item</Button></div>}
       </section>
       {selectedItem ? <ItemDetailsModal areas={areas} containerPlacements={containerPlacements} containers={containers} imageRevision={refreshKey} item={selectedItem} locationLabel={itemLocation(placements.find((entry) => entry.item_id === selectedItem.id), areas, zones, containers, containerPlacements)} onClose={() => setSelectedItem(null)} onDeleted={(itemId) => { setSelectedItem(null); setItems((current) => current.filter((item) => item.id !== itemId)); setPlacements((current) => current.filter((entry) => entry.item_id !== itemId)) }} onPlacementUpdated={(updated) => setPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={placements.find((entry) => entry.item_id === selectedItem.id)} token={token} zones={zones} /> : null}
-      <AddItemDialog areas={areas} containerPlacements={containerPlacements} containers={containers} finalFocus={addItemTriggerRef} onOpenChange={setShowForm} onSubmit={submit} open={showForm} saving={saving} zones={zones} />
+      <AddItemDialog areas={areas} containerPlacements={containerPlacements} containers={containers} finalFocus={addItemTriggerRef} onOpenChange={(open) => { setShowForm(open); onCreateOpenChange?.(open) }} onSubmit={submit} open={showForm} saving={saving} zones={zones} />
     </div>
   )
 }

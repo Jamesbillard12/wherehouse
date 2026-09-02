@@ -8,6 +8,7 @@ vi.mock('@wherehouse/api-client', async (importOriginal) => ({
   listAreas: vi.fn().mockResolvedValue([]),
   listItems: vi.fn().mockResolvedValue([]),
   listItemPlacements: vi.fn().mockResolvedValue([]),
+  createItem: vi.fn().mockResolvedValue({ id: 'new-item', household_id: 'home', name: 'New Item', code: 'ITM-002', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: null, model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '', updated_at: '' }),
   searchItems: vi.fn().mockResolvedValue([{ item: { id: 'stove', household_id: 'home', name: 'Camping Stove', code: 'ITM-001', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: 'Coleman', model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '', updated_at: '' }, resolved_path: 'Garage > North Wall > Shelf > Yellow Bin' }]),
   searchContainers: vi.fn().mockResolvedValue([]),
   subscribeToHousehold: vi.fn().mockReturnValue(() => undefined),
@@ -51,10 +52,21 @@ describe('Dashboard settings navigation', () => {
     await waitFor(() => expect(location.pathname).toBe('/locations'))
   })
 
-  it('starts item creation from the sidebar', async () => {
+  it('keeps the current page when sidebar item creation is cancelled', async () => {
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.click(screen.getByRole('button', { name: 'Add item' }))
-    expect(location.pathname).toBe('/items')
+    expect(location.pathname).toBe('/overview')
     expect(await screen.findByRole('heading', { name: 'Add an item' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(location.pathname).toBe('/overview')
+    expect(screen.queryByRole('heading', { name: 'Add an item' })).not.toBeInTheDocument()
+  })
+
+  it('navigates to items after sidebar item creation succeeds', async () => {
+    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Add item' }))
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Name' }), 'New Item')
+    await userEvent.click(screen.getByRole('button', { name: 'Create item' }))
+    await waitFor(() => expect(location.pathname).toBe('/items'))
   })
 })

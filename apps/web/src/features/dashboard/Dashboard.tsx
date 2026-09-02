@@ -78,6 +78,7 @@ export function Dashboard({
   const [searchBusy, setSearchBusy] = useState(false)
   const [searchError, setSearchError] = useState(false)
   const [createItemRequestKey, setCreateItemRequestKey] = useState(0)
+  const [sidebarCreateOpen, setSidebarCreateOpen] = useState(false)
   const overview = useOverviewInventory(household.id, token, realtimeRevision)
 
   useEffect(() => {
@@ -223,7 +224,7 @@ export function Dashboard({
           {households.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
           </select>
         </div>
-        <Button aria-label="Add item" className="sidebar-add-item" onClick={() => { setCreateItemRequestKey((current) => current + 1); navigate('items') }}><Plus aria-hidden="true" /><span>Add item</span></Button>
+        <Button aria-label="Add item" className="sidebar-add-item" onClick={() => { if (activeView === 'items') setCreateItemRequestKey((current) => current + 1); else setSidebarCreateOpen(true) }}><Plus aria-hidden="true" /><span>Add item</span></Button>
         <nav>
           <a aria-label="Overview" className={`nav-item ${activeView === 'overview' ? 'active' : ''}`} href="/overview" onClick={(event) => { event.preventDefault(); navigate('overview') }} title="Overview"><House aria-hidden="true" /><span>Overview</span></a>
           <a aria-label="Locations" className={`nav-item ${activeView === 'locations' ? 'active' : ''}`} href="/locations" onClick={(event) => { event.preventDefault(); navigate('locations') }} title="Locations"><MapPin aria-hidden="true" /><span>Locations</span></a>
@@ -297,6 +298,7 @@ export function Dashboard({
         </>
         )}
       </section>
+      {sidebarCreateOpen ? <div className="creation-workflow-host"><ItemsView createRequestKey={1} household={household} onCreateOpenChange={setSidebarCreateOpen} onCreated={() => navigate('items')} onOpenLocation={() => undefined} token={token} /></div> : null}
       {reviewItemIds.length && !reviewQueueOpen ? <Button className="review-queue-launcher" onClick={() => setReviewQueueOpen(true)}><PackagePlus aria-hidden="true" /><span>{reviewItemIds.length}</span> Review companion items</Button> : null}
       {reviewQueueOpen && reviewItemIds.length ? <CompanionReviewQueue inventory={overview} itemIds={reviewItemIds} onClose={() => setReviewQueueOpen(false)} onReviewed={markReviewed} onUpdated={() => setRealtimeRevision((current) => current + 1)} token={token} /> : null}
     </main>
