@@ -1,4 +1,4 @@
-import { searchContainers, searchItems, type ContainerSearchResult, type Household, type ItemSearchResult, type MeResponse, subscribeToHousehold, type RealtimeStatus } from '@wherehouse/api-client'
+import { searchContainers, searchItems, type ContainerSearchResult, type Household, type Item, type ItemSearchResult, type MeResponse, subscribeToHousehold, type RealtimeStatus } from '@wherehouse/api-client'
 import {
   Activity,
   ArrowRightLeft,
@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-import { ItemsView, itemLocation } from '../items/ItemsView'
+import { ItemDetailsModal, ItemsView, itemLocation } from '../items/ItemsView'
 import { CompanionReviewQueue } from '../items/CompanionReviewQueue'
 import { AreaIcon, LocationsView } from '../locations/LocationsView'
 import { greeting } from '../../shared/utils/date'
@@ -82,12 +82,14 @@ export function Dashboard({
   const [createItemRequestKey, setCreateItemRequestKey] = useState(0)
   const [sidebarCreateOpen, setSidebarCreateOpen] = useState(false)
   const [householdSelectOpen, setHouseholdSelectOpen] = useState(false)
+  const [selectedOverviewItem, setSelectedOverviewItem] = useState<Item | null>(null)
   const overview = useOverviewInventory(household.id, token, realtimeRevision)
 
   useEffect(() => {
     setSearchQuery('')
     setSearchResults([])
     setSearchError(false)
+    setSelectedOverviewItem(null)
   }, [household.id])
 
   useEffect(() => {
@@ -257,7 +259,6 @@ export function Dashboard({
         <>
         <div className="page-heading" id="overview">
           <div>
-            <p className="eyebrow">{household.name}</p>
             <h1>{greeting()}, {user.user.display_name.split(' ')[0]} <span className="wave">👋</span></h1>
           </div>
         </div>
@@ -283,7 +284,7 @@ export function Dashboard({
             <div className="card-heading"><h2>Recently added items</h2><Box aria-hidden="true" /></div>
             {recentOverviewItems.length ? <div className="overview-list item-preview-list">{recentOverviewItems.map((item) => {
               const placement = overview.itemPlacements.find((entry) => entry.item_id === item.id)
-              return <a href={`/items#${item.id}`} key={item.id} onClick={(event) => { event.preventDefault(); setResolvedTarget({ type: 'item', id: item.id, scanKey: `overview-${item.id}` }); navigate('items') }}><span className="area-icon"><Box aria-hidden="true" /></span><span><strong>{item.name}</strong><small>{itemLocation(placement, overview.areas, overview.zones, overview.containers, overview.containerPlacements)}</small></span><ChevronRight aria-hidden="true" /></a>
+              return <button key={item.id} onClick={() => setSelectedOverviewItem(item)} type="button"><span className="area-icon"><Box aria-hidden="true" /></span><span><strong>{item.name}</strong><small>{itemLocation(placement, overview.areas, overview.zones, overview.containers, overview.containerPlacements)}</small></span><ChevronRight aria-hidden="true" /></button>
             })}</div> : <><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>Your inventory is ready</strong><p>Items you add will appear here with their exact location path.</p></>}
             <a className="inline-link" href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }}>View all items →</a>
           </article>
@@ -295,6 +296,7 @@ export function Dashboard({
             <Button className="inline-link" disabled>View all activity →</Button>
           </article>
         </section>
+        {selectedOverviewItem ? <ItemDetailsModal areas={overview.areas} containerPlacements={overview.containerPlacements} containers={overview.containers} imageRevision={realtimeRevision} item={selectedOverviewItem} locationLabel={itemLocation(overview.itemPlacements.find((entry) => entry.item_id === selectedOverviewItem.id), overview.areas, overview.zones, overview.containers, overview.containerPlacements)} onClose={() => setSelectedOverviewItem(null)} onDeleted={() => { setSelectedOverviewItem(null); setRealtimeRevision((current) => current + 1) }} onPlacementUpdated={() => setRealtimeRevision((current) => current + 1)} onUpdated={(item) => { setSelectedOverviewItem(item); setRealtimeRevision((current) => current + 1) }} placement={overview.itemPlacements.find((entry) => entry.item_id === selectedOverviewItem.id)} token={token} zones={overview.zones} /> : null}
 
         <section className="quick-grid">
           <article><div className="quick-icon"><ArrowRightLeft aria-hidden="true" /></div><div><strong>Transfer items</strong><span>Move inventory between locations.</span></div><small>Coming next</small></article>

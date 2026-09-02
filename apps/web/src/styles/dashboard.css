@@ -106,15 +106,15 @@
 .overview-card > strong { align-self: center; font-size: 0.86rem; }
 .overview-card > p { max-width: 240px; align-self: center; margin: 0.45rem auto 1.1rem; color: var(--muted-text); font-size: 0.73rem; line-height: 1.45; text-align: center; }
 .overview-list { width: 100%; display: grid; margin-bottom: 1rem; }
-.overview-list > a { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.65rem; border-bottom: 1px solid var(--line); padding: 0.65rem 0; color: var(--ink); text-align: left; text-decoration: none; }
-.overview-list > a:first-child { padding-top: 0; }
-.overview-list > a:last-child { border-bottom: 0; }
-.overview-list > a > span:nth-child(2) { min-width: 0; display: grid; gap: 0.2rem; }
-.overview-list > a strong, .overview-list > a small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.overview-list > a strong { font-size: 0.76rem; }
-.overview-list > a small { color: var(--muted-text); font-size: 0.65rem; }
-.overview-list > a > svg { width: 14px; height: 14px; color: #98a2b3; }
-.overview-list > a:hover strong { color: var(--action); }
+.overview-list > :is(a, button) { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.65rem; border: 0; border-bottom: 1px solid var(--line); padding: 0.65rem 0; color: var(--ink); text-align: left; text-decoration: none; background: transparent; cursor: pointer; }
+.overview-list > :is(a, button):first-child { padding-top: 0; }
+.overview-list > :is(a, button):last-child { border-bottom: 0; }
+.overview-list > :is(a, button) > span:nth-child(2) { min-width: 0; display: grid; gap: 0.2rem; }
+.overview-list > :is(a, button) strong, .overview-list > :is(a, button) small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.overview-list > :is(a, button) strong { font-size: 0.76rem; }
+.overview-list > :is(a, button) small { color: var(--muted-text); font-size: 0.65rem; }
+.overview-list > :is(a, button) > svg { width: 14px; height: 14px; color: #98a2b3; }
+.overview-list > :is(a, button):hover strong { color: var(--action); }
 .overview-list .area-icon { width: 34px; height: 34px; }
 .inline-link { margin-top: auto; border: 0; padding: 0; background: none; color: var(--action); font-size: 0.72rem; font-weight: 700; text-decoration: none; }
 .quick-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; max-width: 1100px; margin: 1rem auto; }

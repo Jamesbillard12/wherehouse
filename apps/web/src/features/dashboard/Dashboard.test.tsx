@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchContainers } from '@wherehouse/api-client'
+import { listItems, searchContainers } from '@wherehouse/api-client'
 
 vi.mock('@wherehouse/api-client', async (importOriginal) => ({
   ...await importOriginal<typeof import('@wherehouse/api-client')>(),
@@ -33,6 +33,16 @@ describe('Dashboard settings navigation', () => {
     await userEvent.click(screen.getByRole('option', { name: 'Lake Cabin' }))
 
     expect(onSelect).toHaveBeenCalledWith('cabin')
+  })
+
+  it('opens a recent item in place without navigating away from overview', async () => {
+    vi.mocked(listItems).mockResolvedValueOnce([{ id: 'drill', household_id: 'home', name: 'Cordless Drill', code: 'ITM-003', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: null, model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '2026-09-02T12:00:00Z', updated_at: '2026-09-02T12:00:00Z' }])
+    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /Cordless Drill/ }))
+
+    expect(location.pathname).toBe('/overview')
+    expect(screen.getByRole('dialog', { name: 'Cordless Drill' })).toBeInTheDocument()
   })
 
   it('opens the user menu, deep-navigates, and keeps device administration off Overview', async () => {
