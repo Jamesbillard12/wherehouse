@@ -159,12 +159,33 @@ class ItemFields(BaseModel):
     notes: str | None = None
 
 
+class ItemPlacementCreate(BaseModel):
+    area_id: UUID | None = None
+    zone_id: UUID | None = None
+    container_id: UUID | None = None
+    relationship_type: ContainerRelationship | None = None
+
+    @model_validator(mode="after")
+    def validate_single_target(self) -> "ItemPlacementCreate":
+        target_count = sum(
+            target is not None for target in (self.area_id, self.zone_id, self.container_id)
+        )
+        if target_count != 1:
+            raise ValueError("exactly one of area_id, zone_id, or container_id is required")
+        if self.container_id is None and self.relationship_type is not None:
+            raise ValueError(
+                "relationship_type is only valid when placing an item in/on a container"
+            )
+        return self
+
+
 class ItemCreate(ItemFields):
     client_operation_id: str | None = Field(default=None, min_length=1, max_length=100)
+    placement: ItemPlacementCreate | None = None
 
 
 class ItemUpdate(ItemFields):
-    pass
+    placement: ItemPlacementCreate | None = None
 
 
 class ItemRead(ORMModel):
@@ -186,26 +207,6 @@ class ItemRead(ORMModel):
     updated_at: datetime
 
 
-class ItemPlacementCreate(BaseModel):
-    area_id: UUID | None = None
-    zone_id: UUID | None = None
-    container_id: UUID | None = None
-    relationship_type: ContainerRelationship | None = None
-
-    @model_validator(mode="after")
-    def validate_single_target(self) -> "ItemPlacementCreate":
-        target_count = sum(
-            target is not None for target in (self.area_id, self.zone_id, self.container_id)
-        )
-        if target_count != 1:
-            raise ValueError("exactly one of area_id, zone_id, or container_id is required")
-        if self.container_id is None and self.relationship_type is not None:
-            raise ValueError(
-                "relationship_type is only valid when placing an item in/on a container"
-            )
-        return self
-
-
 class ItemPlacementRead(ORMModel):
     id: UUID
     item_id: UUID
@@ -213,6 +214,7 @@ class ItemPlacementRead(ORMModel):
     zone_id: UUID | None
     container_id: UUID | None
     relationship_type: ContainerRelationship | None
+    resolved_path: str = ""
     created_at: datetime
     updated_at: datetime
 

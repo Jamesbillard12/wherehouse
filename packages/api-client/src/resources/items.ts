@@ -19,6 +19,12 @@ export function createItem(
     model?: string
     serial_number?: string
     notes?: string
+    placement?: {
+      area_id?: string
+      zone_id?: string
+      container_id?: string
+      relationship_type?: ContainerPlacement['relationship_type']
+    }
   },
 ): Promise<Item> {
   return apiRequest(`/households/${householdId}/items`, { method: 'POST', token, body: payload })
@@ -37,6 +43,12 @@ export function updateItem(
     model?: string
     serial_number?: string
     notes?: string
+    placement?: {
+      area_id?: string
+      zone_id?: string
+      container_id?: string
+      relationship_type?: ContainerPlacement['relationship_type']
+    }
   },
 ): Promise<Item> {
   return apiRequest(`/items/${itemId}`, { method: 'PATCH', token, body: payload })

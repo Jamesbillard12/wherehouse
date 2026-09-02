@@ -8,7 +8,6 @@ import {
   listItemPlacements,
   listItems,
   listZones,
-  placeItem,
   uploadItemImage,
   updateItem,
   type Area,
@@ -41,6 +40,7 @@ export function itemLocation(
   containerPlacements: ContainerPlacement[],
 ): string {
   if (!placement) return 'Unplaced'
+  if (placement.resolved_path) return placement.resolved_path
   if (placement.area_id) return areas.find((area) => area.id === placement.area_id)?.name ?? 'Area'
   if (placement.zone_id) {
     const zone = zones.find((entry) => entry.id === placement.zone_id)
@@ -113,6 +113,8 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
     setImageError(null)
     const data = new FormData(event.currentTarget)
     try {
+      const target = String(data.get('placement'))
+      const [targetType, targetId] = target.split(':')
       const updated = await updateItem(token, item.id, {
         name: String(data.get('name')).trim(),
         identifier_type: String(data.get('identifierType')) as Item['identifier_type'],
@@ -123,14 +125,19 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
         serial_number: String(data.get('serialNumber')).trim() || undefined,
         description: String(data.get('description')).trim() || undefined,
         notes: String(data.get('notes')).trim() || undefined,
+        ...(target ? { placement: { [`${targetType}_id`]: targetId, ...(targetType === 'container' ? { relationship_type: 'in' as const } : {}) } } : {}),
       })
-      const target = String(data.get('placement'))
       if (target) {
-        const [targetType, targetId] = target.split(':')
-        const updatedPlacement = await placeItem(token, item.id, {
-          [`${targetType}_id`]: targetId,
-          ...(targetType === 'container' ? { relationship_type: 'in' as const } : {}),
-        })
+        const updatedPlacement: ItemPlacement = {
+          id: placement?.id ?? `pending-${item.id}`,
+          item_id: item.id,
+          area_id: targetType === 'area' ? targetId : null,
+          zone_id: targetType === 'zone' ? targetId : null,
+          container_id: targetType === 'container' ? targetId : null,
+          relationship_type: targetType === 'container' ? 'in' : null,
+          created_at: placement?.created_at ?? new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
         onPlacementUpdated?.(updatedPlacement)
         setDisplayLocation(itemLocation(updatedPlacement, areas, zones, containers, containerPlacements))
       }
@@ -191,9 +198,9 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
         </dl>
         {item.description ? <div className="item-detail-copy"><strong>Description</strong><p>{item.description}</p></div> : null}
         {item.notes ? <div className="item-detail-copy"><strong>Notes</strong><p>{item.notes}</p></div> : null}
-        <div className="dialog-actions item-details-actions"><Button aria-label={`Delete ${item.name}`} onClick={() => setConfirmingDelete(true)} size="icon" title={`Delete ${item.name}`} variant="destructive"><Trash2 aria-hidden="true" /></Button><span className="dialog-action-spacer" /><Button className="secondary-action" onClick={onClose}>Close</Button><Button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</Button></div></>}
+        <div className="dialog-actions item-details-actions"><Button aria-label={`Archive ${item.name}`} onClick={() => setConfirmingDelete(true)} size="icon" title={`Archive ${item.name}`} variant="destructive"><Trash2 aria-hidden="true" /></Button><span className="dialog-action-spacer" /><Button className="secondary-action" onClick={onClose}>Close</Button><Button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</Button></div></>}
       </section>
-      <ConfirmDialog busy={deleting} confirmLabel="Delete item" description="This removes the item from your inventory. This cannot be undone." destructive onCancel={() => setConfirmingDelete(false)} onConfirm={removeItem} open={confirmingDelete} title={`Delete ${item.name}?`} />
+      <ConfirmDialog busy={deleting} confirmLabel="Archive item" description="This removes the item from active inventory while retaining its archived record." destructive onCancel={() => setConfirmingDelete(false)} onConfirm={removeItem} open={confirmingDelete} title={`Archive ${item.name}?`} />
       <ImageCropDialog file={imageToCrop} onCancel={() => setImageToCrop(null)} onConfirm={(file) => { setImageToCrop(null); void changeImage(file) }} />
       {showLabel ? <ItemLabelModal item={item} onClose={() => setShowLabel(false)} token={token} /> : null}
     </div>
@@ -293,15 +300,11 @@ export function ItemsView({ household, onOpenLocation, onRevealConsumed, refresh
         unit: String(data.get('unit')).trim() || undefined,
         manufacturer: String(data.get('manufacturer')).trim() || undefined,
         model: String(data.get('model')).trim() || undefined,
+        ...(String(data.get('placement')) ? (() => {
+          const [targetType, targetId] = String(data.get('placement')).split(':')
+          return { placement: { [`${targetType}_id`]: targetId, ...(targetType === 'container' ? { relationship_type: 'in' as const } : {}) } }
+        })() : {}),
       })
-      const target = String(data.get('placement'))
-      if (target) {
-        const [targetType, targetId] = target.split(':')
-        await placeItem(token, item.id, {
-          [`${targetType}_id`]: targetId,
-          ...(targetType === 'container' ? { relationship_type: 'in' as const } : {}),
-        })
-      }
       await loadInventory()
       setShowForm(false)
     } catch (reason) {

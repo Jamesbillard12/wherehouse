@@ -9,11 +9,15 @@ from app.application.items.capabilities import (
     EntityNotFound,
     HouseholdAccessDenied,
     InvalidMove,
+    ItemDestination,
     MoveItem,
+    UpdateItem,
     move_item,
+    resolve_item_location,
+    update_item,
 )
 from app.models import Area, Container, Item, ItemPlacement, Zone
-from app.models.core import ContainerRelationship
+from app.models.core import ContainerRelationship, ItemIdentifierType
 
 
 class FakeSession:
@@ -49,6 +53,15 @@ class EventRecorder:
 
 def actor(*, household_id=None) -> ActorContext:
     return ActorContext(user_id=uuid4(), client="test", household_id=household_id)
+
+
+def update_command(destination: ItemDestination | None = None) -> UpdateItem:
+    return UpdateItem(
+        name="Camping Stove",
+        identifier_type=ItemIdentifierType.NONE,
+        quantity=1,
+        placement=destination,
+    )
 
 
 @pytest.mark.parametrize("destination", ["area", "zone", "container"])
@@ -212,6 +225,59 @@ async def test_move_item_rolls_back_and_does_not_publish_when_commit_fails() -> 
 
     session.rollback.assert_awaited_once()
     assert events.events == []
+
+
+async def test_update_item_and_move_share_one_transaction_and_event() -> None:
+    household_id = uuid4()
+    item_id = uuid4()
+    area_id = uuid4()
+    placement = ItemPlacement(item_id=item_id, container_id=uuid4())
+    item = SimpleNamespace(id=item_id, household_id=household_id, is_archived=False)
+    session = FakeSession(
+        {
+            (Item, item_id): item,
+            (Area, area_id): SimpleNamespace(id=area_id, household_id=household_id),
+        },
+        [SimpleNamespace(), placement],
+    )
+    events = EventRecorder()
+
+    await update_item(
+        session,
+        actor(),
+        item_id,
+        update_command(ItemDestination(area_id=area_id)),
+        events,
+    )
+
+    assert placement.area_id == area_id
+    assert placement.container_id is None
+    session.commit.assert_awaited_once()
+    assert [event[1]["action"] for event in events.events] == ["updated"]
+
+
+async def test_resolves_deep_container_path_from_canonical_hierarchy() -> None:
+    household_id = uuid4()
+    item_id = uuid4()
+    area_id = uuid4()
+    zone_id = uuid4()
+    shelf_id = uuid4()
+    bin_id = uuid4()
+    placement = ItemPlacement(item_id=item_id, container_id=bin_id)
+    session = FakeSession(
+        {
+            (Item, item_id): SimpleNamespace(id=item_id, household_id=household_id, is_archived=False),
+            (Area, area_id): SimpleNamespace(id=area_id, household_id=household_id, name="Garage"),
+            (Zone, zone_id): SimpleNamespace(id=zone_id, area_id=area_id, name="North Wall"),
+            (Container, bin_id): SimpleNamespace(id=bin_id, area_id=area_id, zone_id=zone_id, name="Yellow Bin", is_archived=False),
+            (Container, shelf_id): SimpleNamespace(id=shelf_id, area_id=area_id, zone_id=zone_id, name="Shelf", is_archived=False),
+        },
+        [SimpleNamespace(), shelf_id, None],
+    )
+
+    path = await resolve_item_location(session, actor(), placement)
+
+    assert path == "Garage > North Wall > Shelf > Yellow Bin"
 
 
 def test_move_item_command_validates_adapter_independent_input() -> None:

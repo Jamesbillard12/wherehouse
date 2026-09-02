@@ -16,7 +16,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | Nested containers/cycle prevention | Partially implemented | Model/route behavior exists; hierarchy validation needs comprehensive tests |
 | Item create/edit/archive, quantity, metadata | Implemented but needs hardening | End-to-end web/mobile parity and realistic-volume testing |
 | Item/container images | Implemented but needs hardening | Media lifecycle, backup, failure and client coverage |
-| Placement/movement/resolved paths | Partially implemented | `MoveItem` capability exists; path consistency and full-client workflows need hardening |
+| Placement/movement/resolved paths | Implemented but needs validation | Create/update placement is transactional; canonical paths now come from the application layer; full-client physical validation remains |
 | Search | Partially implemented | Client filtering exists; metadata/location coverage and realistic performance are unproven |
 | QR generate/display/print/scan | Implemented but needs hardening | Physical iOS/Android and adverse identifier cases are unrecorded |
 | NFC read/write/verify/empty registration | Implemented but needs hardening | Native hardware validation is unrecorded; platform limits must be documented |
@@ -28,7 +28,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | Backup and restore | Not implemented | No supported orchestration, format, verification, or restore exercise |
 | Raspberry Pi deployment | Partially implemented | Docker instructions exist; clean Pi/reboot/update/storage validation is absent |
 | Cloud deployment | Partially implemented | Guidance exists; not an MVP release substitute for supported local operation |
-| Application capabilities/actor context | Partially implemented | Create/delete/move item and identifiers lead; substantial route-owned logic remains |
+| Application capabilities/actor context | Partially implemented | Create/update/delete/move item, container nesting, and identifiers lead; other route-owned location CRUD remains |
 | Confirmations | Partially implemented | Reusable client UI exists; portable evidence/policy boundary is incomplete |
 | Audit attribution | Not implemented | Realtime is not audit; required before external automated writes, not necessarily tag |
 | Categories/tags, checkout/return, history | Deferred from MVP | No substantial current implementation |
@@ -63,6 +63,8 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 ## Phase 1: Core inventory workflow hardening
 
 - **Purpose/current state:** turn broad web/mobile CRUD into a consistently usable household workflow.
+  Item create/initial placement and edit/move are now atomic, resolved item paths are canonical, and
+  container cycle checks are capability-owned; simulator and physical cross-client validation remains.
 - **Scope/work:** items, quantities, images, areas/zones/containers, nesting/cycle safety, placement,
   movement, resolved paths, errors, and destructive confirmation; extract materially changed rules
   into capabilities rather than routes.

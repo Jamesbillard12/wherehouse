@@ -152,6 +152,7 @@ export type ItemPlacement = {
   zone_id: string | null
   container_id: string | null
   relationship_type: ContainerPlacement['relationship_type'] | null
+  resolved_path?: string
   created_at: string
   updated_at: string
 }

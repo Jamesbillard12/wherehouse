@@ -4,6 +4,7 @@ import {
   Check,
   Image as ImageIcon,
   Radio,
+  Trash2,
   X,
 } from "lucide-react-native";
 import { useState } from "react";
@@ -21,6 +22,7 @@ import {
 
 import { AppHeader } from "../components/AppHeader";
 import { ItemLocationPicker } from "../components/ItemLocationPicker";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { QuantityStepper } from "../components/QuantityStepper";
 import { useItemEdit } from "../hooks/useItemEdit";
 import { styles } from "../theme/styles";
@@ -40,6 +42,7 @@ export function EditItemScreen({
   location,
   onCancel,
   onSave,
+  onArchive,
   onScanLocation,
   onWriteNfc,
   recent,
@@ -50,6 +53,7 @@ export function EditItemScreen({
   location?: ItemLocationChoice;
   onCancel: () => void;
   onSave: (draft: ItemUpdateDraft) => Promise<"queued" | "synced">;
+  onArchive: () => Promise<void>;
   onScanLocation: () => void;
   onWriteNfc: () => Promise<void>;
   recent: ItemLocationChoice[];
@@ -60,6 +64,7 @@ export function EditItemScreen({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
   async function photo(action: () => Promise<void>) {
     setError(null);
     try {
@@ -95,6 +100,19 @@ export function EditItemScreen({
       setError(
         reason instanceof Error ? reason.message : "Could not write NFC tag.",
       );
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function archive() {
+    setSaving(true);
+    setError(null);
+    try {
+      await onArchive();
+      setConfirmingArchive(false);
+      onCancel();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not archive this item.");
     } finally {
       setSaving(false);
     }
@@ -261,7 +279,20 @@ export function EditItemScreen({
             </>
           )}
         </Pressable>
+        <Pressable disabled={saving} onPress={() => setConfirmingArchive(true)} style={styles.secondaryButton}>
+          <Trash2 color="#b42318" size={18} />
+          <Text style={styles.secondaryButtonText}>Archive item</Text>
+        </Pressable>
       </View>
+      <ConfirmModal
+        confirmLabel="Archive item"
+        description="This removes the item from active inventory. Its record remains archived."
+        destructive
+        onCancel={() => setConfirmingArchive(false)}
+        onConfirm={() => void archive()}
+        title={`Archive ${item.name}?`}
+        visible={confirmingArchive}
+      />
     </KeyboardAvoidingView>
   );
 }
