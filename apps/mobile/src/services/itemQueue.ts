@@ -10,6 +10,7 @@ type PendingRow = { attempt_count: number; operation_id: string; operation_type:
 export type SyncResult = { failed: number; itemIds: Record<string, string>; needsAttention: number; paused: boolean; synced: number }
 
 const syncs = new Map<string, Promise<SyncResult>>()
+let revocationEpoch = 0
 
 function optimisticItem(householdId: string, draft: ItemDraft): Item {
   return { id: draft.localId, household_id: householdId, name: draft.name, code: 'Pending sync', identifier_type: 'none', description: null, quantity: String(draft.quantity), unit: draft.unit ?? null, manufacturer: draft.manufacturer ?? null, model: null, serial_number: null, notes: draft.notes ?? null, image_path: draft.photoUri ?? null, is_archived: false, created_at: draft.createdAt, updated_at: draft.createdAt }
@@ -45,6 +46,17 @@ export async function failedItemCount(householdId: string): Promise<number> {
   return row?.count ?? 0
 }
 
+export async function quarantinePendingItemsAfterCredentialRemoval(): Promise<void> {
+  revocationEpoch += 1
+  const db = await database()
+  await db.runAsync(
+    `UPDATE pending_operations
+       SET status = 'permanently_failed', next_attempt_at = NULL,
+           last_error = 'Access was revoked before this saved item could sync. Re-pairing will not upload it automatically.'
+     WHERE status IN ('pending', 'in_progress', 'retryable_failed')`,
+  )
+}
+
 export async function recentLocations(householdId: string): Promise<ItemLocationChoice[]> {
   const db = await database()
   const rows = await db.getAllAsync<{ payload: string }>('SELECT payload FROM recent_item_locations WHERE household_id = ? ORDER BY used_at DESC LIMIT 4', householdId)
@@ -60,11 +72,16 @@ export function syncPendingItems(server: PairedServer): Promise<SyncResult> {
 }
 
 async function syncPendingItemsOnce(server: PairedServer): Promise<SyncResult> {
+  const startedAtRevocationEpoch = revocationEpoch
   const db = await database()
   const rows = await db.getAllAsync<PendingRow>(`SELECT operation_id, operation_type, operation_version, payload, remote_entity_id, attempt_count FROM pending_operations WHERE household_id = ? AND status IN ('pending', 'retryable_failed') AND (next_attempt_at IS NULL OR next_attempt_at <= ?) ORDER BY created_at, operation_id`, server.householdId, new Date().toISOString())
   const client = createRemoteClient(server.baseUrl, server.accessToken)
   const result: SyncResult = { failed: 0, itemIds: {}, needsAttention: 0, paused: false, synced: 0 }
   for (const row of rows) {
+    if (startedAtRevocationEpoch !== revocationEpoch) {
+      result.paused = true
+      break
+    }
     const draft = JSON.parse(row.payload) as ItemDraft
     if (!isSupportedItemCreate(row.operation_type, row.operation_version, draft.schemaVersion)) {
       await markFailure(row.operation_id, 'Unsupported saved operation version.', false, row.attempt_count)
@@ -92,6 +109,10 @@ async function syncPendingItemsOnce(server: PairedServer): Promise<SyncResult> {
       if (draft.photoUri) await FileSystem.deleteAsync(draft.photoUri, { idempotent: true })
       result.synced += 1
     } catch (reason) {
+      if (startedAtRevocationEpoch !== revocationEpoch) {
+        result.paused = true
+        break
+      }
       const policy = classifyQueueFailure(reason instanceof ApiError ? reason.status : undefined)
       await markFailure(row.operation_id, reason instanceof Error ? reason.message : 'Sync failed', policy.retry, row.attempt_count + 1)
       result.failed += 1

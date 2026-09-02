@@ -1,9 +1,9 @@
 # WhereHouse documentation
 
-This is the canonical documentation index. WhereHouse is in **MVP hardening**: Phase 0 is complete on
-the documentation branch; inventory, identifiers, sync, account and architecture work are in
-progress/hardening; backup/restore is not started; Pi operations are partial; release validation is
-not started. See the evidence and uncertainty in the [execution plan](product/mvp-execution-plan.md).
+This is the canonical documentation index. WhereHouse is in **MVP hardening**: Phase 0 is complete;
+inventory and sync remain in hardening; search, identifiers, and account/household/device work are
+ready for validation; backup/restore is not started; Pi operations are partial; release validation
+is not started. See the evidence and uncertainty in the [execution plan](product/mvp-execution-plan.md).
 
 ## Product and MVP
 
@@ -19,6 +19,8 @@ not started. See the evidence and uncertainty in the [execution plan](product/mv
   QR/NFC guarantees, physical iOS/Android matrix, printed-label check, and current limitations.
 - [Phase 4 offline sync validation](product/offline-sync-validation.md) — supported mutation envelope,
   retry/conflict behavior, unsupported-write UX, and restart/reconnect/multi-client evidence matrix.
+- [Phase 5 account and household validation](product/account-household-validation.md) — session,
+  switching, pairing, targeted realtime revocation, re-pairing, and queued-work recovery evidence.
 - [Build now vs. later](product/build-now-vs-later.md) — scope guard.
 - [Product roadmap](product/roadmap.md) — post-MVP household, intelligence/interface and spatial work.
 

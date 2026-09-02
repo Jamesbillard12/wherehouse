@@ -1,6 +1,6 @@
 import { useCameraPermissions } from 'expo-camera'
 import { StatusBar } from 'expo-status-bar'
-import { createRemoteClient, listHouseholds, parseIdentifierPayload, subscribeToHousehold, type Household, type IdentifierResolution, type Item, type StorageContainer } from '@wherehouse/api-client'
+import { ApiError, createRemoteClient, listHouseholds, parseIdentifierPayload, subscribeToHousehold, type Household, type IdentifierResolution, type Item, type StorageContainer } from '@wherehouse/api-client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
@@ -15,7 +15,8 @@ import {
 import {
   forgetPairedServer,
   isPairingUri,
-  loadPairedServer,
+  loadStoredPairing,
+  markPairedServerRevoked,
   pairDevice,
   savePairedServer,
   type PairedServer,
@@ -38,12 +39,13 @@ import { AddItemScreen } from './src/screens/AddItemScreen'
 import { ItemsScreen } from './src/screens/ItemsScreen'
 import { EditItemScreen } from './src/screens/EditItemScreen'
 import { ScanSessionScreen } from './src/screens/ScanSessionScreen'
-import { failedItemCount, pendingItemCount, queueItem, recentLocations, syncPendingItems } from './src/services/itemQueue'
+import { failedItemCount, pendingItemCount, quarantinePendingItemsAfterCredentialRemoval, queueItem, recentLocations, syncPendingItems } from './src/services/itemQueue'
 import type { ItemDraft, ItemLocationChoice, ItemUpdateDraft } from './src/types/itemDraft'
 import { containerLocationChoice, itemLocationChoices, placementLocationChoice } from './src/utils/itemLocations'
 import { EmptyNfcTagError, readNfcIdentifier, writeNfcIdentifier } from './src/services/nfc'
 import { cacheItemImage } from './src/services/itemImages'
 import { SettingsScreen } from './src/features/settings/SettingsScreen'
+import { isRevocationForConnection } from './src/services/connectionPolicy'
 
 const EMPTY_INVENTORY: CachedInventory = {
   areas: [],
@@ -58,6 +60,7 @@ const EMPTY_INVENTORY: CachedInventory = {
 export default function App() {
   const [pairingUri, setPairingUri] = useState('')
   const [pairedServer, setPairedServer] = useState<PairedServer | null>(null)
+  const [revokedConnection, setRevokedConnection] = useState<PairedServer | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(true)
   const [scannerMode, setScannerMode] = useState<'pairing' | 'identify' | 'item-location' | null>(null)
@@ -92,13 +95,49 @@ export default function App() {
   }, [pairedServer])
 
   useEffect(() => {
-    void loadPairedServer().then(setPairedServer).finally(() => setBusy(false))
+    void loadStoredPairing().then((stored) => {
+      if (stored?.status === 'revoked') setRevokedConnection(stored)
+      else setPairedServer(stored)
+    }).finally(() => setBusy(false))
     void Linking.getInitialURL().then((url) => url?.startsWith('wherehouse://') && setPairingUri(url))
     const subscription = Linking.addEventListener('url', ({ url }) => {
       if (url.startsWith('wherehouse://')) setPairingUri(url)
     })
     return () => subscription.remove()
   }, [])
+
+  function clearProtectedState() {
+    setSelectedLocation(null)
+    setAddItemLocation(undefined)
+    setEditItemLocation(undefined)
+    setEditingItem(null)
+    setInventory(EMPTY_INVENTORY)
+    setScanSessionEntries([])
+    setScanSessionOpen(false)
+    setScannerMode(null)
+    setPendingCount(0)
+    setFailedCount(0)
+    setActiveTab('home')
+  }
+
+  async function handleRevoked(server: PairedServer) {
+    await quarantinePendingItemsAfterCredentialRemoval()
+    const stored = await loadStoredPairing()
+    if (!stored || stored.deviceId !== server.deviceId || stored.status === 'revoked') return
+    const revoked = await markPairedServerRevoked(server)
+    clearProtectedState()
+    setPairedServer(null)
+    setRevokedConnection(revoked)
+    setError('This device no longer has access to this household. Pair it again to reconnect. Unsynced work remains saved on this device and will not upload automatically.')
+  }
+
+  function handleConnectionError(reason: unknown, fallback: string) {
+    if (pairedServer && reason instanceof ApiError && (reason.status === 401 || reason.status === 403)) {
+      void handleRevoked(pairedServer)
+      return
+    }
+    setError(reason instanceof Error ? reason.message : fallback)
+  }
 
   useEffect(() => {
     if (!pairedServer) {
@@ -118,7 +157,7 @@ export default function App() {
           setError(null)
         }
       } catch (reason) {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : 'Sync failed.')
+        if (!cancelled) handleConnectionError(reason, 'Sync failed.')
       } finally {
         if (cancelled) return
         setSyncing(false)
@@ -170,7 +209,7 @@ export default function App() {
         setPendingCount(await pendingItemCount(pairedServer.householdId))
         setFailedCount(await failedItemCount(pairedServer.householdId))
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'Pending item sync failed.')
+        handleConnectionError(reason, 'Pending item sync failed.')
       } finally {
         running = false
       }
@@ -193,13 +232,24 @@ export default function App() {
         setFailedCount(await failedItemCount(pairedServer.householdId))
         setError(null)
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'Realtime sync failed.')
+        handleConnectionError(reason, 'Realtime sync failed.')
       } finally {
         running = false
         if (rerun) { rerun = false; void reconcile() }
       }
     }
-    return subscribeToHousehold({ baseUrl: pairedServer.baseUrl, householdId: pairedServer.householdId, token: pairedServer.accessToken, onEvent: () => void reconcile(), onReady: () => void reconcile() })
+    const current = pairedServer
+    return subscribeToHousehold({
+      baseUrl: current.baseUrl,
+      householdId: current.householdId,
+      token: current.accessToken,
+      onEvent: () => void reconcile(),
+      onReady: () => void reconcile(),
+      onDeviceRevoked: (event) => {
+        if (isRevocationForConnection(current, event)) void handleRevoked(current)
+      },
+      onAuthorizationFailure: () => void handleRevoked(current),
+    })
   }, [pairedServer])
 
   async function pair() {
@@ -207,6 +257,7 @@ export default function App() {
     setError(null)
     try {
       setPairedServer(await pairDevice(pairingUri, `${Platform.OS} companion`))
+      setRevokedConnection(null)
       setPairingUri('')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Pairing failed.')
@@ -217,6 +268,7 @@ export default function App() {
 
   async function pairFromScan(value: string) {
     const next = await pairDevice(value, `${Platform.OS} companion`)
+    setRevokedConnection(null)
     setSelectedLocation(null)
     setAddItemLocation(undefined)
     setEditItemLocation(undefined)
@@ -232,8 +284,11 @@ export default function App() {
 
   async function forget() {
     setBusy(true)
+    await quarantinePendingItemsAfterCredentialRemoval()
     await forgetPairedServer()
+    clearProtectedState()
     setPairedServer(null)
+    setRevokedConnection(null)
     setBusy(false)
   }
 
@@ -507,7 +562,7 @@ export default function App() {
             : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} householdId={pairedServer.householdId} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onOpenContainer={(container) => { setSelectedLocation(containerLocationChoice(container, inventory)); setActiveTab('containers') }} onRefresh={() => void refreshInventory()} search={searchInventory} syncing={syncing} />
             : pairedServer && activeTab === 'more' ? <SettingsScreen onForget={() => void forget()} onSwitch={switchHousehold} server={pairedServer} />
             : pairedServer ? <LocationsScreen error={error} inventory={inventory} onAddItem={(location) => { setAddItemLocation(location); setActiveTab('add-item') }} onChangeLocation={openLocations} onOpenItem={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} onSelect={setSelectedLocation} onWriteNfc={async (containerId) => { const container = inventory.containers.find((entry) => entry.id === containerId); if (container) await writeContainerNfc(container) }} selected={selectedLocation} syncing={syncing} />
-              : <PairingScreen error={error} onChange={setPairingUri} onPair={() => void pair()} onScan={() => void openScanner('pairing')} value={pairingUri} />}
+              : <PairingScreen error={error ?? (revokedConnection ? 'This device no longer has access to its household. Pair it again to reconnect.' : null)} onChange={setPairingUri} onPair={() => void pair()} onScan={() => void openScanner('pairing')} value={pairingUri} />}
         </ScrollView>
         {pairedServer ? (
           <BottomNavigation activeTab={activeTab} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onLocations={openLocations} onNfc={() => void readNfc()} onScan={() => void openScanSession()} onSelect={(tab) => { setActiveTab(tab); if (tab === 'items') void refreshInventory() }} />

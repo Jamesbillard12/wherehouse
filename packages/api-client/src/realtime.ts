@@ -11,6 +11,13 @@ export type RealtimeEvent = {
   area_id?: string
 }
 
+export type DeviceRevokedEvent = {
+  type: 'device.revoked'
+  household_id: string
+  device_id: string
+  occurred_at: string
+}
+
 export type RealtimeStatus = 'connecting' | 'connected' | 'disconnected'
 
 function realtimeUrl(baseUrl?: string): string {
@@ -23,6 +30,8 @@ export function subscribeToHousehold(options: {
   householdId: string
   token: string
   onEvent: (event: RealtimeEvent) => void
+  onDeviceRevoked?: (event: DeviceRevokedEvent) => void
+  onAuthorizationFailure?: () => void
   onStatus?: (status: RealtimeStatus) => void
   onReady?: () => void
 }): () => void {
@@ -37,18 +46,28 @@ export function subscribeToHousehold(options: {
     socket = new WebSocket(realtimeUrl(options.baseUrl))
     socket.onopen = () => socket?.send(JSON.stringify({ type: 'authenticate', token: options.token, household_id: options.householdId }))
     socket.onmessage = ({ data }) => {
-      const message = JSON.parse(String(data)) as RealtimeEvent | { type: 'realtime.ready' }
+      const message = JSON.parse(String(data)) as RealtimeEvent | DeviceRevokedEvent | { type: 'realtime.ready' }
       if (message.type === 'realtime.ready') {
         attempt = 0
         options.onStatus?.('connected')
         options.onReady?.()
-    } else if (message.type === 'inventory.changed' || message.type === 'identifier.resolved') {
+      } else if (message.type === 'device.revoked') {
+        active = false
+        options.onDeviceRevoked?.(message)
+        socket?.close()
+      } else if (message.type === 'inventory.changed' || message.type === 'identifier.resolved') {
         options.onEvent(message)
       }
     }
     socket.onerror = () => socket?.close()
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       if (!active) return
+      if (event.code === 4401 || event.code === 4403) {
+        active = false
+        options.onStatus?.('disconnected')
+        options.onAuthorizationFailure?.()
+        return
+      }
       options.onStatus?.('disconnected')
       const delay = Math.min(30_000, 1_000 * 2 ** Math.min(attempt++, 5))
       reconnectTimer = setTimeout(connect, delay)

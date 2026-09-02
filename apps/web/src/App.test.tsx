@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import { ApiError } from '@wherehouse/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const accountRequest = vi.hoisted(() => vi.fn())
@@ -11,7 +12,7 @@ vi.mock('@wherehouse/api-client', async (importOriginal) => ({
 }))
 
 import { App } from './App'
-import { SESSION_KEY } from './shared/utils/storage'
+import { HOUSEHOLD_KEY, SESSION_KEY } from './shared/utils/storage'
 
 describe('App bootstrap', () => {
   beforeEach(() => {
@@ -30,5 +31,18 @@ describe('App bootstrap', () => {
     expect(screen.getByRole('status', { name: 'Loading WhereHouse' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Create your account' })).not.toBeInTheDocument()
     expect(accountRequest).toHaveBeenCalledWith('stored-token')
+  })
+
+  it('clears an expired stored session and shows a recovery message', async () => {
+    sessionStorage.setItem(SESSION_KEY, 'expired-token')
+    localStorage.setItem(HOUSEHOLD_KEY, 'household-a')
+    accountRequest.mockRejectedValue(new ApiError('Invalid credentials', 401))
+    householdsRequest.mockResolvedValue([])
+
+    render(<App />)
+
+    expect(await screen.findByText('Your session expired. Sign in again.')).toBeInTheDocument()
+    await waitFor(() => expect(sessionStorage.getItem(SESSION_KEY)).toBeNull())
+    expect(localStorage.getItem(HOUSEHOLD_KEY)).toBeNull()
   })
 })

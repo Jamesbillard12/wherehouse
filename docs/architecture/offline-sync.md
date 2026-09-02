@@ -66,6 +66,11 @@ and temporary cache rows atomically, then refetches canonical state. A timeout a
 safe because replay uses the same operation ID. Pending rows are explicitly household-scoped and are
 never replayed under the selected household of another queue.
 
+Device revocation stops replay and marks all still-pending operations on that installation as
+needing attention. The rows and optimistic local data are retained, but a later re-pair does not
+automatically replay them under a new credential. This is the simplest safe MVP policy until a
+user-confirmed, provenance-aware queue migration capability exists.
+
 Item edit, quantity change, movement, archive, identifier changes, location/container writes, and
 standalone image mutation are intentionally online-only for MVP. The mobile UI reports their request
 failure and does not claim that they were saved for later. This avoids silent last-write-wins behavior

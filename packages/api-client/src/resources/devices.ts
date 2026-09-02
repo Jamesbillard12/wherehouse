@@ -34,6 +34,12 @@ export async function consumePairing(
   })
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { detail?: string } | null
+    if (response.status === 400) {
+      throw new Error('This pairing code is invalid, expired, or already used. Create a new code and try again.')
+    }
+    if (response.status === 409) {
+      throw new Error('This household is not available for pairing right now. Try again later.')
+    }
     throw new Error(body?.detail ?? `Pairing failed (${response.status}).`)
   }
   return (await response.json()) as PairingResult
