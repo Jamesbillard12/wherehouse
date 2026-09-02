@@ -103,6 +103,18 @@ describe('Dashboard settings navigation', () => {
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search' }), 'camp')
     expect(await screen.findByText('Camping Stove')).toBeInTheDocument()
     expect(screen.getByText(/Item · Garage/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Camping Stove/ }))
+    expect(location.pathname).toBe('/locations')
+    expect(screen.getByRole('dialog', { name: 'Camping Stove' })).toBeInTheDocument()
+  })
+
+  it('opens item search results in place on Items', async () => {
+    history.replaceState({}, '', '/items')
+    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search' }), 'camp')
+    await userEvent.click(await screen.findByRole('button', { name: /Camping Stove/ }))
+    expect(location.pathname).toBe('/items')
+    expect(screen.getByRole('dialog', { name: 'Camping Stove' })).toBeInTheDocument()
   })
 
   it('keeps the current page when sidebar item creation is cancelled', async () => {

@@ -238,7 +238,7 @@ export function AddItemDialog({ areas, containerPlacements, containers, finalFoc
   )
 }
 
-export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange, onCreated, onOpenLocation, onRevealConsumed, refreshKey = 0, revealItemId, revealScanKey, token }: { createRequestKey?: number; household: Household; onCreateOpenChange?: (open: boolean) => void; onCreated?: (item: Item) => void; onOpenLocation: (target: { areaId: string; containerId?: string; zoneId?: string }) => void; onRevealConsumed?: () => void; refreshKey?: number; revealItemId?: string; revealScanKey?: string; token: string }) {
+export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange, onCreated, onOpenLocation, onRevealConsumed, refreshKey = 0, revealItem, revealItemId, revealScanKey, token }: { createRequestKey?: number; household: Household; onCreateOpenChange?: (open: boolean) => void; onCreated?: (item: Item) => void; onOpenLocation: (target: { areaId: string; containerId?: string; zoneId?: string }) => void; onRevealConsumed?: () => void; refreshKey?: number; revealItem?: Item; revealItemId?: string; revealScanKey?: string; token: string }) {
   const [items, setItems] = useState<Item[]>([])
   const [placements, setPlacements] = useState<ItemPlacement[]>([])
   const [areas, setAreas] = useState<Area[]>([])
@@ -292,12 +292,12 @@ export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange,
 
   useEffect(() => {
     if (!revealItemId) return
-    const item = items.find((entry) => entry.id === revealItemId)
+    const item = revealItem ?? items.find((entry) => entry.id === revealItemId)
     if (item) {
       setSelectedItem(item)
       onRevealConsumed?.()
     }
-  }, [items, onRevealConsumed, revealItemId, revealScanKey])
+  }, [items, onRevealConsumed, revealItem, revealItemId, revealScanKey])
 
   async function submit(event: FormEvent<HTMLFormElement>, image: File | null) {
     event.preventDefault()

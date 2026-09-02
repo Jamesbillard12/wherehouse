@@ -67,7 +67,7 @@ import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 import { PageHeader } from '../../components/wherehouse/PageHeader'
 
 export { AreaIcon } from './locationOptions'
-export function LocationsView({ household, onRevealConsumed, refreshKey = 0, revealAreaId, revealContainerId, revealScanKey, revealZoneId, token }: { household: Household; onRevealConsumed?: () => void; refreshKey?: number; revealAreaId?: string; revealContainerId?: string; revealScanKey?: string; revealZoneId?: string; token: string }) {
+export function LocationsView({ household, onRevealConsumed, refreshKey = 0, revealAreaId, revealContainerId, revealItem, revealItemId, revealScanKey, revealZoneId, token }: { household: Household; onRevealConsumed?: () => void; refreshKey?: number; revealAreaId?: string; revealContainerId?: string; revealItem?: Item; revealItemId?: string; revealScanKey?: string; revealZoneId?: string; token: string }) {
   const [areas, setAreas] = useState<Area[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [containers, setContainers] = useState<StorageContainer[]>([])
@@ -141,6 +141,15 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
     if (selectedAreaId) localStorage.setItem(areaKey(household.id), selectedAreaId)
     void loadAreaDetails(selectedAreaId).catch((reason) => setError(message(reason)))
   }, [household.id, refreshKey, selectedAreaId, token])
+
+  useEffect(() => {
+    if (!revealItemId) return
+    const item = revealItem ?? items.find((entry) => entry.id === revealItemId)
+    if (!item) return
+    setSelectedDetailItem(item)
+    setSelectedItemMode('details')
+    onRevealConsumed?.()
+  }, [items, onRevealConsumed, revealItem, revealItemId, revealScanKey])
 
   useEffect(() => {
     if (!revealAreaId) return
