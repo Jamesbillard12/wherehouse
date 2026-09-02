@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchContainers } from '@wherehouse/api-client'
+import { searchContainers, uploadItemImage } from '@wherehouse/api-client'
 
 vi.mock('@wherehouse/api-client', async (importOriginal) => ({
   ...await importOriginal<typeof import('@wherehouse/api-client')>(),
@@ -9,6 +9,7 @@ vi.mock('@wherehouse/api-client', async (importOriginal) => ({
   listItems: vi.fn().mockResolvedValue([]),
   listItemPlacements: vi.fn().mockResolvedValue([]),
   createItem: vi.fn().mockResolvedValue({ id: 'new-item', household_id: 'home', name: 'New Item', code: 'ITM-002', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: null, model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '', updated_at: '' }),
+  uploadItemImage: vi.fn().mockResolvedValue({ id: 'new-item', household_id: 'home', name: 'New Item', code: 'ITM-002', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: null, model: null, serial_number: null, notes: null, image_path: 'households/home/items/new-item.jpg', is_archived: false, created_at: '', updated_at: '' }),
   searchItems: vi.fn().mockResolvedValue([{ item: { id: 'stove', household_id: 'home', name: 'Camping Stove', code: 'ITM-001', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: 'Coleman', model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '', updated_at: '' }, resolved_path: 'Garage > North Wall > Shelf > Yellow Bin' }]),
   searchContainers: vi.fn().mockResolvedValue([]),
   subscribeToHousehold: vi.fn().mockReturnValue(() => undefined),
@@ -66,7 +67,10 @@ describe('Dashboard settings navigation', () => {
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.click(screen.getByRole('button', { name: 'Add item' }))
     await userEvent.type(await screen.findByRole('textbox', { name: 'Name' }), 'New Item')
+    const image = new File(['photo'], 'new-item.jpg', { type: 'image/jpeg' })
+    await userEvent.upload(screen.getByLabelText(/Item image/), image)
     await userEvent.click(screen.getByRole('button', { name: 'Create item' }))
     await waitFor(() => expect(location.pathname).toBe('/items'))
+    expect(uploadItemImage).toHaveBeenCalledWith('token', 'new-item', image)
   })
 })

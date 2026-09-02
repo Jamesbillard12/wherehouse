@@ -26,6 +26,7 @@ import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
+import { CreateImageField } from '../../components/wherehouse/CreateImageField'
 import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
@@ -216,6 +217,7 @@ export function AddItemDialog({ areas, containerPlacements, containers, finalFoc
           <DialogClose aria-label="Close add item dialog" render={<Button size="icon" type="button" variant="secondary" />}>×</DialogClose>
         </DialogHeader>
         <form onSubmit={onSubmit}>
+          <CreateImageField label="Item image" />
           <label>Name<Input autoFocus name="name" placeholder="Cordless drill" required /></label>
           <div className="form-row"><label>Quantity<Input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><Input name="unit" placeholder="pieces, boxes, feet" /></label></div>
           <div className="form-row"><label>Manufacturer <span className="optional">Optional</span><Input name="manufacturer" /></label><label>Model <span className="optional">Optional</span><Input name="model" /></label></div>
@@ -292,11 +294,12 @@ export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange,
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const image = (event.currentTarget.elements.namedItem('image') as HTMLInputElement | null)?.files?.[0]
     setSaving(true)
     setError(null)
     const data = new FormData(event.currentTarget)
     try {
-      const item = await createItem(token, household.id, {
+      let item = await createItem(token, household.id, {
         name: String(data.get('name')).trim(),
         identifier_type: String(data.get('identifierType')) as Item['identifier_type'],
         description: String(data.get('description')).trim() || undefined,
@@ -309,6 +312,7 @@ export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange,
           return { placement: { [`${targetType}_id`]: targetId, ...(targetType === 'container' ? { relationship_type: 'in' as const } : {}) } }
         })() : {}),
       })
+      if (image?.size) item = await uploadItemImage(token, item.id, image)
       await loadInventory()
       setShowForm(false)
       onCreateOpenChange?.(false)

@@ -18,6 +18,7 @@ import {
   updateAreaIcon,
   updateContainer,
   uploadContainerImage,
+  uploadItemImage,
   updateZone,
   type Area,
   type ContainerPlacement,
@@ -61,6 +62,7 @@ import { AreaIcon, AreaIconPicker, CONTAINER_TYPES } from './locationOptions'
 import { ContainerLabelModal } from './ContainerLabelModal'
 import { LocationContentsList } from '../../components/wherehouse/LocationContentsList'
 import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
+import { CreateImageField } from '../../components/wherehouse/CreateImageField'
 import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 
 export { AreaIcon } from './locationOptions'
@@ -273,11 +275,12 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
 
   async function submitContainer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const image = (event.currentTarget.elements.namedItem('image') as HTMLInputElement | null)?.files?.[0]
     setSaving(true)
     setError(null)
     const data = new FormData(event.currentTarget)
     try {
-      const container = await createContainer(token, {
+      let container = await createContainer(token, {
         area_id: selectedAreaId,
         zone_id: String(data.get('zoneId')) || undefined,
         name: String(data.get('name')).trim(),
@@ -286,6 +289,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
         description: String(data.get('description')).trim() || undefined,
         is_movable: data.get('isMovable') === 'on',
       })
+      if (image?.size) container = await uploadContainerImage(token, container.id, image)
       const parentId = String(data.get('parentId'))
       if (parentId) {
         await placeContainer(token, container.id, {
@@ -408,11 +412,12 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
   async function submitNestedItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!openContainerId) return
+    const image = (event.currentTarget.elements.namedItem('image') as HTMLInputElement | null)?.files?.[0]
     setSaving(true)
     setError(null)
     const data = new FormData(event.currentTarget)
     try {
-      const item = await createItem(token, household.id, {
+      let item = await createItem(token, household.id, {
         name: String(data.get('name')).trim(),
         identifier_type: String(data.get('identifierType')) as Item['identifier_type'],
         description: String(data.get('description')).trim() || undefined,
@@ -420,6 +425,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
         unit: String(data.get('unit')).trim() || undefined,
         placement: { container_id: openContainerId, relationship_type: 'in' },
       })
+      if (image?.size) item = await uploadItemImage(token, item.id, image)
       await loadAreaDetails(selectedAreaId)
       setShowNestedItemForm(false)
     } catch (reason) {
@@ -561,6 +567,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
             <div className="dialog-heading"><div><p className="eyebrow">Location setup</p><h2 id="location-dialog-title">{formMode === 'area' ? 'Add an area' : formMode === 'zone' ? `Add a zone to ${selectedArea?.name}` : formMode === 'edit-zone' ? `Edit ${selectedZone?.name}` : formMode === 'edit-container' ? `Edit ${selectedContainer?.name}` : formMode === 'icon' ? `Choose an icon for ${selectedArea?.name}` : `Add a container to ${selectedArea?.name}`}</h2></div><Button aria-label="Close" onClick={() => { setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }}>×</Button></div>
             <form onSubmit={formMode === 'area' ? submitArea : formMode === 'zone' ? submitZone : formMode === 'edit-zone' ? submitZoneEdit : formMode === 'edit-container' ? submitContainerEdit : formMode === 'icon' ? submitAreaIcon : submitContainer}>
               {formMode === 'edit-container' ? <div className="item-image-panel container-image-panel">{containerImageUrl ? <img alt={selectedContainer?.name} src={containerImageUrl} /> : <div className="item-image-placeholder"><ImageIcon aria-hidden="true" /><strong>No image yet</strong><span>Add a photo to make this container easier to identify.</span></div>}<label className="item-image-action"><Camera aria-hidden="true" /><span>{containerImageBusy ? 'Uploading…' : containerImageUrl ? 'Replace image' : 'Add image'}</span><input accept="image/jpeg,image/png,image/webp" disabled={containerImageBusy} onChange={(event) => { setContainerImageToCrop(event.target.files?.[0] ?? null); event.target.value = '' }} type="file" /></label></div> : null}
+              {formMode === 'container' ? <CreateImageField label="Container image" /> : null}
               {formMode !== 'icon' ? <label>Name<input autoFocus defaultValue={formMode === 'edit-zone' ? selectedZone?.name : formMode === 'edit-container' ? selectedContainer?.name : ''} name="name" placeholder={formMode === 'area' ? 'Garage' : formMode === 'zone' || formMode === 'edit-zone' ? 'North wall' : 'Camping bin'} required /></label> : null}
               {formMode === 'area' || formMode === 'icon' ? <AreaIconPicker defaultValue={formMode === 'icon' ? selectedArea?.icon : undefined} /> : null}
               {formMode === 'container' || formMode === 'edit-container' ? <>
@@ -601,6 +608,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
       {showContainerLabel && selectedContainer ? <ContainerLabelModal container={selectedContainer} onClose={() => setShowContainerLabel(false)} token={token} /> : null}
       <ImageCropDialog file={containerImageToCrop} onCancel={() => setContainerImageToCrop(null)} onConfirm={(file) => { setContainerImageToCrop(null); void changeContainerImage(file) }} />
       {showNestedItemForm && openContainer ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setShowNestedItemForm(false)}><section aria-labelledby="nested-item-dialog-title" aria-modal="true" className="location-dialog" role="dialog"><div className="dialog-heading"><div><p className="eyebrow">Add to {openContainer.name}</p><h2 id="nested-item-dialog-title">Add an item</h2></div><Button aria-label="Close" onClick={() => setShowNestedItemForm(false)}>×</Button></div><form onSubmit={submitNestedItem}>
+        <CreateImageField label="Item image" />
         <label>Name<input autoFocus name="name" placeholder="Cordless drill" required /></label>
         <div className="form-row"><label>Quantity<input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><input name="unit" placeholder="pieces, boxes, feet" /></label></div>
         <PhysicalIdentifierPicker />
