@@ -219,6 +219,11 @@ class ItemPlacementRead(ORMModel):
     updated_at: datetime
 
 
+class ItemSearchResult(BaseModel):
+    item: ItemRead
+    resolved_path: str | None = None
+
+
 class IdentifierCreate(BaseModel):
     target_type: IdentifierTargetType
     target_id: UUID

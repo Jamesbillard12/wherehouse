@@ -1,6 +1,6 @@
 import { apiRequest, type ApiOptions } from './client'
 import { uploadItemImage } from './resources/items'
-import type { Area, ContainerPlacement, IdentifierMedium, IdentifierResolution, IdentifierTargetType, Item, ItemPlacement, PhysicalIdentifier, StorageContainer, Zone } from './types'
+import type { Area, ContainerPlacement, IdentifierMedium, IdentifierResolution, IdentifierTargetType, Item, ItemPlacement, ItemSearchResult, PhysicalIdentifier, StorageContainer, Zone } from './types'
 
 export function createRemoteClient(baseUrl: string, token: string) {
   const authenticatedRequest = <T>(path: string, options: ApiOptions = {}) =>
@@ -32,6 +32,7 @@ export function createRemoteClient(baseUrl: string, token: string) {
       notes?: string
     }) => authenticatedRequest<Item>(`/households/${householdId}/items`, { method: 'POST', body: payload }),
     listItems: (householdId: string) => authenticatedRequest<Item[]>(`/households/${householdId}/items`),
+    searchItems: (householdId: string, query: string) => authenticatedRequest<ItemSearchResult[]>(`/households/${householdId}/items/search?q=${encodeURIComponent(query)}`),
     listItemPlacements: (householdId: string) => authenticatedRequest<ItemPlacement[]>(`/households/${householdId}/item-placements`),
     updateItem: (itemId: string, payload: {
       name: string

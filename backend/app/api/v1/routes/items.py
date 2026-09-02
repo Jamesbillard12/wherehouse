@@ -14,9 +14,11 @@ from app.application.items.capabilities import (
     InvalidMove,
     ItemDestination,
     MoveItem,
+    SearchItems,
     UpdateItem,
     move_item,
     resolve_item_locations,
+    search_items,
 )
 from app.application.items.capabilities import (
     create_item as create_item_capability,
@@ -32,6 +34,7 @@ from app.schemas.core import (
     ItemPlacementCreate,
     ItemPlacementRead,
     ItemRead,
+    ItemSearchResult,
     ItemUpdate,
 )
 from app.services.image_storage import get_image_storage
@@ -148,6 +151,23 @@ async def list_items(
         .order_by(Item.name)
     )
     return list(result)
+
+
+@router.get("/households/{household_id}/items/search", response_model=list[ItemSearchResult])
+async def search_household_items(
+    household_id: UUID,
+    q: str,
+    principal: PrincipalDep,
+    session: SessionDep,
+) -> list[ItemSearchResult]:
+    actor = ActorContext(user_id=principal.user.id, client=principal.method, device_id=principal.device_id, household_id=household_id)
+    try:
+        matches = await search_items(session, actor, household_id, SearchItems(query=q))
+    except HouseholdAccessDenied as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+    return [ItemSearchResult(item=ItemRead.model_validate(match.item), resolved_path=match.resolved_path) for match in matches]
 
 
 @router.put("/items/{item_id}/image", response_model=ItemRead)

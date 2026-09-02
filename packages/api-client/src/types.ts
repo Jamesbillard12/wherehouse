@@ -157,6 +157,11 @@ export type ItemPlacement = {
   updated_at: string
 }
 
+export type ItemSearchResult = {
+  item: Item
+  resolved_path: string | null
+}
+
 export type IdentifierTargetType = 'item' | 'container'
 export type IdentifierMedium = 'qr' | 'nfc'
 

@@ -12,6 +12,14 @@
 .user-menu svg { width: 16px; }
 .global-search { display: flex; align-items: center; gap: 0.55rem; width: min(390px, 34vw); border: 1px solid #d8deea; border-radius: 7px; padding: 0.55rem 0.75rem; color: #98a2b3; background: #fff; font-size: 0.76rem; }
 .global-search svg { width: 16px; height: 16px; }
+.global-search { position: relative; }
+.global-search input { border: 0; outline: 0; width: 100%; background: transparent; color: #101828; }
+.global-search .button { min-height: 24px; width: 24px; padding: 0; }
+.global-search-results { position: absolute; z-index: 20; top: calc(100% + 8px); left: 0; right: 0; overflow: hidden; border: 1px solid #d8deea; border-radius: 8px; background: #fff; box-shadow: 0 12px 28px rgb(16 24 40 / 14%); }
+.global-search-results p { margin: 0; padding: 14px; color: #667085; }
+.global-search-results button { display: flex; width: 100%; flex-direction: column; gap: 3px; border: 0; border-bottom: 1px solid #eef0f4; padding: 11px 14px; text-align: left; background: #fff; cursor: pointer; }
+.global-search-results button:hover, .global-search-results button:focus-visible { background: #f8f9fc; }
+.global-search-results span { color: #667085; font-size: .72rem; }
 .topbar-icon { color: #667085; font-size: 1.1rem; }
 .topbar-icon svg { display: block; width: 18px; height: 18px; }
 .avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #e0e7ff; color: #3730a3; font-size: 0.76rem; font-weight: 800; }

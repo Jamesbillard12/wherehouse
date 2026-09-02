@@ -1,8 +1,12 @@
 import { apiRequest } from '../client'
-import { API_VERSION, type ContainerPlacement, type Item, type ItemPlacement } from '../types'
+import { API_VERSION, type ContainerPlacement, type Item, type ItemPlacement, type ItemSearchResult } from '../types'
 
 export function listItems(token: string, householdId: string): Promise<Item[]> {
   return apiRequest(`/households/${householdId}/items`, { token })
+}
+
+export function searchItems(token: string, householdId: string, query: string): Promise<ItemSearchResult[]> {
+  return apiRequest(`/households/${householdId}/items/search?q=${encodeURIComponent(query)}`, { token })
 }
 
 export function createItem(
