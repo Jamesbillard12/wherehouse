@@ -17,6 +17,8 @@ not started. See the evidence and uncertainty in the [execution plan](product/mv
   realistic-volume fixture, and manual web/mobile sequence.
 - [Phase 3 physical identifier validation](product/physical-identifier-validation.md) — implemented
   QR/NFC guarantees, physical iOS/Android matrix, printed-label check, and current limitations.
+- [Phase 4 offline sync validation](product/offline-sync-validation.md) — supported mutation envelope,
+  retry/conflict behavior, unsupported-write UX, and restart/reconnect/multi-client evidence matrix.
 - [Build now vs. later](product/build-now-vs-later.md) — scope guard.
 - [Product roadmap](product/roadmap.md) — post-MVP household, intelligence/interface and spatial work.
 

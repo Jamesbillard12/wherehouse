@@ -1,4 +1,4 @@
-import { apiRequest } from '../client'
+import { ApiError, apiRequest } from '../client'
 import { API_VERSION, type ContainerPlacement, type Item, type ItemPlacement, type ItemSearchResult } from '../types'
 
 export function listItems(token: string, householdId: string): Promise<Item[]> {
@@ -84,7 +84,7 @@ export async function uploadItemImage(
     })
     if (!response.ok) {
       const payload = (await response.json().catch(() => null)) as { detail?: string } | null
-      throw new Error(payload?.detail ?? `Image upload failed (${response.status}).`)
+      throw new ApiError(payload?.detail ?? `Image upload failed (${response.status}).`, response.status)
     }
     return (await response.json()) as Item
   } catch (reason) {

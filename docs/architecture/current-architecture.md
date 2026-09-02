@@ -85,17 +85,20 @@ The pairing and credential lifecycle is documented in
 PostgreSQL is canonical. SQLite is the mobile replica/cache.
 
 The companion caches areas, zones, containers/placements, items/placements, and supports local
-browsing/search. Pending SQLite queues currently cover item creation and item updates; creation uses
-a stable client operation ID with a database uniqueness constraint and payload conflict detection.
-Do not infer offline item/container movement, transfer, checkout, activity, or capacity mutation
-support from the cache. Restart/reconnect/conflict/exactly-once behavior still needs release validation.
+browsing/search. The supported offline mutation set is `item.create` version 1 only. SQLite persists
+its stable operation ID, household, versioned payload, state, attempts/backoff, error, remote ID, and
+transactionally written optimistic cache rows. The server uses household-scoped operation uniqueness
+and payload hashing for retry-safe creation. Item edit/move/quantity/archive and other writes are
+online-only; do not infer broader offline support from cached entities. Physical restart, reconnect,
+and multi-client validation remains outstanding.
 
 ## Sync
 
-There is no general push/pull sync endpoint. Mobile fetches canonical resource collections and
-replays its item queues through ordinary resource endpoints. Household WebSocket events invalidate
+There is no general push/pull sync endpoint. Mobile replays its creation queue through the ordinary
+item-create endpoint and then fetches canonical collections. Household WebSocket events invalidate
 clients after mutations; events are in-process and are neither durable sync history nor audit.
-Conflict semantics beyond idempotent creation need definition and validation.
+Creation conflicts are deterministic: reuse of an operation ID with a different payload is a permanent
+conflict; mutable-resource conflicts remain outside offline scope rather than using last-write-wins.
 
 ## Storage abstraction
 

@@ -50,12 +50,29 @@ visible configured provider and data boundary.
 
 ## Offline and future sync
 
-The mobile app currently caches canonical server data and queues limited writes. Queued item drafts
-carry a schema version, and their stable local IDs make server-side item creation idempotent across
-retries. Expand this into a versioned operation envelope containing actor/device, household, base
-entity revision, timestamp, capability name, and validated payload as more writes are queued. Server
-results are canonical. Do not silently use last-write-wins for item moves: surface conflicts when two
-actors changed physical location.
+The supported MVP offline mutation set is deliberately one operation: `item.create` version 1. Its
+SQLite envelope contains a stable operation ID, operation type/version, household, versioned payload,
+creation time, replay status, attempt count, retry time, error, and eventual remote item ID. The ID is
+created with the local draft, survives restart, and is reused as `client_operation_id` on every replay.
+The backend's household-scoped uniqueness constraint and payload hash make the same ID and payload an
+equivalent success and reject reuse with different data.
+
+Queue insertion, the optimistic item/location cache rows, and recent-location update share one SQLite
+transaction. Startup recovers `in_progress` work as retryable. Replay is sequential in creation order;
+network/timeouts, 408/425/429, and 5xx use bounded exponential backoff, authentication/authorization
+pauses replay without deleting work, and other 4xx responses remain visible as needing attention.
+After success the client records the canonical ID before optional image upload, removes the operation
+and temporary cache rows atomically, then refetches canonical state. A timeout after server creation is
+safe because replay uses the same operation ID. Pending rows are explicitly household-scoped and are
+never replayed under the selected household of another queue.
+
+Item edit, quantity change, movement, archive, identifier changes, location/container writes, and
+standalone image mutation are intentionally online-only for MVP. The mobile UI reports their request
+failure and does not claim that they were saved for later. This avoids silent last-write-wins behavior
+until resource preconditions and capability-level idempotency exist. A creation draft may retain a
+local photo; creation is idempotent and the image upload overwrites the deterministic item object key.
+Updates left in the former pre-hardening queue are retained as needs-attention records rather than
+being replayed with the old unsafe last-write-wins behavior or silently deleted.
 
 Realtime WebSockets are invalidation hints, not replication or durability. Reconnect always fetches
 canonical state. The current in-process hub suits one API process; multi-process deployment can add

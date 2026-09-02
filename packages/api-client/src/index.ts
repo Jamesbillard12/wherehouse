@@ -1,3 +1,4 @@
+export { ApiError } from './client'
 export * from './types'
 export * from './remote'
 export * from './realtime'

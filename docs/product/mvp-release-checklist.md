@@ -53,6 +53,10 @@ emulator results separately from physical-device camera/library and cross-client
 
 ## Offline and realtime
 
+Use the exact supported/unsupported scope and evidence fields in [Phase 4 offline sync
+validation](offline-sync-validation.md). Automated policy, capability, type, and lint checks are
+implementation evidence; they do not complete physical restart or cross-client rows.
+
 - [ ] Disconnect before and during mutation; queue persists through app restart
 - [ ] Reconnect and retry execute the operation once with no duplicate/loss
 - [ ] Web and a second client update; realtime disconnect/reconnect converges

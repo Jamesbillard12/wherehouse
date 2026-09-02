@@ -21,7 +21,6 @@ import {
   type PairedServer,
 } from './src/services/pairing'
 import {
-  cacheItemUpdate,
   loadCachedInventory,
   syncInventory,
   type CachedInventory,
@@ -39,7 +38,7 @@ import { AddItemScreen } from './src/screens/AddItemScreen'
 import { ItemsScreen } from './src/screens/ItemsScreen'
 import { EditItemScreen } from './src/screens/EditItemScreen'
 import { ScanSessionScreen } from './src/screens/ScanSessionScreen'
-import { pendingItemCount, queueItem, queueItemUpdate, recentLocations, syncPendingItems, syncPendingItemUpdates } from './src/services/itemQueue'
+import { failedItemCount, pendingItemCount, queueItem, recentLocations, syncPendingItems } from './src/services/itemQueue'
 import type { ItemDraft, ItemLocationChoice, ItemUpdateDraft } from './src/types/itemDraft'
 import { containerLocationChoice, itemLocationChoices, placementLocationChoice } from './src/utils/itemLocations'
 import { EmptyNfcTagError, readNfcIdentifier, writeNfcIdentifier } from './src/services/nfc'
@@ -70,6 +69,7 @@ export default function App() {
   const [addItemLocation, setAddItemLocation] = useState<ItemLocationChoice | undefined>()
   const [recentItemLocations, setRecentItemLocations] = useState<ItemLocationChoice[]>([])
   const [pendingCount, setPendingCount] = useState(0)
+  const [failedCount, setFailedCount] = useState(0)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [editItemLocation, setEditItemLocation] = useState<ItemLocationChoice | undefined>()
   const [editingItemImageUri, setEditingItemImageUri] = useState<string | undefined>()
@@ -112,7 +112,6 @@ export default function App() {
         const cached = await loadCachedInventory(pairedServer.householdId)
         if (!cancelled) setInventory(cached)
         await syncPendingItems(pairedServer)
-        await syncPendingItemUpdates(pairedServer)
         const next = await syncInventory(pairedServer)
         if (!cancelled) {
           setInventory(next)
@@ -124,6 +123,7 @@ export default function App() {
         if (cancelled) return
         setSyncing(false)
         void pendingItemCount(pairedServer.householdId).then(setPendingCount)
+        void failedItemCount(pairedServer.householdId).then(setFailedCount)
         void recentLocations(pairedServer.householdId).then(setRecentItemLocations)
       }
     })()
@@ -167,8 +167,8 @@ export default function App() {
       running = true
       try {
         await syncPendingItems(pairedServer)
-        await syncPendingItemUpdates(pairedServer)
         setPendingCount(await pendingItemCount(pairedServer.householdId))
+        setFailedCount(await failedItemCount(pairedServer.householdId))
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : 'Pending item sync failed.')
       } finally {
@@ -188,9 +188,9 @@ export default function App() {
       running = true
       try {
         await syncPendingItems(pairedServer)
-        await syncPendingItemUpdates(pairedServer)
         setInventory(await syncInventory(pairedServer))
         setPendingCount(await pendingItemCount(pairedServer.householdId))
+        setFailedCount(await failedItemCount(pairedServer.householdId))
         setError(null)
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : 'Realtime sync failed.')
@@ -268,9 +268,9 @@ export default function App() {
     setError(null)
     try {
       await syncPendingItems(pairedServer)
-      await syncPendingItemUpdates(pairedServer)
       setInventory(await syncInventory(pairedServer))
       setPendingCount(await pendingItemCount(pairedServer.householdId))
+      setFailedCount(await failedItemCount(pairedServer.householdId))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Sync failed.')
     } finally {
@@ -281,7 +281,9 @@ export default function App() {
   async function saveItem(draft: ItemDraft): Promise<'queued' | 'synced'> {
     if (!pairedServer) throw new Error('Pair this phone before adding items.')
     await queueItem(pairedServer.householdId, draft)
+    setInventory(await loadCachedInventory(pairedServer.householdId))
     setPendingCount(await pendingItemCount(pairedServer.householdId))
+    setFailedCount(await failedItemCount(pairedServer.householdId))
     setRecentItemLocations(await recentLocations(pairedServer.householdId))
     setAddItemLocation(draft.location)
     if (linkNewItemToNfc) {
@@ -294,6 +296,7 @@ export default function App() {
       if (!itemId) throw new Error('The item was saved on this phone, but it must sync before the NFC tag can be linked. Try again when connected.')
       await writeItemNfc(itemId)
       setPendingCount(await pendingItemCount(pairedServer.householdId))
+      setFailedCount(await failedItemCount(pairedServer.householdId))
       setInventory(await syncInventory(pairedServer))
       return 'synced'
     }
@@ -308,21 +311,14 @@ export default function App() {
 
   async function updateItem(draft: ItemUpdateDraft): Promise<'queued' | 'synced'> {
     if (!pairedServer || !editingItem) throw new Error('Pair this phone before editing items.')
-    await queueItemUpdate(pairedServer.householdId, draft)
-    const optimisticItem: Item = { ...editingItem, name: draft.name, quantity: String(draft.quantity), identifier_type: draft.identifierType, unit: draft.unit ?? null, manufacturer: draft.manufacturer ?? null, model: draft.model ?? null, serial_number: draft.serialNumber ?? null, description: draft.description ?? null, notes: draft.notes ?? null, updated_at: draft.updatedAt }
-    const previousPlacement = inventory.itemPlacements.find((entry) => entry.item_id === draft.itemId)
-    const optimisticPlacement = draft.location ? { id: previousPlacement?.id ?? `local-${draft.itemId}`, item_id: draft.itemId, area_id: draft.location.kind === 'area' ? draft.location.id : null, zone_id: draft.location.kind === 'zone' ? draft.location.id : null, container_id: draft.location.kind === 'container' ? draft.location.id : null, relationship_type: draft.location.kind === 'container' ? 'in' as const : null, created_at: previousPlacement?.created_at ?? draft.updatedAt, updated_at: draft.updatedAt } : previousPlacement
-    const next = { ...inventory, items: inventory.items.map((item) => item.id === draft.itemId ? optimisticItem : item), itemPlacements: optimisticPlacement ? [...inventory.itemPlacements.filter((entry) => entry.item_id !== draft.itemId), optimisticPlacement] : inventory.itemPlacements }
-    setInventory(next)
-    await cacheItemUpdate(pairedServer.householdId, optimisticItem, optimisticPlacement)
-    setPendingCount(await pendingItemCount(pairedServer.householdId))
-    void syncPendingItemUpdates(pairedServer)
-      .then(async () => {
-        setPendingCount(await pendingItemCount(pairedServer.householdId))
-        setInventory(await syncInventory(pairedServer))
-      })
-      .catch((reason) => setError(reason instanceof Error ? reason.message : 'Item update will retry when connected.'))
-    return 'queued'
+    const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
+    await client.updateItem(draft.itemId, { name: draft.name, identifier_type: draft.identifierType, description: draft.description, quantity: draft.quantity, unit: draft.unit, manufacturer: draft.manufacturer, model: draft.model, serial_number: draft.serialNumber, notes: draft.notes, ...(draft.location ? { placement: { [`${draft.location.kind}_id`]: draft.location.id, ...(draft.location.kind === 'container' ? { relationship_type: 'in' as const } : {}) } } : {}) })
+    if (draft.photoUri) {
+      const response = await fetch(draft.photoUri)
+      await client.uploadItemImage(draft.itemId, await response.blob(), draft.photoMimeType)
+    }
+    setInventory(await syncInventory(pairedServer))
+    return 'synced'
   }
 
   async function archiveItem(item: Item): Promise<void> {
@@ -507,7 +503,7 @@ export default function App() {
           </Text>
           {busy ? (
             <ActivityIndicator style={styles.activity} color="#166534" size="large" />
-          ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={openLocations} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanSession()} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
+          ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} failedCount={failedCount} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={openLocations} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanSession()} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
             : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} householdId={pairedServer.householdId} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onOpenContainer={(container) => { setSelectedLocation(containerLocationChoice(container, inventory)); setActiveTab('containers') }} onRefresh={() => void refreshInventory()} search={searchInventory} syncing={syncing} />
             : pairedServer && activeTab === 'more' ? <SettingsScreen onForget={() => void forget()} onSwitch={switchHousehold} server={pairedServer} />
             : pairedServer ? <LocationsScreen error={error} inventory={inventory} onAddItem={(location) => { setAddItemLocation(location); setActiveTab('add-item') }} onChangeLocation={openLocations} onOpenItem={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} onSelect={setSelectedLocation} onWriteNfc={async (containerId) => { const container = inventory.containers.find((entry) => entry.id === containerId); if (container) await writeContainerNfc(container) }} selected={selectedLocation} syncing={syncing} />

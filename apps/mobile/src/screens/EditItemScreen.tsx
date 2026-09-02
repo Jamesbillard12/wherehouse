@@ -125,7 +125,7 @@ export function EditItemScreen({
         <View style={styles.addItemTitleRow}>
           <View>
             <Text style={styles.addItemTitle}>Edit item</Text>
-            <Text style={styles.addItemSubtitle}>{item.code}</Text>
+            <Text style={styles.addItemSubtitle}>{item.code} · Changes require a connection</Text>
           </View>
           <Pressable
             accessibilityLabel="Close edit item"
