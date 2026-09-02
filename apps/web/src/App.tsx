@@ -15,6 +15,15 @@ export function App() {
   const [loading, setLoading] = useState(Boolean(token))
   const [error, setError] = useState<string | null>(null)
 
+  function clearSession() {
+    sessionStorage.removeItem(SESSION_KEY)
+    localStorage.removeItem(HOUSEHOLD_KEY)
+    setToken('')
+    setMe(null)
+    setHouseholds([])
+    setSelectedId('')
+  }
+
   async function loadAccount(accessToken: string) {
     setLoading(true)
     setError(null)
@@ -24,9 +33,7 @@ export function App() {
       setHouseholds(householdList)
       setSelectedId((current) => householdList.some((household) => household.id === current) ? current : (householdList[0]?.id ?? ''))
     } catch (reason) {
-      sessionStorage.removeItem(SESSION_KEY)
-      setToken('')
-      setMe(null)
+      clearSession()
       setError(message(reason))
     } finally {
       setLoading(false)
@@ -43,10 +50,7 @@ export function App() {
 
   async function signOut() {
     try { await logout(token) } finally {
-      sessionStorage.removeItem(SESSION_KEY)
-      setToken('')
-      setMe(null)
-      setHouseholds([])
+      clearSession()
     }
   }
 

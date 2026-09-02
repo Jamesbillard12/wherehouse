@@ -10,7 +10,10 @@ export type PairedServer = {
   householdId: string
   instanceId: string
   instanceName: string
+  pairedHouseholdId?: string
   userId: string
+  status?: 'active' | 'revoked'
+  revokedAt?: string
 }
 
 export function isPairingUri(value: string): boolean {
@@ -53,6 +56,7 @@ export async function pairDevice(
     householdId: result.household_id,
     instanceId: result.instance_id,
     instanceName: result.instance_name,
+    pairedHouseholdId: result.household_id,
     userId: result.user_id,
   }
   await SecureStore.setItemAsync(PAIRING_KEY, JSON.stringify(paired))
@@ -60,6 +64,13 @@ export async function pairDevice(
 }
 
 export async function loadPairedServer(): Promise<PairedServer | null> {
+  const value = await SecureStore.getItemAsync(PAIRING_KEY)
+  if (!value) return null
+  const server = JSON.parse(value) as PairedServer
+  return server.status === 'revoked' ? null : server
+}
+
+export async function loadStoredPairing(): Promise<PairedServer | null> {
   const value = await SecureStore.getItemAsync(PAIRING_KEY)
   return value ? (JSON.parse(value) as PairedServer) : null
 }
@@ -70,4 +81,15 @@ export async function savePairedServer(server: PairedServer): Promise<void> {
 
 export async function forgetPairedServer(): Promise<void> {
   await SecureStore.deleteItemAsync(PAIRING_KEY)
+}
+
+export async function markPairedServerRevoked(server: PairedServer): Promise<PairedServer> {
+  const revoked = {
+    ...server,
+    accessToken: '',
+    status: 'revoked' as const,
+    revokedAt: new Date().toISOString(),
+  }
+  await SecureStore.setItemAsync(PAIRING_KEY, JSON.stringify(revoked))
+  return revoked
 }
