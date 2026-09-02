@@ -50,4 +50,11 @@ describe('Dashboard settings navigation', () => {
     await userEvent.click(screen.getByText('Yellow Bin').closest('button')!)
     await waitFor(() => expect(location.pathname).toBe('/locations'))
   })
+
+  it('starts item creation from the sidebar', async () => {
+    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Add item' }))
+    expect(location.pathname).toBe('/items')
+    expect(await screen.findByRole('heading', { name: 'Add an item' })).toBeInTheDocument()
+  })
 })

@@ -229,7 +229,7 @@ export function AddItemDialog({ areas, containerPlacements, containers, finalFoc
   )
 }
 
-export function ItemsView({ household, onOpenLocation, onRevealConsumed, refreshKey = 0, revealItemId, revealScanKey, token }: { household: Household; onOpenLocation: (target: { areaId: string; containerId?: string; zoneId?: string }) => void; onRevealConsumed?: () => void; refreshKey?: number; revealItemId?: string; revealScanKey?: string; token: string }) {
+export function ItemsView({ createRequestKey = 0, household, onOpenLocation, onRevealConsumed, refreshKey = 0, revealItemId, revealScanKey, token }: { createRequestKey?: number; household: Household; onOpenLocation: (target: { areaId: string; containerId?: string; zoneId?: string }) => void; onRevealConsumed?: () => void; refreshKey?: number; revealItemId?: string; revealScanKey?: string; token: string }) {
   const [items, setItems] = useState<Item[]>([])
   const [placements, setPlacements] = useState<ItemPlacement[]>([])
   const [areas, setAreas] = useState<Area[]>([])
@@ -242,6 +242,10 @@ export function ItemsView({ household, onOpenLocation, onRevealConsumed, refresh
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const addItemTriggerRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (createRequestKey > 0) setShowForm(true)
+  }, [createRequestKey])
 
   function openAddItemDialog(event: MouseEvent<HTMLButtonElement>) {
     addItemTriggerRef.current = event.currentTarget

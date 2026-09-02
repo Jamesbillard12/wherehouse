@@ -77,6 +77,7 @@ export function Dashboard({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searchBusy, setSearchBusy] = useState(false)
   const [searchError, setSearchError] = useState(false)
+  const [createItemRequestKey, setCreateItemRequestKey] = useState(0)
   const overview = useOverviewInventory(household.id, token, realtimeRevision)
 
   useEffect(() => {
@@ -216,6 +217,7 @@ export function Dashboard({
             {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
           </Button>
         </div>
+        <Button aria-label="Add item" className="sidebar-add-item" onClick={() => { setCreateItemRequestKey((current) => current + 1); navigate('items') }}><Plus aria-hidden="true" /><span>Add item</span></Button>
         <div className="sidebar-household">
           <p className="nav-label">Household</p>
           <select value={household.id} onChange={(event) => onSelect(event.target.value)}>
@@ -238,7 +240,7 @@ export function Dashboard({
 
       <section className={`dashboard-content ${activeView === 'overview' ? 'overview-content' : ''}`}>
         {activeView === 'items' ? (
-          <ItemsView household={household} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
+          <ItemsView createRequestKey={createItemRequestKey} household={household} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
           <LocationsView household={household} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.areaId : undefined)} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : undefined)} revealScanKey={resolvedTarget?.type === 'container' ? resolvedTarget.scanKey : undefined} revealZoneId={locationTarget?.zoneId} token={token} />
         ) : activeView === 'settings' ? (
@@ -250,7 +252,6 @@ export function Dashboard({
             <p className="eyebrow">{household.name}</p>
             <h1>{greeting()}, {user.user.display_name.split(' ')[0]} <span className="wave">👋</span></h1>
           </div>
-          <a className="primary-button compact overview-add" href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }}><Plus aria-hidden="true" /> Add item</a>
         </div>
 
         <div className="stat-grid">
