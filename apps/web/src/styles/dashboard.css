@@ -1,4 +1,4 @@
-.dashboard { height: 100dvh; display: grid; grid-template: 64px minmax(0, 1fr) / 238px minmax(0, 1fr); overflow: hidden; background: var(--paper); transition: grid-template-columns 180ms ease; }
+.dashboard { height: 100dvh; display: grid; grid-template: 64px minmax(0, 1fr) / 252px minmax(0, 1fr); overflow: hidden; background: var(--paper); transition: grid-template-columns 180ms ease; }
 .dashboard.sidebar-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
 .topbar { position: sticky; top: 0; grid-column: 1 / -1; z-index: 20; padding: 0 2rem; background: var(--cream); }
 .account-menu { position: relative; display: flex; align-items: center; gap: 1.5rem; font-size: 0.85rem; font-weight: 600; }
@@ -24,16 +24,21 @@
 .topbar-icon { color: #667085; font-size: 1.1rem; }
 .topbar-icon svg { display: block; width: 18px; height: 18px; }
 .avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #e0e7ff; color: #3730a3; font-size: 0.76rem; font-weight: 800; }
-.sidebar { min-height: 0; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; border-right: 1px solid var(--line); padding: 1.5rem 1.15rem; background: #fff; scrollbar-width: thin; }
-.sidebar-controls { display: flex; justify-content: flex-end; margin: -0.35rem 0 1rem; }
-.sidebar-add-item { width: 100%; margin-top: 1rem; justify-content: flex-start; }
-.sidebar nav { display: grid; gap: 0.35rem; margin-top: 1rem; }
-.nav-item { width: 100%; display: flex; align-items: center; gap: 0.7rem; border: 0; border-radius: 7px; padding: 0.7rem 0.75rem; background: none; color: #5e675f; font-size: 0.88rem; font-weight: 700; text-align: left; text-decoration: none; white-space: nowrap; }
+.sidebar { min-height: 0; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; border-right: 1px solid var(--line); padding: 1.1rem 1rem 1rem; background: #fff; scrollbar-width: thin; }
+.sidebar-controls { display: flex; justify-content: flex-end; margin-bottom: 0.65rem; }
+.sidebar-household { display: grid; gap: 0.45rem; border: 1px solid #e4e7ec; border-radius: 10px; padding: 0.75rem; background: #f8fafc; }
+.sidebar-household .nav-label { margin: 0; color: #667085; font-size: 0.65rem; letter-spacing: 0.12em; }
+.sidebar-household select { min-height: 38px; border-color: #d7dce5; border-radius: 7px; padding-block: 0.45rem; background-color: #fff; font-size: 0.8rem; font-weight: 650; }
+.sidebar-add-item { width: 100%; min-height: 40px; margin-top: 0.75rem; justify-content: flex-start; border-radius: 8px; padding-inline: 0.8rem; box-shadow: 0 4px 10px rgb(79 70 229 / 16%); font-size: 0.82rem; }
+.sidebar-add-item svg { width: 17px; height: 17px; }
+.sidebar nav { display: grid; gap: 0.2rem; margin-top: 0.9rem; border-top: 1px solid #eef0f4; padding-top: 0.9rem; }
+.nav-item { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 0.7rem; border: 1px solid transparent; border-radius: 8px; padding: 0.6rem 0.7rem; background: none; color: #566159; font-size: 0.82rem; font-weight: 700; text-align: left; text-decoration: none; white-space: nowrap; transition: border-color 150ms, background 150ms, color 150ms; }
 .nav-item svg { flex: 0 0 auto; width: 17px; height: 17px; }
-.nav-item.active { background: #eef2ff; color: var(--action); }
-.nav-item.disabled { opacity: 0.6; }
+.nav-item:not(.disabled):hover { background: #f8fafc; color: var(--action); }
+.nav-item.active { border-color: #e0e7ff; background: #eef2ff; color: var(--action); }
+.nav-item.disabled { color: #98a09a; opacity: 0.58; }
 .nav-item small { margin-left: auto; color: #949990; font-size: 0.62rem; text-transform: uppercase; }
-.sidebar-footer { display: grid; gap: 0.8rem; margin-top: auto; padding-top: 2rem; }
+.sidebar-footer { display: grid; gap: 0.8rem; margin-top: auto; border-top: 1px solid #eef0f4; padding-top: 1rem; }
 .server-status { display: flex; align-items: center; gap: 0.5rem; color: #697168; font-size: 0.72rem; white-space: nowrap; }
 .server-status i { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: #5da065; box-shadow: 0 0 0 3px #dce8dc; }
 .server-status.connecting i { background: #d99a2b; box-shadow: 0 0 0 3px #f5e8cc; }
