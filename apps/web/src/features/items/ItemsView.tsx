@@ -208,7 +208,13 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
   )
 }
 
-export function AddItemDialog({ areas, containerPlacements, containers, finalFocus, onOpenChange, onSubmit, open, saving, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; finalFocus?: RefObject<HTMLElement | null>; onOpenChange: (open: boolean) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; open: boolean; saving: boolean; zones: Zone[] }) {
+export function AddItemDialog({ areas, containerPlacements, containers, finalFocus, onOpenChange, onSubmit, open, saving, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; finalFocus?: RefObject<HTMLElement | null>; onOpenChange: (open: boolean) => void; onSubmit: (event: FormEvent<HTMLFormElement>, image: File | null) => void; open: boolean; saving: boolean; zones: Zone[] }) {
+  const [image, setImage] = useState<File | null>(null)
+
+  useEffect(() => {
+    if (!open) setImage(null)
+  }, [open])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="location-dialog max-w-[calc(100%-3rem)] gap-0 overflow-y-auto p-0 sm:max-w-[560px]" finalFocus={finalFocus} showCloseButton={false}>
@@ -216,8 +222,8 @@ export function AddItemDialog({ areas, containerPlacements, containers, finalFoc
           <div><p className="eyebrow">Inventory</p><DialogTitle id="item-dialog-title">Add an item</DialogTitle></div>
           <DialogClose aria-label="Close add item dialog" render={<Button size="icon" type="button" variant="secondary" />}>×</DialogClose>
         </DialogHeader>
-        <form onSubmit={onSubmit}>
-          <CreateImageField label="Item image" />
+        <form onSubmit={(event) => onSubmit(event, image)}>
+          <CreateImageField label="Item image" onFileChange={setImage} />
           <label>Name<Input autoFocus name="name" placeholder="Cordless drill" required /></label>
           <div className="form-row"><label>Quantity<Input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><Input name="unit" placeholder="pieces, boxes, feet" /></label></div>
           <div className="form-row"><label>Manufacturer <span className="optional">Optional</span><Input name="manufacturer" /></label><label>Model <span className="optional">Optional</span><Input name="model" /></label></div>
@@ -292,9 +298,8 @@ export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange,
     }
   }, [items, onRevealConsumed, revealItemId, revealScanKey])
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>, image: File | null) {
     event.preventDefault()
-    const image = (event.currentTarget.elements.namedItem('image') as HTMLInputElement | null)?.files?.[0]
     setSaving(true)
     setError(null)
     const data = new FormData(event.currentTarget)

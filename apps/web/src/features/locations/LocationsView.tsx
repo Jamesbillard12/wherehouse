@@ -83,10 +83,12 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
   const [containerImageBusy, setContainerImageBusy] = useState(false)
   const [containerImageRevision, setContainerImageRevision] = useState(0)
   const [containerImageToCrop, setContainerImageToCrop] = useState<File | null>(null)
+  const [newContainerImage, setNewContainerImage] = useState<File | null>(null)
   const [showContainerLabel, setShowContainerLabel] = useState(false)
   const [selectedDetailItem, setSelectedDetailItem] = useState<Item | null>(null)
   const [selectedItemMode, setSelectedItemMode] = useState<'details' | 'edit' | 'delete'>('details')
   const [showNestedItemForm, setShowNestedItemForm] = useState(false)
+  const [newNestedItemImage, setNewNestedItemImage] = useState<File | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -275,7 +277,6 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
 
   async function submitContainer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const image = (event.currentTarget.elements.namedItem('image') as HTMLInputElement | null)?.files?.[0]
     setSaving(true)
     setError(null)
     const data = new FormData(event.currentTarget)
@@ -289,7 +290,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
         description: String(data.get('description')).trim() || undefined,
         is_movable: data.get('isMovable') === 'on',
       })
-      if (image?.size) container = await uploadContainerImage(token, container.id, image)
+      if (newContainerImage?.size) container = await uploadContainerImage(token, container.id, newContainerImage)
       const parentId = String(data.get('parentId'))
       if (parentId) {
         await placeContainer(token, container.id, {
@@ -298,6 +299,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
         })
       }
       await loadAreaDetails(selectedAreaId)
+      setNewContainerImage(null)
       setFormMode(null)
     } catch (reason) {
       setError(message(reason))
@@ -412,7 +414,6 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
   async function submitNestedItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!openContainerId) return
-    const image = (event.currentTarget.elements.namedItem('image') as HTMLInputElement | null)?.files?.[0]
     setSaving(true)
     setError(null)
     const data = new FormData(event.currentTarget)
@@ -425,8 +426,9 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
         unit: String(data.get('unit')).trim() || undefined,
         placement: { container_id: openContainerId, relationship_type: 'in' },
       })
-      if (image?.size) item = await uploadItemImage(token, item.id, image)
+      if (newNestedItemImage?.size) item = await uploadItemImage(token, item.id, newNestedItemImage)
       await loadAreaDetails(selectedAreaId)
+      setNewNestedItemImage(null)
       setShowNestedItemForm(false)
     } catch (reason) {
       setError(message(reason))
@@ -562,12 +564,12 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
       {selectedDetailItem ? <ItemDetailsModal areas={areas} containerPlacements={placements} containers={containers} imageRevision={refreshKey} initialMode={selectedItemMode} item={selectedDetailItem} locationLabel={itemLocation(itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id), areas, zones, containers, placements)} onClose={() => setSelectedDetailItem(null)} onDeleted={(itemId) => { setSelectedDetailItem(null); setItems((current) => current.filter((item) => item.id !== itemId)); setItemPlacements((current) => current.filter((entry) => entry.item_id !== itemId)) }} onPlacementUpdated={(updated) => setItemPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedDetailItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id)} token={token} zones={zones} /> : null}
 
       {formMode ? (
-        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setFormMode(null)}>
+        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setNewContainerImage(null); setFormMode(null) } }}>
           <section aria-labelledby="location-dialog-title" aria-modal="true" className="location-dialog" role="dialog">
-            <div className="dialog-heading"><div><p className="eyebrow">Location setup</p><h2 id="location-dialog-title">{formMode === 'area' ? 'Add an area' : formMode === 'zone' ? `Add a zone to ${selectedArea?.name}` : formMode === 'edit-zone' ? `Edit ${selectedZone?.name}` : formMode === 'edit-container' ? `Edit ${selectedContainer?.name}` : formMode === 'icon' ? `Choose an icon for ${selectedArea?.name}` : `Add a container to ${selectedArea?.name}`}</h2></div><Button aria-label="Close" onClick={() => { setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }}>×</Button></div>
+            <div className="dialog-heading"><div><p className="eyebrow">Location setup</p><h2 id="location-dialog-title">{formMode === 'area' ? 'Add an area' : formMode === 'zone' ? `Add a zone to ${selectedArea?.name}` : formMode === 'edit-zone' ? `Edit ${selectedZone?.name}` : formMode === 'edit-container' ? `Edit ${selectedContainer?.name}` : formMode === 'icon' ? `Choose an icon for ${selectedArea?.name}` : `Add a container to ${selectedArea?.name}`}</h2></div><Button aria-label="Close" onClick={() => { setNewContainerImage(null); setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }}>×</Button></div>
             <form onSubmit={formMode === 'area' ? submitArea : formMode === 'zone' ? submitZone : formMode === 'edit-zone' ? submitZoneEdit : formMode === 'edit-container' ? submitContainerEdit : formMode === 'icon' ? submitAreaIcon : submitContainer}>
               {formMode === 'edit-container' ? <div className="item-image-panel container-image-panel">{containerImageUrl ? <img alt={selectedContainer?.name} src={containerImageUrl} /> : <div className="item-image-placeholder"><ImageIcon aria-hidden="true" /><strong>No image yet</strong><span>Add a photo to make this container easier to identify.</span></div>}<label className="item-image-action"><Camera aria-hidden="true" /><span>{containerImageBusy ? 'Uploading…' : containerImageUrl ? 'Replace image' : 'Add image'}</span><input accept="image/jpeg,image/png,image/webp" disabled={containerImageBusy} onChange={(event) => { setContainerImageToCrop(event.target.files?.[0] ?? null); event.target.value = '' }} type="file" /></label></div> : null}
-              {formMode === 'container' ? <CreateImageField label="Container image" /> : null}
+              {formMode === 'container' ? <CreateImageField label="Container image" onFileChange={setNewContainerImage} /> : null}
               {formMode !== 'icon' ? <label>Name<input autoFocus defaultValue={formMode === 'edit-zone' ? selectedZone?.name : formMode === 'edit-container' ? selectedContainer?.name : ''} name="name" placeholder={formMode === 'area' ? 'Garage' : formMode === 'zone' || formMode === 'edit-zone' ? 'North wall' : 'Camping bin'} required /></label> : null}
               {formMode === 'area' || formMode === 'icon' ? <AreaIconPicker defaultValue={formMode === 'icon' ? selectedArea?.icon : undefined} /> : null}
               {formMode === 'container' || formMode === 'edit-container' ? <>
@@ -600,21 +602,21 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
                 <label className="checkbox-label"><input defaultChecked={selectedContainer?.is_movable ?? true} name="isMovable" type="checkbox" /> This container can be moved</label>
               </> : null}
               {formMode !== 'icon' ? <label>Description <span className="optional">Optional</span><textarea defaultValue={formMode === 'edit-zone' ? selectedZone?.description ?? '' : formMode === 'edit-container' ? selectedContainer?.description ?? '' : ''} name="description" placeholder="Add a helpful note…" rows={3} /></label> : null}
-              <div className="dialog-actions"><Button className="secondary-action" onClick={() => { setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }} type="button">Cancel</Button>{formMode === 'edit-container' ? <Button className="secondary-action" onClick={() => setShowContainerLabel(true)} type="button"><Printer aria-hidden="true" /> Print QR</Button> : null}<Button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : formMode === 'area' ? 'Create area' : formMode === 'zone' ? 'Create zone' : formMode === 'edit-zone' || formMode === 'edit-container' ? 'Save changes' : formMode === 'icon' ? 'Save icon' : 'Create container'}</Button></div>
+              <div className="dialog-actions"><Button className="secondary-action" onClick={() => { setNewContainerImage(null); setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }} type="button">Cancel</Button>{formMode === 'edit-container' ? <Button className="secondary-action" onClick={() => setShowContainerLabel(true)} type="button"><Printer aria-hidden="true" /> Print QR</Button> : null}<Button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : formMode === 'area' ? 'Create area' : formMode === 'zone' ? 'Create zone' : formMode === 'edit-zone' || formMode === 'edit-container' ? 'Save changes' : formMode === 'icon' ? 'Save icon' : 'Create container'}</Button></div>
             </form>
           </section>
         </div>
       ) : null}
       {showContainerLabel && selectedContainer ? <ContainerLabelModal container={selectedContainer} onClose={() => setShowContainerLabel(false)} token={token} /> : null}
       <ImageCropDialog file={containerImageToCrop} onCancel={() => setContainerImageToCrop(null)} onConfirm={(file) => { setContainerImageToCrop(null); void changeContainerImage(file) }} />
-      {showNestedItemForm && openContainer ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setShowNestedItemForm(false)}><section aria-labelledby="nested-item-dialog-title" aria-modal="true" className="location-dialog" role="dialog"><div className="dialog-heading"><div><p className="eyebrow">Add to {openContainer.name}</p><h2 id="nested-item-dialog-title">Add an item</h2></div><Button aria-label="Close" onClick={() => setShowNestedItemForm(false)}>×</Button></div><form onSubmit={submitNestedItem}>
-        <CreateImageField label="Item image" />
+      {showNestedItemForm && openContainer ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setNewNestedItemImage(null); setShowNestedItemForm(false) } }}><section aria-labelledby="nested-item-dialog-title" aria-modal="true" className="location-dialog" role="dialog"><div className="dialog-heading"><div><p className="eyebrow">Add to {openContainer.name}</p><h2 id="nested-item-dialog-title">Add an item</h2></div><Button aria-label="Close" onClick={() => { setNewNestedItemImage(null); setShowNestedItemForm(false) }}>×</Button></div><form onSubmit={submitNestedItem}>
+        <CreateImageField label="Item image" onFileChange={setNewNestedItemImage} />
         <label>Name<input autoFocus name="name" placeholder="Cordless drill" required /></label>
         <div className="form-row"><label>Quantity<input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><input name="unit" placeholder="pieces, boxes, feet" /></label></div>
         <PhysicalIdentifierPicker />
         <label>Description <span className="optional">Optional</span><textarea name="description" rows={3} /></label>
         <div className="placement-summary"><Container aria-hidden="true" /><span><strong>Placed in {openContainer.name}</strong><small>{openContainer.code}</small></span></div>
-        <div className="dialog-actions"><Button className="secondary-action" onClick={() => setShowNestedItemForm(false)} type="button">Cancel</Button><Button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</Button></div>
+        <div className="dialog-actions"><Button className="secondary-action" onClick={() => { setNewNestedItemImage(null); setShowNestedItemForm(false) }} type="button">Cancel</Button><Button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</Button></div>
       </form></section></div> : null}
       <ConfirmDialog
         busy={saving}

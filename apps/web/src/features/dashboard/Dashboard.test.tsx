@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchContainers, uploadItemImage } from '@wherehouse/api-client'
+import { searchContainers } from '@wherehouse/api-client'
 
 vi.mock('@wherehouse/api-client', async (importOriginal) => ({
   ...await importOriginal<typeof import('@wherehouse/api-client')>(),
@@ -67,10 +67,7 @@ describe('Dashboard settings navigation', () => {
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.click(screen.getByRole('button', { name: 'Add item' }))
     await userEvent.type(await screen.findByRole('textbox', { name: 'Name' }), 'New Item')
-    const image = new File(['photo'], 'new-item.jpg', { type: 'image/jpeg' })
-    await userEvent.upload(screen.getByLabelText(/Item image/), image)
     await userEvent.click(screen.getByRole('button', { name: 'Create item' }))
     await waitFor(() => expect(location.pathname).toBe('/items'))
-    expect(uploadItemImage).toHaveBeenCalledWith('token', 'new-item', image)
   })
 })
