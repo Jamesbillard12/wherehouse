@@ -21,6 +21,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 import { ItemsView, itemLocation } from '../items/ItemsView'
 import { CompanionReviewQueue } from '../items/CompanionReviewQueue'
@@ -190,7 +191,7 @@ export function Dashboard({
     <main className={`dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <header className="topbar">
         <span className="wordmark dark"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></span>
-        <div className="global-search"><Search aria-hidden="true" /><input aria-label="Search inventory" maxLength={200} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search items and locations" value={searchQuery} />{searchQuery ? <Button aria-label="Clear search" onClick={() => setSearchQuery('')} size="icon" variant="ghost">×</Button> : null}{searchQuery ? <div className="global-search-results" role="status">{searchBusy ? <p>Searching…</p> : searchError ? <p>Search is unavailable. Try again.</p> : searchResults.length ? searchResults.map((result) => <button key={result.item.id} onClick={() => { setResolvedTarget({ type: 'item', id: result.item.id, scanKey: `search-${Date.now()}` }); setSearchQuery(''); navigate('items') }} type="button"><strong>{result.item.name}</strong><span>{result.resolved_path ?? 'Unplaced'}{result.item.manufacturer ? ` · ${result.item.manufacturer}` : ''}</span></button>) : <p>No matching items.</p>}</div> : null}</div>
+        <div className="global-search"><Search aria-hidden="true" /><Input aria-label="Search inventory" className="global-search-input" maxLength={200} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search items and locations" type="search" value={searchQuery} />{searchQuery ? <Button aria-label="Clear search" onClick={() => setSearchQuery('')} size="icon" variant="ghost">×</Button> : null}{searchQuery ? <div className="global-search-results" role="status">{searchBusy ? <p>Searching…</p> : searchError ? <p>Search is unavailable. Try again.</p> : searchResults.length ? searchResults.map((result) => <button key={result.item.id} onClick={() => { setResolvedTarget({ type: 'item', id: result.item.id, scanKey: `search-${Date.now()}` }); setSearchQuery(''); navigate('items') }} type="button"><strong>{result.item.name}</strong><span>{result.resolved_path ?? 'Unplaced'}{result.item.manufacturer ? ` · ${result.item.manufacturer}` : ''}</span></button>) : <p>No matching items.</p>}</div> : null}</div>
         <div className="account-menu" ref={accountMenuRef}>
           <span className="topbar-icon"><Bell aria-hidden="true" /></span>
           <Button aria-expanded={accountMenuOpen} aria-haspopup="menu" aria-label="Open user menu" className="avatar avatar-button" onClick={() => setAccountMenuOpen((open) => !open)}>{user.user.display_name.slice(0, 1).toUpperCase()}</Button>

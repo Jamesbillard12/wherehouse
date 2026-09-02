@@ -33,7 +33,7 @@ describe('Dashboard settings navigation', () => {
 
   it('searches canonical inventory and opens a result', async () => {
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
-    await userEvent.type(screen.getByRole('textbox', { name: 'Search inventory' }), 'camp')
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search inventory' }), 'camp')
     expect(await screen.findByText('Camping Stove')).toBeInTheDocument()
     expect(screen.getByText('Garage > North Wall > Shelf > Yellow Bin · Coleman')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /Camping Stove/ }))
