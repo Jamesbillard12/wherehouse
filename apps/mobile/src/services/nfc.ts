@@ -15,6 +15,7 @@ async function start() {
     started = true
   }
   if (!(await NfcManager.isSupported())) throw new Error('NFC is not supported on this device.')
+  if (!(await NfcManager.isEnabled())) throw new Error('NFC is turned off. Enable NFC and try again.')
 }
 
 export async function readNfcIdentifier(): Promise<string> {

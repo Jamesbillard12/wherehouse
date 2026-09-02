@@ -1,6 +1,6 @@
 # MVP execution plan
 
-This is the dependency-ordered plan from repository state at `16cb317` to the first MVP tag. Statuses
+This is the dependency-ordered plan from repository state through Phase 3 hardening to the first MVP tag. Statuses
 mean: **Not started**, **In progress**, **Hardening**, **Blocked**, **Ready for validation**, or
 **Complete**. “Implementation complete,” “physical validation complete,” and “release validated” are
 separate claims. Unknown physical/operational results remain unvalidated, not implicitly passing.
@@ -18,9 +18,9 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | Item/container images | Implemented but needs hardening | Media lifecycle, backup, failure and client coverage |
 | Placement/movement/resolved paths | Implemented but needs validation | Create/update placement is transactional; canonical paths now come from the application layer; full-client physical validation remains |
 | Search | Ready for validation | Canonical server search, metadata/direct-location matching, resolved paths, and client UX are implemented; realistic-volume and physical mobile validation remain |
-| QR generate/display/print/scan | Implemented but needs hardening | Physical iOS/Android and adverse identifier cases are unrecorded |
-| NFC read/write/verify/empty registration | Implemented but needs hardening | Native hardware validation is unrecorded; platform limits must be documented |
-| Identifier activation/revocation/resolve | Implemented but needs hardening | Lifecycle/adverse/cross-household release tests |
+| QR generate/display/print/scan | Ready for physical validation | Opaque versioned generation, web label UI, print isolation, payload rejection, and scan deduplication are implemented; printer and physical iOS/Android evidence remain |
+| NFC read/write/verify/empty registration | Ready for physical validation | Write/read-back-before-activation and blank-tag flow are implemented; native iOS/Android evidence remains |
+| Identifier activation/revocation/resolve | Ready for validation | Capability-owned household checks, retry-safe transitions, target integrity, and adverse lifecycle tests are implemented; end-to-end physical validation remains |
 | Offline browse/cache | Implemented but needs hardening | Restart, stale data, and realistic failure validation |
 | Queued offline writes | Partially implemented | Queue concentrates on item work; supported mutation set/conflicts need definition |
 | Idempotent replay | Partially implemented | Item creation has operation IDs/database uniqueness; other queued mutations are not proven |
@@ -40,7 +40,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | 0 Scope and architecture alignment | Complete on this branch, pending review | Review/merge outside this task | Yes in branch |
 | 1 Core inventory hardening | Hardening | E2E parity, paths, hierarchy/error validation | No |
 | 2 Search and findability | Ready for validation | Realistic-volume/Pi timing and physical mobile/offline validation remain | No |
-| 3 Physical identifiers | Hardening | Real iOS/Android evidence and adverse cases | No |
+| 3 Physical identifiers | Ready for validation | Printed-label and real iOS/Android QR/NFC evidence | No |
 | 4 Offline and synchronization | Hardening | Mutation coverage, restart/conflicts, exactly-once scenarios | No |
 | 5 Account, household, settings | Hardening | Setup, isolation, revoke, multi-device validation | No |
 | 6 Backup and restore | Not started | Entire supported workflow | No |
@@ -89,10 +89,13 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 
 ## Phase 3: Physical identifier reliability
 
-- **Purpose/current state:** harden reusable QR/NFC records and existing client workflows.
+- **Purpose/current state:** reusable lifecycle operations, household checks, QR scan deduplication,
+  NFC read-back-before-activation, and automated adverse lifecycle coverage are implemented; physical
+  validation is outstanding.
 - **Scope/work:** generate/print/scan/resolve, activation/revocation, NFC read/write/read-back and empty-tag
   registration; unknown, revoked, malformed, and wrong-household behavior.
-- **Testing/docs:** automated lifecycle tests plus separate physical iOS and Android matrices.
+- **Testing/docs:** automated lifecycle tests plus the separate physical iOS and Android matrix in
+  [physical identifier validation](physical-identifier-validation.md).
 - **Dependencies/non-goals:** core resources stable; no new identifier media or hardware inventory system.
 - **Exit criteria:** QR passes on supported devices and every claimed NFC path is physically validated
   on each supported platform, with limitations recorded.

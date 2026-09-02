@@ -113,7 +113,16 @@ provider-neutral port only with a scheduled consumer and keep SDKs outside domai
 The clients generate/display QR images and web prints labels through a print view. Opaque
 `PhysicalIdentifier` public IDs resolve to items or containers without exposing internal UUIDs;
 human-readable item/container codes remain compatibility identifiers. There is no server PDF label
-generator. Physical iOS and Android validation is not recorded in the repository.
+generator.
+
+Identifier registration, resolution, activation, and revocation are application capabilities with
+framework-neutral actor context and household membership enforcement. QR identifiers activate at
+creation. NFC identifiers remain pending until the native client writes and reads back the exact
+versioned NDEF URI; only then does it request activation. Activation/revocation retries are safe,
+revoked identifiers cannot reactivate, and resolution verifies that the target still belongs to the
+identifier household. Physical platform support remains conditional on the evidence recorded in the
+[Phase 3 validation matrix](../product/physical-identifier-validation.md). Physical iOS and Android
+validation is not recorded in the repository.
 
 ## Monorepo
 

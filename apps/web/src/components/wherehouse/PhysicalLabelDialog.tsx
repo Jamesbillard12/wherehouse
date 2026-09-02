@@ -62,7 +62,7 @@ function printPhysicalLabel({ code, name, qrCode }: { code: string; name: string
   image.src = qrCode
 }
 
-export function PhysicalLabelDialog({ code, name, onClose, qrCode }: { code: string; name: string; onClose: () => void; qrCode: string }) {
+export function PhysicalLabelDialog({ code, error, name, onClose, qrCode }: { code: string; error?: string; name: string; onClose: () => void; qrCode: string }) {
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="item-label-dialog gap-0 p-0 sm:max-w-[430px]">
@@ -71,7 +71,7 @@ export function PhysicalLabelDialog({ code, name, onClose, qrCode }: { code: str
           <DialogDescription>Print and attach this label to {name}.</DialogDescription>
         </DialogHeader>
         <div className="item-label-print">
-          {qrCode ? <img alt={`QR code for ${code}`} src={qrCode} /> : <div aria-label="Generating QR code" className="label-qr-loading" role="status" />}
+          {qrCode ? <img alt={`QR code for ${code}`} src={qrCode} /> : error ? <p className="form-error" role="alert">{error}</p> : <div aria-label="Generating QR code" className="label-qr-loading" role="status" />}
           <strong>{name}</strong>
           <span>{code}</span>
         </div>

@@ -60,6 +60,10 @@ emulator results separately from physical-device camera/library and cross-client
 
 ## Physical hardware
 
+Use the evidence fields and adverse-case sequence in [physical identifier
+validation](physical-identifier-validation.md). The current implementation is ready for this exercise;
+none of the following physical rows is complete from automated evidence alone.
+
 ### iOS
 
 - [ ] Camera, QR scan, NFC read, NFC write, NFC read-back verification, physical pairing
