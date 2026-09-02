@@ -23,6 +23,18 @@ const user = { user: { id: 'user', display_name: 'Alex Owner', email: 'alex@exam
 describe('Dashboard settings navigation', () => {
   beforeEach(() => history.replaceState({}, '', '/overview'))
 
+  it('switches households from the header shadcn select', async () => {
+    const onSelect = vi.fn()
+    const secondHousehold = { id: 'cabin', name: 'Lake Cabin', created_at: '', updated_at: '' }
+    render(<Dashboard household={household} households={[household, secondHousehold]} isOwner onCreateHousehold={vi.fn()} onSelect={onSelect} onSignOut={vi.fn()} token="token" user={user} />)
+
+    expect(screen.queryByRole('combobox', { name: 'Select household' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Change household' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Lake Cabin' }))
+
+    expect(onSelect).toHaveBeenCalledWith('cabin')
+  })
+
   it('opens the user menu, deep-navigates, and keeps device administration off Overview', async () => {
     const signOut = vi.fn().mockResolvedValue(undefined)
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={signOut} token="token" user={user} />)

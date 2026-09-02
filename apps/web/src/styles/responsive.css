@@ -9,6 +9,11 @@
   .topbar { position: sticky; height: 64px; }
   .sidebar { display: none; }
   .global-search { display: none; }
+  .topbar-brand { gap: 0.6rem; }
+  .topbar-brand .brand-logo { width: 145px; }
+  .topbar-household { padding-left: 0.6rem; }
+  .topbar-household > span { max-width: 130px; }
+  .topbar-household-select { width: 170px; }
   .dashboard-content { overflow: visible; padding: 2rem 1rem; }
   .pairing-panel { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: 1fr; }
@@ -26,6 +31,10 @@
 @media (max-width: 480px) {
   .auth-story { min-height: 390px; }
   .account-menu > span { display: none; }
+  .topbar { padding-inline: 0.75rem; }
+  .topbar-brand .brand-logo { width: 112px; }
+  .topbar-household > span { max-width: 90px; }
+  .topbar-household-select { width: 130px; }
   .device-list article { grid-template-columns: auto 1fr; padding: 1rem; }
   .danger-button { grid-column: 2; justify-self: start; }
   .locations-heading { gap: 1rem; }

@@ -12,6 +12,7 @@ import {
   PackagePlus,
   PanelLeftClose,
   PanelLeftOpen,
+  Pencil,
   Plus,
   Printer,
   Search,
@@ -22,6 +23,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 import { ItemsView, itemLocation } from '../items/ItemsView'
 import { CompanionReviewQueue } from '../items/CompanionReviewQueue'
@@ -79,6 +81,7 @@ export function Dashboard({
   const [searchError, setSearchError] = useState(false)
   const [createItemRequestKey, setCreateItemRequestKey] = useState(0)
   const [sidebarCreateOpen, setSidebarCreateOpen] = useState(false)
+  const [householdSelectOpen, setHouseholdSelectOpen] = useState(false)
   const overview = useOverviewInventory(household.id, token, realtimeRevision)
 
   useEffect(() => {
@@ -194,7 +197,17 @@ export function Dashboard({
   return (
     <main className={`dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <header className="topbar">
-        <span className="wordmark dark"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></span>
+        <div className="topbar-brand">
+          <span className="wordmark dark"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></span>
+          {householdSelectOpen ? (
+            <Select items={households.map((option) => ({ label: option.name, value: option.id }))} onOpenChange={(open) => { if (!open) setHouseholdSelectOpen(false) }} onValueChange={(value) => { if (value && value !== household.id) onSelect(value); setHouseholdSelectOpen(false) }} open value={household.id}>
+              <SelectTrigger aria-label="Select household" autoFocus className="topbar-household-select"><SelectValue /></SelectTrigger>
+              <SelectContent align="start">{households.map((option) => <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>)}</SelectContent>
+            </Select>
+          ) : (
+            <div className="topbar-household"><span>{household.name}</span><Button aria-label="Change household" onClick={() => setHouseholdSelectOpen(true)} size="icon-sm" title="Change household" variant="ghost"><Pencil aria-hidden="true" /></Button></div>
+          )}
+        </div>
         <div className="global-search"><Search aria-hidden="true" /><Input aria-label="Search inventory" className="global-search-input" maxLength={200} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search items and containers" type="search" value={searchQuery} />{searchQuery ? <Button aria-label="Clear search" onClick={() => setSearchQuery('')} size="icon" variant="ghost">×</Button> : null}{searchQuery ? <div className="global-search-results" role="status">{searchBusy ? <p>Searching…</p> : searchError ? <p>Search is unavailable. Try again.</p> : searchResults.length ? searchResults.map((result) => result.kind === 'item' ? <button key={`item-${result.item.id}`} onClick={() => { setResolvedTarget({ type: 'item', id: result.item.id, scanKey: `search-${Date.now()}` }); setSearchQuery(''); navigate('items') }} type="button"><strong>{result.item.name}</strong><span>Item · {result.resolved_path ?? 'Unplaced'}{result.item.manufacturer ? ` · ${result.item.manufacturer}` : ''}</span></button> : <button key={`container-${result.container.id}`} onClick={() => { setResolvedTarget({ type: 'container', id: result.container.id, areaId: result.container.area_id, scanKey: `search-${Date.now()}` }); setSearchQuery(''); navigate('locations') }} type="button"><strong>{result.container.name}</strong><span>Container · {result.resolved_path}</span></button>) : <p>No matching items or containers.</p>}</div> : null}</div>
         <div className="account-menu" ref={accountMenuRef}>
           <span className="topbar-icon"><Bell aria-hidden="true" /></span>
@@ -217,12 +230,6 @@ export function Dashboard({
           >
             {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
           </Button>
-        </div>
-        <div className="sidebar-household">
-          <p className="nav-label">Household</p>
-          <select value={household.id} onChange={(event) => onSelect(event.target.value)}>
-          {households.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-          </select>
         </div>
         <Button aria-label="Add item" className="sidebar-add-item" onClick={() => { if (activeView === 'items') setCreateItemRequestKey((current) => current + 1); else setSidebarCreateOpen(true) }}><Plus aria-hidden="true" /><span>Add item</span></Button>
         <nav>
