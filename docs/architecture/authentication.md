@@ -10,6 +10,10 @@ tokens are stored by the server. User passwords are salted and hashed with scryp
 3. Send `Authorization: Bearer <access_token>` to authenticated endpoints.
 4. `POST /api/v1/auth/logout` revokes the current user session.
 
+Web session restoration validates the stored credential before rendering protected content. Invalid
+or expired sessions clear the browser credential and selected-household preference and return to a
+product-level sign-in recovery state.
+
 Creating a household automatically makes the authenticated user its owner. Core inventory routes
 require membership in the selected household. Owner access is required to pair or revoke devices.
 
@@ -29,6 +33,12 @@ revocation, while its credential represents the paired user and may select any h
 user has a current membership. Every request still checks membership, and administrative operations
 still check owner status in the target household. Credentials remain valid while offline and are
 presented when queued operations synchronize.
+
+Device revocation is an idempotent application capability. It verifies owner membership, commits the
+inactive/revoked state, and only then asks the realtime hub to notify and close sockets authenticated
+by that device. REST requests and WebSocket reconnects always authenticate against current device
+state, so the old credential remains invalid after re-pairing. The event contains household ID,
+device ID, and revocation time, never a credential.
 
 `PUBLIC_BASE_URL` must be the URL reachable by the companion. Self-hosted deployments may use a
 LAN or HTTPS URL; cloud deployments should use their public HTTPS API URL.

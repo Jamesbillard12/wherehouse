@@ -234,3 +234,9 @@ The current realtime hub is process-local and is appropriate for the single API 
 local and initial self-hosted deployments. A multi-worker or multi-instance deployment must add a
 shared fan-out adapter such as PostgreSQL `LISTEN/NOTIFY` or Redis pub/sub while retaining the same
 WebSocket event contract.
+
+The hub also indexes device-authenticated sockets independently of their active household
+subscription. A post-commit `device.revoked` event is delivered only to the affected device and its
+active sockets are closed; unrelated devices continue normally. Revoked credentials fail ordinary
+REST authentication and future WebSocket authentication. The transient event improves recovery UX,
+while database-backed credential checks remain the security authority.

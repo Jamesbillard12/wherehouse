@@ -14,7 +14,9 @@ validation complete.
 ## MVP user-facing capabilities
 
 - Account and household: register, log in, restore a session, log out, create and switch households,
-  manage basic settings, pair mobile, and forget or revoke paired clients where supported.
+  manage basic settings, pair mobile, and forget or revoke paired clients. Web-initiated device
+  revocation promptly disconnects an active targeted mobile through realtime, rejects later API and
+  realtime access, and preserves unsynced local work without replaying it under new credentials.
 - Locations: create and edit areas, zones, and containers; nest containers without cycles; show
   parent/child relationships, capacity state, contents, and readable paths.
 - Items: create, edit, archive, photograph, quantify, place, move, and display a resolved path such

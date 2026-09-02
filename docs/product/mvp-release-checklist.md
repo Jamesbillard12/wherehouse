@@ -6,10 +6,15 @@ validation**, and **release validation** separately. Unsupported items must be r
 
 ## Account and household
 
+Phase 5 automated implementation evidence is recorded in [account and household validation](account-household-validation.md).
+Keep these rows unchecked until the documented manual/physical runs are recorded.
+
 - [ ] Registration, login, valid-session restoration, logout
 - [ ] Household creation, switching, isolation, and basic settings
 - [ ] Mobile pairing, physical pairing, forget/re-pair, server-side revoke where supported
 - [ ] Expired/revoked credential and useful error states
+- [ ] Active web revoke automatically disconnects only the targeted mobile through realtime
+- [ ] Background/offline revoke is detected on reconnect and queued work remains retained but blocked
 
 ## Web
 

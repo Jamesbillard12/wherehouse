@@ -29,6 +29,12 @@ such as pairing and revoking devices still require an owner membership in the ta
 device remains registered under the household through which it was originally paired for auditing and
 revocation.
 
+The secure pairing record also preserves that original pairing household while the active household
+may change. Targeted revocation must match both the device and original pairing household, preventing
+a delayed event from an older pairing from disconnecting a newly paired identity. On revocation,
+mobile quarantines the token, clears protected in-memory state, retains household-scoped cached/queued
+data, and presents an explicit re-pair action.
+
 Connected-device administration lives under the selected household. It is intentionally absent from
 Overview and is not a top-level mobile category. Future AI, MCP, assistant, integration, and spatial
 settings are not exposed until their underlying features exist.

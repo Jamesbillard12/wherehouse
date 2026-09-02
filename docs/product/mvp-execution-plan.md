@@ -1,6 +1,6 @@
 # MVP execution plan
 
-This is the dependency-ordered plan from repository state through Phase 4 hardening to the first MVP tag. Statuses
+This is the dependency-ordered plan from repository state to the first MVP tag. Statuses
 mean: **Not started**, **In progress**, **Hardening**, **Blocked**, **Ready for validation**, or
 **Complete**. “Implementation complete,” “physical validation complete,” and “release validated” are
 separate claims. Unknown physical/operational results remain unvalidated, not implicitly passing.
@@ -9,9 +9,10 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 
 | Capability | Evidence-based status | Main gap |
 | --- | --- | --- |
-| Registration/login/session/logout | Implemented but needs hardening | End-to-end and failure/restart coverage is limited |
-| Household creation/switching/settings | Implemented but needs hardening | Polish, isolation, multi-device validation |
-| Pairing and device forgetting | Implemented but needs hardening | Revoke semantics and physical multi-device validation |
+| Registration/login/session/logout | Ready for validation | Protected bootstrap and expired-session recovery are automated; full browser restart/logout validation remains |
+| Household creation/switching/settings | Ready for validation | Atomic creation and household-scoped clients are implemented; manual rapid-switch and multi-device validation remain |
+| Pairing and device forgetting | Ready for validation | One-time pairing, local forget, revoke recovery, and re-pair path are implemented; physical QR/re-pair validation remains |
+| Realtime device revocation | Ready for validation | Post-commit targeted event/close and mobile credential quarantine are automated; active/background/offline physical validation remains |
 | Area/zone/container CRUD and contents | Implemented but needs hardening | Complete workflow tests and error states |
 | Nested containers/cycle prevention | Partially implemented | Model/route behavior exists; hierarchy validation needs comprehensive tests |
 | Item create/edit/archive, quantity, metadata | Implemented but needs hardening | End-to-end web/mobile parity and realistic-volume testing |
@@ -37,12 +38,12 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 
 | Phase | Status | Main gaps | Exit criteria met |
 | --- | --- | --- | --- |
-| 0 Scope and architecture alignment | Complete on this branch, pending review | Review/merge outside this task | Yes in branch |
+| 0 Scope and architecture alignment | Complete | No current implementation gap | Yes |
 | 1 Core inventory hardening | Hardening | E2E parity, paths, hierarchy/error validation | No |
 | 2 Search and findability | Ready for validation | Realistic-volume/Pi timing and physical mobile/offline validation remain | No |
 | 3 Physical identifiers | Ready for validation | Printed-label and real iOS/Android QR/NFC evidence | No |
 | 4 Offline and synchronization | Hardening | Mutation coverage, restart/conflicts, exactly-once scenarios | No |
-| 5 Account, household, settings | Hardening | Setup, isolation, revoke, multi-device validation | No |
+| 5 Account, household, settings | Ready for validation | Manual/physical setup, switching, active/background/offline revoke, and multi-device evidence | No |
 | 6 Backup and restore | Not started | Entire supported workflow | No |
 | 7 Pi and operations | In progress | Clean install, reboot/update, storage/recovery | No |
 | 8 Future-readiness gate | In progress | Capability coverage, portable confirmation/idempotency, audit decision | No |
@@ -50,7 +51,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 
 ## Phase 0: Scope and architecture alignment
 
-- **Purpose/current state:** establish one evidence-based MVP definition; this branch supplies it.
+- **Purpose/current state:** complete; the repository has one evidence-based MVP definition.
 - **Scope/work:** reorganize docs, current-state matrix, phases, checklist, blockers, architecture and
   backup/Pi direction; correct links and stale claims.
 - **Testing/docs:** link validation, documentation searches, lint/checks.
@@ -119,12 +120,17 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 
 ## Phase 5: Account, household, and settings polish
 
-- **Purpose/current state:** make implemented auth, household switching, pairing, and settings operable.
+- **Purpose/current state:** implementation is ready for validation. Session bootstrap/logout recovery,
+  atomic household creation, switching/cache scoping, pairing/forget/re-pair, and device-targeted
+  realtime revocation are implemented; manual and physical evidence remains.
 - **Scope/work:** session restore/logout, creation/switching, pairing, forget/revoke, terminology,
   onboarding/errors and multiple devices.
-- **Testing/docs:** restart/expiry/revocation, household isolation, switch cache reset, re-pair.
+- **Testing/docs:** automated capability/hub/client regression coverage plus the manual and physical
+  matrix in [Phase 5 validation](account-household-validation.md).
 - **Dependencies/non-goals:** may run beside phases 2–4; no enterprise RBAC/SSO.
-- **Exit criteria:** setup, pair, switch, revoke/forget, and recover without database intervention.
+- **Exit criteria:** setup, pair, switch, revoke/forget, and recover without database intervention;
+  active web-initiated revoke disconnects only the targeted mobile, and revoked queued work never
+  silently uploads or disappears.
 - **Risk/branch:** stale household data crossing context. `feature/mvp-account-household-polish`.
 
 ## Phase 6: Backup and restore
