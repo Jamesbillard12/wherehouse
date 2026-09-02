@@ -24,6 +24,8 @@ not started. See the evidence and uncertainty in the [execution plan](product/mv
 
 - [Architecture index](architecture/README.md), [current](architecture/current-architecture.md), and
   [future](architecture/future-architecture.md)
+- [Frontend component architecture](architecture/frontend-component-architecture.md) — ownership,
+  feature actions, forms/dialogs, state, sharing, testing, and UI anti-patterns.
 - [Domain model](architecture/domain-model.md), [authentication](architecture/authentication.md),
   [offline/sync](architecture/offline-sync.md), and [settings](architecture/settings.md)
 - [Storage and backup](architecture/storage-and-backup.md)

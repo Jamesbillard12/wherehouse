@@ -209,7 +209,7 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
   )
 }
 
-export function AddItemDialog({ areas, containerPlacements, containers, finalFocus, onOpenChange, onSubmit, open, saving, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; finalFocus?: RefObject<HTMLElement | null>; onOpenChange: (open: boolean) => void; onSubmit: (event: FormEvent<HTMLFormElement>, image: File | null) => void; open: boolean; saving: boolean; zones: Zone[] }) {
+export function AddItemDialog({ areas, containerPlacements, containers, eyebrow = 'Inventory', finalFocus, onOpenChange, onSubmit, open, saving, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; eyebrow?: string; finalFocus?: RefObject<HTMLElement | null>; onOpenChange: (open: boolean) => void; onSubmit: (event: FormEvent<HTMLFormElement>, image: File | null) => void; open: boolean; saving: boolean; zones: Zone[] }) {
   const [image, setImage] = useState<File | null>(null)
 
   useEffect(() => {
@@ -220,7 +220,7 @@ export function AddItemDialog({ areas, containerPlacements, containers, finalFoc
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="location-dialog max-w-[calc(100%-3rem)] gap-0 overflow-y-auto p-0 sm:max-w-[560px]" finalFocus={finalFocus} showCloseButton={false}>
         <DialogHeader className="dialog-heading flex-row">
-          <div><p className="eyebrow">Inventory</p><DialogTitle id="item-dialog-title">Add an item</DialogTitle></div>
+          <div><p className="eyebrow">{eyebrow}</p><DialogTitle id="item-dialog-title">Add an item</DialogTitle></div>
           <DialogClose aria-label="Close add item dialog" render={<Button size="icon" type="button" variant="secondary" />}>×</DialogClose>
         </DialogHeader>
         <form onSubmit={(event) => onSubmit(event, image)}>
