@@ -250,9 +250,14 @@ export function EditItemScreen({
             </>
           )}
         </Pressable>
-        <Pressable disabled={saving} onPress={() => setConfirmingArchive(true)} style={styles.secondaryButton}>
-          <Trash2 color="#b42318" size={18} />
-          <Text style={styles.secondaryButtonText}>Archive item</Text>
+        <Pressable
+          accessibilityLabel="Archive item"
+          disabled={saving}
+          onPress={() => setConfirmingArchive(true)}
+          style={[styles.saveButton, styles.archiveButton, saving && styles.buttonDisabled]}
+        >
+          <Trash2 color="#fff" size={20} />
+          <Text style={styles.saveButtonText}>Archive item</Text>
         </Pressable>
       </View>
       <ConfirmModal
