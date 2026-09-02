@@ -22,7 +22,7 @@
   .item-detail-grid { grid-template-columns: 1fr; }
   .item-detail-grid > div, .item-detail-grid > div:nth-child(odd), .item-detail-grid > div:nth-last-child(-n + 2) { border-right: 0; border-bottom: 1px solid var(--line); }
   .item-detail-grid > div:last-child { border-bottom: 0; }
-  .page-heading { align-items: start; }
+  .page-header { align-items: start; }
   .locations-layout { grid-template-columns: 1fr; }
   .area-list { position: static; }
   .area-detail-heading { flex-direction: column; }
@@ -37,8 +37,7 @@
   .topbar-household-select { width: 130px; }
   .device-list article { grid-template-columns: auto 1fr; padding: 1rem; }
   .danger-button { grid-column: 2; justify-self: start; }
-  .locations-heading { gap: 1rem; }
-  .locations-heading .compact { flex: 0 0 auto; }
+  .page-header { gap: 1rem; }
   .area-actions { width: 100%; flex-wrap: wrap; }
   .area-actions .secondary-action, .area-actions .primary-button { flex: 1; width: auto; min-width: 140px; }
   .form-row { grid-template-columns: 1fr; }

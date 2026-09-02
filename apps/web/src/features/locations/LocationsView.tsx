@@ -64,6 +64,7 @@ import { LocationContentsList } from '../../components/wherehouse/LocationConten
 import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
 import { CreateImageField } from '../../components/wherehouse/CreateImageField'
 import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
+import { PageHeader } from '../../components/wherehouse/PageHeader'
 
 export { AreaIcon } from './locationOptions'
 export function LocationsView({ household, onRevealConsumed, refreshKey = 0, revealAreaId, revealContainerId, revealScanKey, revealZoneId, token }: { household: Household; onRevealConsumed?: () => void; refreshKey?: number; revealAreaId?: string; revealContainerId?: string; revealScanKey?: string; revealZoneId?: string; token: string }) {
@@ -483,13 +484,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
 
   return (
     <div className="locations-view">
-      <div className="page-heading locations-heading">
-        <div>
-          <p className="eyebrow">Storage map</p>
-          <h1>Locations</h1>
-          <p className="page-description">Organize areas, zones, and every container inside them.</p>
-        </div>
-      </div>
+      <PageHeader description="Organize areas, zones, and every container inside them." eyebrow="Storage map" title="Locations" />
 
       {error ? <div className="alert locations-alert">{error}</div> : null}
 

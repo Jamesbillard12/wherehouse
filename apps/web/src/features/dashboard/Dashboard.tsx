@@ -24,6 +24,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { PageHeader } from '../../components/wherehouse/PageHeader'
 
 import { ItemDetailsModal, ItemsView, itemLocation } from '../items/ItemsView'
 import { CompanionReviewQueue } from '../items/CompanionReviewQueue'
@@ -257,11 +258,7 @@ export function Dashboard({
           <SettingsView household={household} households={households} isOwner={isOwner} onCreateHousehold={onCreateHousehold} onNavigate={navigateSettings} onSelect={onSelect} section={settingsSection} token={token} user={user} />
         ) : (
         <>
-        <div className="page-heading" id="overview">
-          <div>
-            <h1>{greeting()}, {user.user.display_name.split(' ')[0]} <span className="wave">👋</span></h1>
-          </div>
-        </div>
+        <PageHeader className="page-header-overview" id="overview" title={<>{greeting()}, {user.user.display_name.split(' ')[0]} <span className="wave">👋</span></>} />
 
         <div className="stat-grid">
           <article><strong>{overview.loading ? '—' : overview.items.length}</strong><span>Items tracked</span></article>

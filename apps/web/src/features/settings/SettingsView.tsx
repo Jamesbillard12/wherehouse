@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 
 import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
+import { PageHeader } from '../../components/wherehouse/PageHeader'
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
 import type { SettingsSection } from '../../shared/utils/navigation'
@@ -24,7 +25,7 @@ export function SettingsView({ household, households, isOwner, onCreateHousehold
   onNavigate: (section: SettingsSection) => void; onSelect: (id: string) => void
   section: SettingsSection; token: string; user: MeResponse
 }) {
-  return <div className="settings-page"><div className="page-heading"><div><p className="eyebrow">WhereHouse</p><h1>Settings</h1></div></div><div className="settings-layout"><nav aria-label="Settings sections" className="settings-nav">{sections.map(({ id, label, icon: Icon }) => <a className={section === id ? 'active' : ''} href={`/settings/${id}`} key={id} onClick={(event) => { event.preventDefault(); onNavigate(id) }}><Icon aria-hidden="true" />{label}</a>)}</nav><section className="settings-content">{section === 'account' ? <Account user={user} /> : section === 'households' ? <Households household={household} households={households} isOwner={isOwner} onCreate={onCreateHousehold} onSelect={onSelect} token={token} user={user} /> : section === 'preferences' ? <Preferences /> : section === 'privacy' ? <Privacy /> : <About />}</section></div></div>
+  return <div className="settings-page"><PageHeader eyebrow="WhereHouse" title="Settings" /><div className="settings-layout"><nav aria-label="Settings sections" className="settings-nav">{sections.map(({ id, label, icon: Icon }) => <a className={section === id ? 'active' : ''} href={`/settings/${id}`} key={id} onClick={(event) => { event.preventDefault(); onNavigate(id) }}><Icon aria-hidden="true" />{label}</a>)}</nav><section className="settings-content">{section === 'account' ? <Account user={user} /> : section === 'households' ? <Households household={household} households={households} isOwner={isOwner} onCreate={onCreateHousehold} onSelect={onSelect} token={token} user={user} /> : section === 'preferences' ? <Preferences /> : section === 'privacy' ? <Privacy /> : <About />}</section></div></div>
 }
 
 function Account({ user }: { user: MeResponse }) {

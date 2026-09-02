@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
 import { CreateImageField } from '../../components/wherehouse/CreateImageField'
+import { PageHeader } from '../../components/wherehouse/PageHeader'
 import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
@@ -331,7 +332,7 @@ export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange,
 
   return (
     <div className="items-view">
-      <div className="page-heading locations-heading"><div><p className="eyebrow">Household inventory</p><h1>Items</h1><p className="page-description">Everything you track, with its exact storage path.</p></div><Button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add item</Button></div>
+      <PageHeader actions={<Button className="primary-button" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add item</Button>} description="Everything you track, with its exact storage path." eyebrow="Household inventory" title="Items" />
       {error ? <div className="alert locations-alert">{error}</div> : null}
       <section className="items-panel">
         {loading ? <div className="locations-loading">Loading items…</div> : items.length ? (
