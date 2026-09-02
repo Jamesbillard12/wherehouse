@@ -13,7 +13,7 @@ application capabilities. These foundations precede external mutation adapters a
 ## Early post-MVP household features
 
 Lightweight categories/tags, checkout/return, movement/activity history, richer member roles,
-backup retention and NAS/S3/Dropbox/B2/OneDrive/Google Drive providers, exports, improved Pi
+advanced backup retention and NAS/S3/B2/OneDrive/Google Drive providers, exports, improved Pi
 distribution and one-command installation. Prioritize observed household needs and data safety.
 
 ## Future intelligence and interfaces

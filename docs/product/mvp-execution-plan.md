@@ -26,7 +26,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | Queued offline writes | Implemented, needs validation | MVP scope is explicitly `item.create` v1; edits/moves/quantity/archive and other writes are online-only |
 | Idempotent replay | Ready for validation | Stable persisted creation IDs, payload-conflict detection, uniqueness, retry classification, and restart recovery are implemented; timeout/race validation remains |
 | Realtime reconciliation | Implemented but needs hardening | Disconnect/reconnect/second-client convergence tests |
-| Backup and restore | Not implemented | No supported orchestration, format, verification, or restore exercise |
+| Backup and restore | In progress | Portable format, local/Dropbox adapters, verification and clean-restore path implemented; real PostgreSQL, SSD and Dropbox round trips remain |
 | Raspberry Pi deployment | Partially implemented | Docker instructions exist; clean Pi/reboot/update/storage validation is absent |
 | Cloud deployment | Partially implemented | Guidance exists; not an MVP release substitute for supported local operation |
 | Application capabilities/actor context | Partially implemented | Create/update/delete/move item, container nesting, and identifiers lead; typed frontend feature actions now remove quick-create navigation coupling, while other route-owned location CRUD remains |
@@ -44,7 +44,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | 3 Physical identifiers | Ready for validation | Printed-label and real iOS/Android QR/NFC evidence | No |
 | 4 Offline and synchronization | Hardening | Mutation coverage, restart/conflicts, exactly-once scenarios | No |
 | 5 Account, household, settings | Ready for validation | Manual/physical setup, switching, active/background/offline revoke, and multi-device evidence | No |
-| 6 Backup and restore | Not started | Entire supported workflow | No |
+| 6 Backup and restore | In progress | Automated implementation needs full-suite validation; real PostgreSQL, SSD and Dropbox round trips remain | No |
 | 7 Pi and operations | In progress | Clean install, reboot/update, storage/recovery | No |
 | 8 Future-readiness gate | In progress | Capability coverage, portable confirmation/idempotency, audit decision | No |
 | 9 Release candidate validation | Not started | Depends on all release gates | No |
@@ -135,15 +135,20 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 
 ## Phase 6: Backup and restore
 
-- **Purpose/current state:** make irreplaceable inventory recoverable; currently absent.
+- **Purpose/current state:** portable artifact/orchestration, checksum verification, local storage,
+  Dropbox storage, provider-neutral retention, and clean-restore safety are implemented. Full-suite,
+  real PostgreSQL/application, external-volume, and actual Dropbox round-trip evidence remains.
 - **Scope/work:** consistent PostgreSQL snapshot, intended media, manifest, app/schema versions,
   checksums, validation, restore, failures, retention, optional encryption, and first local/external-SSD
   destination behind provider-neutral orchestration.
-- **Testing/docs:** restore realistic data/media into a clean test environment; corrupt/incompatible
-  archive and excluded-secret behavior.
-- **Dependencies/non-goals:** canonical data/media sufficiently stable; no requirement for cloud providers.
+- **Testing/docs:** automated artifact/provider/corruption tests plus the realistic clean-environment,
+  local/external-volume, and Dropbox drills in [Phase 6 validation](backup-restore-validation.md).
+- **Dependencies/non-goals:** canonical data/media sufficiently stable; Dropbox is the first remote
+  implementation, not a provider-specific archive design or a requirement to add other clouds.
 - **Exit criteria:** a verified backup restores expected household, hierarchy, items, identifiers and media.
-- **Risk/branch:** database/media consistency and unsafe partial restore. `feature/mvp-backup-restore`.
+- **Risk/branch:** writes must be quiesced for database/media coherence; database restore is
+  transactional but a later media-target failure requires recreating the clean environment. Format
+  version 1 is not encrypted. `feature/mvp-backup-restore`.
 
 ## Phase 7: Raspberry Pi and operational hardening
 

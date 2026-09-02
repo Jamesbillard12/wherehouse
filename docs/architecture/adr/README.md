@@ -10,6 +10,7 @@ ADRs capture decisions whose consequences cross features or adapters.
 - [ADR-0006: Local-first core with optional AI](0006-local-first-optional-ai.md)
 - [ADR-0007: UI component and generative UI boundary](0007-ui-component-boundary.md)
 - [ADR-0008: Reusable physical identifiers](0008-physical-identifiers.md)
+- [ADR-0009: Portable backup artifacts behind storage providers](0009-portable-backup-providers.md)
 
 Status meanings: **Accepted** guides current work; **Proposed** needs validation or owner input
 before implementation. Supersede an ADR rather than silently rewriting an accepted decision.

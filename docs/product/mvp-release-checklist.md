@@ -93,8 +93,14 @@ none of the following physical rows is complete from automated evidence alone.
 
 ## Backup and restore
 
+Use [Phase 6 backup and restore validation](backup-restore-validation.md). Automated adapter and
+artifact tests are implementation evidence only; keep these rows unchecked until the documented
+real PostgreSQL, mounted-volume, and Dropbox drills are recorded.
+
 - [ ] Consistent backup includes database and intended media; exclusions/secrets documented
 - [ ] Manifest, application/schema version, checksums and integrity validation
+- [ ] Configurable local/external-volume store, list, retrieve, prune, delete and failure behavior
+- [ ] Dropbox refresh-token auth, upload/list/download/delete, failures and provider-neutral retention
 - [ ] Restore into clean/test environment; household/user scope behaves as intended
 - [ ] Items, quantities, hierarchy, identifiers and images verified
 - [ ] Corrupt, partial, failed and incompatible-version behavior; retention/encryption if configured

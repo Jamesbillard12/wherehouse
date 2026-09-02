@@ -93,11 +93,12 @@ and a documented threat model. Discovery must not publish household inventory me
 
 ## Backup and restore
 
-Before core data volume grows, provide a versioned backup manifest covering PostgreSQL, object files,
-configuration needed for restore, and application/schema versions. Support encrypted, test-restored
-exports to owner-controlled media/targets. A backup is incomplete if images or spatial model blobs
-are omitted. Credentials and environment secrets require a separate documented recovery path; do not
-silently export active bearer tokens.
+The implemented format provides a versioned manifest covering PostgreSQL, canonical image objects,
+application/schema versions, exclusions, and SHA-256 integrity metadata. Local/external-volume and
+Dropbox destinations receive the same completed artifact. Encryption remains unsupported in format
+version 1 and must be a provider-neutral envelope when implemented. A backup is incomplete if
+canonical images or future spatial blobs are omitted without policy. Credentials and environment
+secrets use a separate recovery path; active bearer tokens are not exported.
 
 ## Pi constraints
 
