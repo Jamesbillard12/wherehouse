@@ -66,6 +66,18 @@ describe('Dashboard settings navigation', () => {
     await waitFor(() => expect(location.pathname).toBe('/items'))
   })
 
+  it('opens header search on Locations unless already on Items', async () => {
+    const { unmount } = render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    await userEvent.click(screen.getByRole('searchbox', { name: 'Search inventory' }))
+    expect(location.pathname).toBe('/locations')
+
+    unmount()
+    history.replaceState({}, '', '/items')
+    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    await userEvent.click(screen.getByRole('searchbox', { name: 'Search inventory' }))
+    expect(location.pathname).toBe('/items')
+  })
+
   it('renders and opens a container search result', async () => {
     vi.mocked(searchContainers).mockResolvedValueOnce([{ container: { id: 'bin', area_id: 'garage', zone_id: null, name: 'Yellow Bin', code: 'BIN-001', container_type: 'bin', identifier_type: 'none', description: null, image_path: null, is_movable: true, is_out_of_space: false, is_archived: false, created_at: '', updated_at: '' }, resolved_path: 'Garage > Shelf > Yellow Bin' }])
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
