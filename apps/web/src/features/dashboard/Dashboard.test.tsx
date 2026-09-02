@@ -59,29 +59,39 @@ describe('Dashboard settings navigation', () => {
 
   it('searches canonical inventory and opens a result', async () => {
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
-    await userEvent.type(screen.getByRole('searchbox', { name: 'Search inventory' }), 'camp')
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search' }), 'camp')
     expect(await screen.findByText('Camping Stove')).toBeInTheDocument()
     expect(screen.getByText('Item · Garage > North Wall > Shelf > Yellow Bin · Coleman')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /Camping Stove/ }))
     await waitFor(() => expect(location.pathname).toBe('/items'))
   })
 
-  it('opens header search on Locations unless already on Items', async () => {
+  it('waits for search submission before navigating and preserves the Items context', async () => {
     const { unmount } = render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
-    await userEvent.click(screen.getByRole('searchbox', { name: 'Search inventory' }))
+    await userEvent.click(screen.getByRole('searchbox', { name: 'Search' }))
+    expect(location.pathname).toBe('/overview')
+    await userEvent.keyboard('{Enter}')
     expect(location.pathname).toBe('/locations')
 
     unmount()
     history.replaceState({}, '', '/items')
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
-    await userEvent.click(screen.getByRole('searchbox', { name: 'Search inventory' }))
+    await userEvent.click(screen.getByRole('searchbox', { name: 'Search' }))
+    await userEvent.keyboard('{Enter}')
     expect(location.pathname).toBe('/items')
+  })
+
+  it('finds and opens settings from header search', async () => {
+    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search' }), 'privacy')
+    await userEvent.click(await screen.findByRole('button', { name: /Data & Privacy/ }))
+    expect(location.pathname).toBe('/settings/privacy')
   })
 
   it('renders and opens a container search result', async () => {
     vi.mocked(searchContainers).mockResolvedValueOnce([{ container: { id: 'bin', area_id: 'garage', zone_id: null, name: 'Yellow Bin', code: 'BIN-001', container_type: 'bin', identifier_type: 'none', description: null, image_path: null, is_movable: true, is_out_of_space: false, is_archived: false, created_at: '', updated_at: '' }, resolved_path: 'Garage > Shelf > Yellow Bin' }])
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
-    await userEvent.type(screen.getByRole('searchbox', { name: 'Search inventory' }), 'yellow')
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search' }), 'yellow')
     expect(await screen.findByText('Container · Garage > Shelf > Yellow Bin')).toBeInTheDocument()
     await userEvent.click(screen.getByText('Yellow Bin').closest('button')!)
     await waitFor(() => expect(location.pathname).toBe('/locations'))

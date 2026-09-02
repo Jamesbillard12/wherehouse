@@ -19,7 +19,7 @@ import {
   Settings,
   UserRound,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +43,15 @@ const sectionsForMenu: { id: SettingsSection; label: string }[] = [
 ]
 
 type SearchResult = ({ kind: 'item' } & ItemSearchResult) | ({ kind: 'container' } & ContainerSearchResult)
+type SearchOption = SearchResult | { kind: 'setting'; id: SettingsSection; label: string }
+
+const settingsSearchTerms: Record<SettingsSection, string> = {
+  account: 'account profile display name email password',
+  households: 'households household members devices pairing',
+  preferences: 'preferences appearance theme',
+  privacy: 'data privacy local storage',
+  about: 'about version application',
+}
 
 export function Dashboard({
   household,
@@ -197,6 +206,37 @@ export function Dashboard({
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
     .slice(0, 3)
 
+  const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase()
+  const matchingSettings: SearchOption[] = normalizedSearchQuery
+    ? sectionsForMenu.filter(({ id, label }) => `${label} ${settingsSearchTerms[id]}`.toLocaleLowerCase().includes(normalizedSearchQuery)).map(({ id, label }) => ({ kind: 'setting', id, label }))
+    : []
+  const visibleSearchResults: SearchOption[] = activeView === 'items'
+    ? [...searchResults.filter((result) => result.kind === 'item'), ...matchingSettings]
+    : activeView === 'locations'
+      ? [...searchResults.filter((result) => result.kind === 'container'), ...matchingSettings]
+      : activeView === 'settings'
+        ? matchingSettings
+        : [...searchResults, ...matchingSettings]
+
+  function openSearchResult(result: SearchOption) {
+    setSearchQuery('')
+    if (result.kind === 'setting') {
+      navigateSettings(result.id)
+    } else if (result.kind === 'item') {
+      setResolvedTarget({ type: 'item', id: result.item.id, scanKey: `search-${Date.now()}` })
+      navigate('items')
+    } else {
+      setResolvedTarget({ type: 'container', id: result.container.id, areaId: result.container.area_id, scanKey: `search-${Date.now()}` })
+      navigate('locations')
+    }
+  }
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (visibleSearchResults[0]) openSearchResult(visibleSearchResults[0])
+    else navigate(activeView === 'items' ? 'items' : 'locations')
+  }
+
   return (
     <main className={`dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <header className="topbar">
@@ -211,7 +251,7 @@ export function Dashboard({
             <div className="topbar-household"><span>{household.name}</span><Button aria-label="Change household" onClick={() => setHouseholdSelectOpen(true)} size="icon-sm" title="Change household" variant="ghost"><Pencil aria-hidden="true" /></Button></div>
           )}
         </div>
-        <div className="global-search"><Search aria-hidden="true" /><Input aria-label="Search inventory" className="global-search-input" maxLength={200} onChange={(event) => setSearchQuery(event.target.value)} onFocus={() => { if (activeView !== 'items' && activeView !== 'locations') navigate('locations') }} placeholder="Search items and containers" type="search" value={searchQuery} />{searchQuery ? <Button aria-label="Clear search" onClick={() => setSearchQuery('')} size="icon" variant="ghost">×</Button> : null}{searchQuery ? <div className="global-search-results" role="status">{searchBusy ? <p>Searching…</p> : searchError ? <p>Search is unavailable. Try again.</p> : searchResults.length ? searchResults.map((result) => result.kind === 'item' ? <button key={`item-${result.item.id}`} onClick={() => { setResolvedTarget({ type: 'item', id: result.item.id, scanKey: `search-${Date.now()}` }); setSearchQuery(''); navigate('items') }} type="button"><strong>{result.item.name}</strong><span>Item · {result.resolved_path ?? 'Unplaced'}{result.item.manufacturer ? ` · ${result.item.manufacturer}` : ''}</span></button> : <button key={`container-${result.container.id}`} onClick={() => { setResolvedTarget({ type: 'container', id: result.container.id, areaId: result.container.area_id, scanKey: `search-${Date.now()}` }); setSearchQuery(''); navigate('locations') }} type="button"><strong>{result.container.name}</strong><span>Container · {result.resolved_path}</span></button>) : <p>No matching items or containers.</p>}</div> : null}</div>
+        <form className="global-search" onSubmit={submitSearch}><Search aria-hidden="true" /><Input aria-label="Search" className="global-search-input" maxLength={200} onChange={(event) => setSearchQuery(event.target.value)} placeholder={activeView === 'items' ? 'Search items and settings' : activeView === 'locations' ? 'Search containers and settings' : activeView === 'settings' ? 'Search settings' : 'Search items, containers, and settings'} type="search" value={searchQuery} />{searchQuery ? <Button aria-label="Clear search" onClick={() => setSearchQuery('')} size="icon" type="button" variant="ghost">×</Button> : null}{searchQuery ? <div className="global-search-results" role="status">{searchBusy && activeView !== 'settings' ? <p>Searching…</p> : searchError && !matchingSettings.length ? <p>Search is unavailable. Try again.</p> : visibleSearchResults.length ? visibleSearchResults.map((result) => result.kind === 'item' ? <button key={`item-${result.item.id}`} onClick={() => openSearchResult(result)} type="button"><strong>{result.item.name}</strong><span>Item · {result.resolved_path ?? 'Unplaced'}{result.item.manufacturer ? ` · ${result.item.manufacturer}` : ''}</span></button> : result.kind === 'container' ? <button key={`container-${result.container.id}`} onClick={() => openSearchResult(result)} type="button"><strong>{result.container.name}</strong><span>Container · {result.resolved_path}</span></button> : <button key={`setting-${result.id}`} onClick={() => openSearchResult(result)} type="button"><strong>{result.label}</strong><span>Setting</span></button>) : <p>No matching results.</p>}</div> : null}</form>
         <div className="account-menu" ref={accountMenuRef}>
           <span className="topbar-icon"><Bell aria-hidden="true" /></span>
           <Button aria-expanded={accountMenuOpen} aria-haspopup="menu" aria-label="Open user menu" className="avatar avatar-button" onClick={() => setAccountMenuOpen((open) => !open)}>{user.user.display_name.slice(0, 1).toUpperCase()}</Button>
