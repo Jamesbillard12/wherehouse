@@ -97,6 +97,14 @@ describe('Dashboard settings navigation', () => {
     await waitFor(() => expect(location.pathname).toBe('/locations'))
   })
 
+  it('includes item results when searching from Locations', async () => {
+    history.replaceState({}, '', '/locations')
+    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search' }), 'camp')
+    expect(await screen.findByText('Camping Stove')).toBeInTheDocument()
+    expect(screen.getByText(/Item · Garage/)).toBeInTheDocument()
+  })
+
   it('keeps the current page when sidebar item creation is cancelled', async () => {
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.click(screen.getByRole('button', { name: 'Add item' }))
