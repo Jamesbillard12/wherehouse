@@ -65,7 +65,9 @@ class AreaCreate(BaseModel):
 
 
 class AreaUpdate(BaseModel):
-    icon: str = Field(min_length=1, max_length=50)
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    icon: str | None = Field(default=None, min_length=1, max_length=50)
+    description: str | None = None
 
 
 class AreaRead(ORMModel):

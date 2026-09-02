@@ -4,10 +4,18 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.api.dependencies import PrincipalDep, SessionDep, require_household_access
+from app.application.context import ActorContext
 from app.application.identifiers.capabilities import (
+    IdentifierAccessDenied,
+    IdentifierConflict,
+    IdentifierNotFound,
+    InvalidIdentifierTransition,
+    RegisterIdentifier,
+    activate_identifier,
     create_identifier,
     identifier_payload,
     resolve_identifier,
+    revoke_identifier,
 )
 from app.models import Container, Item, PhysicalIdentifier
 from app.models.core import IdentifierStatus
@@ -15,6 +23,23 @@ from app.schemas.core import IdentifierCreate, IdentifierRead, IdentifierResolut
 from app.services.realtime import realtime_hub
 
 router = APIRouter()
+
+
+def actor_for(principal) -> ActorContext:
+    return ActorContext(
+        user_id=principal.user.id, client=principal.method, device_id=principal.device_id,
+        household_id=principal.device_household_id,
+    )
+
+
+def map_identifier_error(error: Exception) -> HTTPException:
+    if isinstance(error, IdentifierAccessDenied):
+        return HTTPException(status_code=403, detail=str(error))
+    if isinstance(error, IdentifierNotFound):
+        return HTTPException(status_code=404, detail=str(error))
+    if isinstance(error, (InvalidIdentifierTransition, IdentifierConflict)):
+        return HTTPException(status_code=409, detail=str(error))
+    raise error
 
 
 def identifier_read(identifier: PhysicalIdentifier) -> dict:
@@ -30,25 +55,22 @@ def identifier_read(identifier: PhysicalIdentifier) -> dict:
 
 @router.post("/identifiers", response_model=IdentifierRead, status_code=status.HTTP_201_CREATED)
 async def assign_identifier(payload: IdentifierCreate, principal: PrincipalDep, session: SessionDep):
-    model = Item if payload.target_type.value == "item" else Container
-    target = await session.get(model, payload.target_id)
-    if target is None:
-        raise HTTPException(status_code=404, detail=f"{payload.target_type.value.title()} not found")
-    if isinstance(target, Item):
-        household_id = target.household_id
-    else:
-        from app.models import Area
-        area = await session.get(Area, target.area_id)
-        household_id = area.household_id
-    await require_household_access(household_id, principal, session)
-    identifier, _ = await create_identifier(session, payload.target_type, payload.target_id, payload.medium)
+    try:
+        identifier, _ = await create_identifier(
+            session, actor_for(principal),
+            RegisterIdentifier(payload.target_type, payload.target_id, payload.medium),
+        )
+    except (IdentifierAccessDenied, IdentifierNotFound, IdentifierConflict) as error:
+        raise map_identifier_error(error) from error
     return identifier_read(identifier)
 
 
 @router.get("/identifiers/{public_id}/resolve", response_model=IdentifierResolution)
 async def resolve(public_id: str, principal: PrincipalDep, session: SessionDep):
-    identifier, target = await resolve_identifier(session, public_id)
-    await require_household_access(identifier.household_id, principal, session)
+    try:
+        identifier, target = await resolve_identifier(session, actor_for(principal), public_id)
+    except (IdentifierAccessDenied, IdentifierNotFound) as error:
+        raise map_identifier_error(error) from error
     await realtime_hub.publish(
         identifier.household_id,
         entity=identifier.target_type.value,
@@ -89,23 +111,16 @@ async def list_identifiers(target_type: str, target_id: UUID, principal: Princip
 
 @router.delete("/identifiers/{identifier_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke(identifier_id: UUID, principal: PrincipalDep, session: SessionDep) -> None:
-    identifier = await session.get(PhysicalIdentifier, identifier_id)
-    if identifier is None:
-        raise HTTPException(status_code=404, detail="Identifier not found")
-    await require_household_access(identifier.household_id, principal, session)
-    identifier.status = IdentifierStatus.REVOKED
-    await session.commit()
+    try:
+        await revoke_identifier(session, actor_for(principal), identifier_id)
+    except (IdentifierAccessDenied, IdentifierNotFound) as error:
+        raise map_identifier_error(error) from error
 
 
 @router.post("/identifiers/{identifier_id}/activate", response_model=IdentifierRead)
 async def activate(identifier_id: UUID, principal: PrincipalDep, session: SessionDep):
-    identifier = await session.get(PhysicalIdentifier, identifier_id)
-    if identifier is None:
-        raise HTTPException(status_code=404, detail="Identifier not found")
-    await require_household_access(identifier.household_id, principal, session)
-    if identifier.status is IdentifierStatus.REVOKED:
-        raise HTTPException(status_code=409, detail="Revoked identifiers cannot be activated")
-    identifier.status = IdentifierStatus.ACTIVE
-    await session.commit()
-    await session.refresh(identifier)
+    try:
+        identifier = await activate_identifier(session, actor_for(principal), identifier_id)
+    except (IdentifierAccessDenied, IdentifierNotFound, InvalidIdentifierTransition) as error:
+        raise map_identifier_error(error) from error
     return identifier_read(identifier)

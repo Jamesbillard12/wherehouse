@@ -15,6 +15,8 @@ not started. See the evidence and uncertainty in the [execution plan](product/mv
   validation required before the first tag.
 - [Phase 2 search validation](product/search-validation.md) — exact matching semantics, offline limits,
   realistic-volume fixture, and manual web/mobile sequence.
+- [Phase 3 physical identifier validation](product/physical-identifier-validation.md) — implemented
+  QR/NFC guarantees, physical iOS/Android matrix, printed-label check, and current limitations.
 - [Build now vs. later](product/build-now-vs-later.md) — scope guard.
 - [Product roadmap](product/roadmap.md) — post-MVP household, intelligence/interface and spatial work.
 

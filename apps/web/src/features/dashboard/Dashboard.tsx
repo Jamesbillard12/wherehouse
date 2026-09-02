@@ -4,11 +4,13 @@ import {
   ArrowRightLeft,
   Bell,
   Box,
+  Container,
   Camera,
   ChevronRight,
   Clock3,
   House,
   MapPin,
+  Package,
   PackagePlus,
   PanelLeftClose,
   PanelLeftOpen,
@@ -79,6 +81,7 @@ export function Dashboard({
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState<SettingsSection>(settingsSectionFromLocation)
   const accountMenuRef = useRef<HTMLDivElement>(null)
+  const quickCreateRef = useRef<HTMLDivElement>(null)
   const [realtimeRevision, setRealtimeRevision] = useState(0)
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting')
   const [reviewItemIds, setReviewItemIds] = useState<string[]>([])
@@ -91,6 +94,8 @@ export function Dashboard({
   const [searchError, setSearchError] = useState(false)
   const [createItemRequestKey, setCreateItemRequestKey] = useState(0)
   const [sidebarCreateOpen, setSidebarCreateOpen] = useState(false)
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false)
+  const [locationCreateRequest, setLocationCreateRequest] = useState<{ key: number; type: 'area' | 'zone' | 'container' } | null>(null)
   const [householdSelectOpen, setHouseholdSelectOpen] = useState(false)
   const [selectedOverviewItem, setSelectedOverviewItem] = useState<Item | null>(null)
   const overview = useOverviewInventory(household.id, token, realtimeRevision)
@@ -170,6 +175,27 @@ export function Dashboard({
     document.addEventListener('keydown', escape)
     return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape) }
   }, [accountMenuOpen])
+
+  useEffect(() => {
+    if (!quickCreateOpen) return
+    const close = (event: MouseEvent) => { if (!quickCreateRef.current?.contains(event.target as Node)) setQuickCreateOpen(false) }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setQuickCreateOpen(false) }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape) }
+  }, [quickCreateOpen])
+
+  function createLocation(type: 'area' | 'zone' | 'container') {
+    setQuickCreateOpen(false)
+    setLocationCreateRequest({ key: Date.now(), type })
+    navigate('locations')
+  }
+
+  function createItemFromSidebar() {
+    setQuickCreateOpen(false)
+    if (activeView === 'items') setCreateItemRequestKey((current) => current + 1)
+    else setSidebarCreateOpen(true)
+  }
 
   useEffect(() => {
     if (activeView === 'overview' && location.hash) {
@@ -277,7 +303,16 @@ export function Dashboard({
             {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
           </Button>
         </div>
-        <Button aria-label="Add item" className="sidebar-add-item" onClick={() => { if (activeView === 'items') setCreateItemRequestKey((current) => current + 1); else setSidebarCreateOpen(true) }}><Plus aria-hidden="true" /><span>Add item</span></Button>
+        <div className="sidebar-create" ref={quickCreateRef}>
+          <Button aria-expanded={quickCreateOpen} aria-haspopup="menu" aria-label="Create new" className="sidebar-create-button" onClick={() => setQuickCreateOpen((open) => !open)} title="Create new"><Plus aria-hidden="true" /></Button>
+          {quickCreateOpen ? <div className="sidebar-create-menu" role="menu">
+            <Button onClick={() => createLocation('area')} role="menuitem"><MapPin aria-hidden="true" /><span><strong>Area</strong><small>Add a major location</small></span></Button>
+            <Button disabled={!overview.areas.length} onClick={() => createLocation('zone')} role="menuitem"><Package aria-hidden="true" /><span><strong>Zone</strong><small>{overview.areas.length ? 'Add to the selected area' : 'Create an area first'}</small></span></Button>
+            <Button disabled={!overview.areas.length} onClick={() => createLocation('container')} role="menuitem"><Container aria-hidden="true" /><span><strong>Container</strong><small>{overview.areas.length ? 'Add storage' : 'Create an area first'}</small></span></Button>
+            <Button onClick={createItemFromSidebar} role="menuitem"><Box aria-hidden="true" /><span><strong>Item</strong><small>Add inventory</small></span></Button>
+            <Button onClick={() => { setQuickCreateOpen(false); navigateSettings('households') }} role="menuitem"><House aria-hidden="true" /><span><strong>Household</strong><small>Add another household</small></span></Button>
+          </div> : null}
+        </div>
         <nav>
           <a aria-label="Overview" className={`nav-item ${activeView === 'overview' ? 'active' : ''}`} href="/overview" onClick={(event) => { event.preventDefault(); navigate('overview') }} title="Overview"><House aria-hidden="true" /><span>Overview</span></a>
           <a aria-label="Locations" className={`nav-item ${activeView === 'locations' ? 'active' : ''}`} href="/locations" onClick={(event) => { event.preventDefault(); navigate('locations') }} title="Locations"><MapPin aria-hidden="true" /><span>Locations</span></a>
@@ -296,7 +331,7 @@ export function Dashboard({
         {activeView === 'items' ? (
           <ItemsView createRequestKey={createItemRequestKey} household={household} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
-          <LocationsView household={household} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? resolvedTarget?.areaId} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : resolvedTarget?.containerId)} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.scanKey} revealZoneId={locationTarget?.zoneId ?? resolvedTarget?.zoneId} token={token} />
+          <LocationsView createRequest={locationCreateRequest ?? undefined} household={household} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? resolvedTarget?.areaId} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : resolvedTarget?.containerId)} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.scanKey} revealZoneId={locationTarget?.zoneId ?? resolvedTarget?.zoneId} token={token} />
         ) : activeView === 'settings' ? (
           <SettingsView household={household} households={households} isOwner={isOwner} onCreateHousehold={onCreateHousehold} onNavigate={navigateSettings} onSelect={onSelect} section={settingsSection} token={token} user={user} />
         ) : (

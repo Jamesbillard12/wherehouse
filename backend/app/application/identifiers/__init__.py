@@ -1,3 +1,8 @@
-from app.application.identifiers.capabilities import create_identifier, resolve_identifier
+from app.application.identifiers.capabilities import (
+    activate_identifier,
+    create_identifier,
+    resolve_identifier,
+    revoke_identifier,
+)
 
-__all__ = ["create_identifier", "resolve_identifier"]
+__all__ = ["activate_identifier", "create_identifier", "resolve_identifier", "revoke_identifier"]

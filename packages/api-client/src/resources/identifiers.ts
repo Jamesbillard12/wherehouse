@@ -16,5 +16,7 @@ export function activateIdentifier(token: string, identifierId: string): Promise
 export function parseIdentifierPayload(value: string): { publicId: string; version: number } | null {
   const match = value.trim().match(/^wherehouse:\/\/identify\/v(\d+)\/(idn_[A-Za-z0-9_-]+)$/)
   if (!match) return null
-  return { version: Number(match[1]), publicId: match[2] }
+  const version = Number(match[1])
+  if (!Number.isSafeInteger(version)) return null
+  return { version, publicId: match[2] }
 }

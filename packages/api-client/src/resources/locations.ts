@@ -14,8 +14,16 @@ export function createArea(
   return apiRequest(`/households/${householdId}/areas`, { method: 'POST', token, body: payload })
 }
 
+export function updateArea(
+  token: string,
+  areaId: string,
+  payload: { name?: string; icon?: string; description?: string | null },
+): Promise<Area> {
+  return apiRequest(`/areas/${areaId}`, { method: 'PATCH', token, body: payload })
+}
+
 export function updateAreaIcon(token: string, areaId: string, icon: string): Promise<Area> {
-  return apiRequest(`/areas/${areaId}`, { method: 'PATCH', token, body: { icon } })
+  return updateArea(token, areaId, { icon })
 }
 
 export function deleteArea(token: string, areaId: string): Promise<void> {

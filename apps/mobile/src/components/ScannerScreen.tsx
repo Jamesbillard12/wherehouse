@@ -1,5 +1,6 @@
 import { CameraView } from 'expo-camera'
 import { StatusBar } from 'expo-status-bar'
+import { useRef } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
@@ -13,9 +14,13 @@ export function ScannerScreen({ mode, onCancel, onError, onScan }: {
   onError: (message: string) => void
   onScan: (value: string) => void
 }) {
+  const accepted = useRef(false)
+
   return (
     <View style={styles.scannerScreen}>
       <CameraView barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => {
+        if (accepted.current) return
+        accepted.current = true
         if (mode === 'pairing' && !data.startsWith('wherehouse://pair?')) {
           onError('That QR code is not a WhereHouse pairing code.')
           onCancel()

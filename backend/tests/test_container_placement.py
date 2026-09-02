@@ -44,7 +44,7 @@ class Events:
         self.values.append((household_id, event))
 
 
-def fixture():
+def fixture(*, child_zone_id=None, parent_zone_id=None):
     household_id = uuid4()
     area_id = uuid4()
     child_id = uuid4()
@@ -52,8 +52,8 @@ def fixture():
     area = SimpleNamespace(id=area_id, household_id=household_id)
     entities = {
         (Area, area_id): area,
-        (Container, child_id): SimpleNamespace(id=child_id, area_id=area_id, is_archived=False),
-        (Container, parent_id): SimpleNamespace(id=parent_id, area_id=area_id, is_archived=False),
+        (Container, child_id): SimpleNamespace(id=child_id, area_id=area_id, zone_id=child_zone_id, is_archived=False),
+        (Container, parent_id): SimpleNamespace(id=parent_id, area_id=area_id, zone_id=parent_zone_id, is_archived=False),
     }
     return household_id, child_id, parent_id, entities
 
@@ -80,6 +80,24 @@ async def test_rejects_descendant_as_parent_without_writing() -> None:
     session = FakeSession(entities, [SimpleNamespace(), child_id])
 
     with pytest.raises(InvalidContainerPlacement, match="cycle"):
+        await place_container(
+            session,
+            ActorContext(user_id=uuid4(), client="web"),
+            PlaceContainer(child_id, parent_id, ContainerRelationship.IN),
+            Events(),
+        )
+
+    session.commit.assert_not_awaited()
+
+
+async def test_rejects_parent_from_a_different_zone_without_writing() -> None:
+    _, child_id, parent_id, entities = fixture(
+        child_zone_id=uuid4(),
+        parent_zone_id=uuid4(),
+    )
+    session = FakeSession(entities, [SimpleNamespace()])
+
+    with pytest.raises(InvalidContainerPlacement, match="same zone"):
         await place_container(
             session,
             ActorContext(user_id=uuid4(), client="web"),
