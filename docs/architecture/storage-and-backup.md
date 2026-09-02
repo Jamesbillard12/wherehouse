@@ -22,6 +22,12 @@ The artifact and restore code contains no Dropbox conditionals. S3, B2, OneDrive
 WebDAV, or a NAS-specific provider can implement the same four operations without changing backup
 creation, format, verification, retention, or restore.
 
+Authenticated clients read one instance-scoped status contract. It reports provider kind/name,
+configured state, health, last successful artifact timestamp, management surface, and a friendly
+message; it never returns credentials or raw local paths. Web Settings is the remote-provider
+management surface. Mobile shows concise remote health and directs reauthorization to web. Local
+and mounted-volume paths remain CLI/admin configuration because they belong to the server.
+
 ## Portable artifact format version 1
 
 `wherehouse-YYYYMMDDTHHMMSSZ-<backup-id-prefix>.whbackup` is a ZIP container with:

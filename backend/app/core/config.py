@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     dropbox_app_key: str | None = None
     dropbox_app_secret: str | None = None
     dropbox_refresh_token: str | None = None
+    dropbox_credential_file: str = "./.data/dropbox-backup-credentials.json"
+    dropbox_redirect_uri: str = "http://localhost:8000/api/v1/backups/providers/dropbox/callback"
     dropbox_backup_folder: str = "/WhereHouse/Backups"
 
     model_config = SettingsConfigDict(

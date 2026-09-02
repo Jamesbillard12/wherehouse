@@ -21,6 +21,11 @@ the application service. The MVP adapters are a configurable filesystem/mounted-
 a Dropbox App Folder adapter. Another remote provider implements that port without changing the
 archive or restore orchestration.
 
+Clients consume an instance-scoped provider-neutral health contract and never call Dropbox. Web owns
+remote OAuth and manual-run management; mobile provides status visibility only. Local filesystem
+configuration remains CLI-only. OAuth uses authorization code plus PKCE and stores the refresh token
+in a mode-0600 server credential file, outside the database and backup artifact.
+
 Restore version 1 supports an empty database and empty media destination only, requires the exact
 backup ID as confirmation, rejects a mismatched Alembic revision, and restores the database in one
 PostgreSQL transaction before writing already-verified staged media. A failed media write after the

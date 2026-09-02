@@ -35,10 +35,13 @@ fail without advertising an incomplete artifact.
 ## Dropbox App Folder
 
 Create a Dropbox scoped-access app with **App folder** content access and file-content metadata scopes
-needed to upload, list, download, and delete. Complete OAuth authorization with offline access outside
-WhereHouse and place the resulting app key, optional app secret, and refresh token in deployment
-secrets as `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET`, and `DROPBOX_REFRESH_TOKEN`. Do not commit them.
-`DROPBOX_BACKUP_FOLDER` defaults to `/WhereHouse/Backups` within the app's scope.
+needed to upload, list, download, and delete. Configure `DROPBOX_APP_KEY` and register
+`DROPBOX_REDIRECT_URI` exactly with Dropbox. An owner then connects from web Backup & Restore using
+OAuth authorization-code flow with PKCE. The refresh token is stored in the server-only
+`DROPBOX_CREDENTIAL_FILE` with mode `0600`; it never enters client state, API responses, logs, or
+backup artifacts. An optional `DROPBOX_APP_SECRET` remains a deployment secret. A pre-provisioned
+`DROPBOX_REFRESH_TOKEN` is still supported for headless administration, but web disconnect cannot
+remove an environment-owned secret. `DROPBOX_BACKUP_FOLDER` defaults to `/WhereHouse/Backups`.
 
 Use the same commands with `--provider dropbox`. Each operation exchanges the refresh token for a
 short-lived access token. Uploads at most 150 MiB use the single-call API; larger artifacts use an
@@ -46,6 +49,11 @@ short-lived access token. Uploads at most 150 MiB use the single-call API; large
 same core verifier and restore flow used by local backups runs. Authorization, path, rate-limit,
 quota, timeout/network, missing-object, and malformed-response failures become concise admin errors;
 tokens are never logged.
+
+The authenticated `GET /api/v1/backups/status` response is instance-scoped and reports Dropbox plus
+friendly local/external-storage health without exposing absolute paths. Web can connect, reauthorize,
+disconnect, and run Dropbox backup. Mobile presents status and last success only. Local destination
+configuration remains CLI-only.
 
 ## Clean restore
 

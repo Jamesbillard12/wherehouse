@@ -42,7 +42,7 @@ import { settingsSectionFromLocation, type SettingsSection } from '../../shared/
 
 const sectionsForMenu: { id: SettingsSection; label: string }[] = [
   { id: 'account', label: 'Account' }, { id: 'households', label: 'Households' },
-  { id: 'preferences', label: 'Preferences' }, { id: 'privacy', label: 'Data & Privacy' },
+  { id: 'backups', label: 'Backup & Restore' }, { id: 'preferences', label: 'Preferences' }, { id: 'privacy', label: 'Data & Privacy' },
   { id: 'about', label: 'About' },
 ]
 
@@ -52,6 +52,7 @@ type SearchOption = SearchResult | { kind: 'setting'; id: SettingsSection; label
 const settingsSearchTerms: Record<SettingsSection, string> = {
   account: 'account profile display name email password',
   households: 'households household members devices pairing',
+  backups: 'backup restore dropbox remote local external storage',
   preferences: 'preferences appearance theme',
   privacy: 'data privacy local storage',
   about: 'about version application',

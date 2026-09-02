@@ -31,6 +31,24 @@ export type Household = {
   updated_at: string
 }
 
+export type BackupDestinationStatus = {
+  kind: 'local' | 'remote'
+  provider: string
+  display_name: string
+  state: 'not_configured' | 'connected' | 'needs_attention' | 'unavailable'
+  configured: boolean
+  needs_attention: boolean
+  last_successful_backup_at: string | null
+  management: 'web' | 'cli'
+  message: string | null
+}
+
+export type BackupStatus = {
+  scope: 'instance'
+  overall: 'protected' | 'backup_due' | 'needs_attention' | 'no_backup_configured'
+  destinations: BackupDestinationStatus[]
+}
+
 export type Device = {
   id: string
   household_id: string

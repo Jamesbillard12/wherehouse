@@ -4,6 +4,12 @@ Settings is a product feature shared by the web and mobile clients through API c
 Both clients expose Account, Households, Preferences, Data & Privacy, and About. Web routes use
 `/settings/{section}`; mobile uses the existing More tab.
 
+Web additionally owns instance-scoped Backup & Restore management: Dropbox connect/reauthorize,
+disconnect, status, manual backup, last success, and restore guidance. Mobile More shows concise
+instance-scoped remote-backup status and last success, but intentionally has no Dropbox OAuth or
+server-filesystem configuration. Both use the provider-neutral `/api/v1/backups/status` contract;
+neither queries Dropbox directly or receives provider credentials.
+
 Settings values have explicit scope:
 
 | Scope | Current values and behavior |

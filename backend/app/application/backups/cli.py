@@ -19,6 +19,7 @@ from app.application.backups.service import BackupService, read_manifest
 from app.core.config import get_settings
 from app.db.session import AsyncSessionFactory
 from app.infrastructure.backups import DropboxBackupProvider, LocalBackupProvider, PostgresBackup
+from app.infrastructure.backups.dropbox_credentials import DropboxCredentialStore
 from app.models.core import Container, Item
 from app.services.image_storage import get_image_storage
 
@@ -52,10 +53,11 @@ def provider_from_settings(name: str):
     if name == "local":
         return LocalBackupProvider(settings.backup_local_dir)
     if name == "dropbox":
+        refresh_token = DropboxCredentialStore(settings.dropbox_credential_file).load()
         return DropboxBackupProvider(
             app_key=settings.dropbox_app_key or "",
             app_secret=settings.dropbox_app_secret,
-            refresh_token=settings.dropbox_refresh_token or "",
+            refresh_token=refresh_token or settings.dropbox_refresh_token or "",
             folder=settings.dropbox_backup_folder,
         )
     raise BackupError(f"Unsupported backup provider: {name}")

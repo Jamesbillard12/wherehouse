@@ -101,6 +101,8 @@ real PostgreSQL, mounted-volume, and Dropbox drills are recorded.
 - [ ] Manifest, application/schema version, checksums and integrity validation
 - [ ] Configurable local/external-volume store, list, retrieve, prune, delete and failure behavior
 - [ ] Dropbox refresh-token auth, upload/list/download/delete, failures and provider-neutral retention
+- [ ] Web Dropbox connect/reauthorize/disconnect/manual-run/status and visible failure recovery
+- [ ] Mobile instance-scoped Dropbox connection/health/last-success display updates after re-pair
 - [ ] Restore into clean/test environment; household/user scope behaves as intended
 - [ ] Items, quantities, hierarchy, identifiers and images verified
 - [ ] Corrupt, partial, failed and incompatible-version behavior; retention/encryption if configured

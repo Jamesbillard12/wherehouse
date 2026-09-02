@@ -26,7 +26,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | Queued offline writes | Implemented, needs validation | MVP scope is explicitly `item.create` v1; edits/moves/quantity/archive and other writes are online-only |
 | Idempotent replay | Ready for validation | Stable persisted creation IDs, payload-conflict detection, uniqueness, retry classification, and restart recovery are implemented; timeout/race validation remains |
 | Realtime reconciliation | Implemented but needs hardening | Disconnect/reconnect/second-client convergence tests |
-| Backup and restore | In progress | Portable format, local/Dropbox adapters, verification and clean-restore path implemented; real PostgreSQL, SSD and Dropbox round trips remain |
+| Backup and restore | In progress | Portable format, local/Dropbox adapters, provider-neutral status, web management, mobile health, verification and clean-restore path implemented; real PostgreSQL, SSD and Dropbox round trips remain |
 | Raspberry Pi deployment | Partially implemented | Docker instructions exist; clean Pi/reboot/update/storage validation is absent |
 | Cloud deployment | Partially implemented | Guidance exists; not an MVP release substitute for supported local operation |
 | Application capabilities/actor context | Partially implemented | Create/update/delete/move item, container nesting, and identifiers lead; typed frontend feature actions now remove quick-create navigation coupling, while other route-owned location CRUD remains |
@@ -136,7 +136,8 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 ## Phase 6: Backup and restore
 
 - **Purpose/current state:** portable artifact/orchestration, checksum verification, local storage,
-  Dropbox storage, provider-neutral retention, and clean-restore safety are implemented. Full-suite,
+  Dropbox storage/OAuth, provider-neutral retention/status, web management, mobile health, and
+  clean-restore safety are implemented. Full-suite,
   real PostgreSQL/application, external-volume, and actual Dropbox round-trip evidence remains.
 - **Scope/work:** consistent PostgreSQL snapshot, intended media, manifest, app/schema versions,
   checksums, validation, restore, failures, retention, optional encryption, and first local/external-SSD
@@ -145,7 +146,11 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
   local/external-volume, and Dropbox drills in [Phase 6 validation](backup-restore-validation.md).
 - **Dependencies/non-goals:** canonical data/media sufficiently stable; Dropbox is the first remote
   implementation, not a provider-specific archive design or a requirement to add other clouds.
-- **Exit criteria:** a verified backup restores expected household, hierarchy, items, identifiers and media.
+- **Exit criteria:** a verified backup restores expected household, hierarchy, items, identifiers and
+  media; provider-neutral remote state exposes connection/health/last success; web visibly manages
+  Dropbox connection and failures; mobile visibly reports Dropbox health and last success without
+  configuring it; local/external-volume configuration remains CLI-only; and another remote provider
+  requires no backup-health UI redesign.
 - **Risk/branch:** writes must be quiesced for database/media coherence; database restore is
   transactional but a later media-target failure requires recreating the clean environment. Format
   version 1 is not encrypted. `feature/mvp-backup-restore`.
