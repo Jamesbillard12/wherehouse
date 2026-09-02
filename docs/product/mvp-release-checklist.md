@@ -26,6 +26,14 @@ validation**, and **release validation** separately. Unsupported items must be r
 - [ ] Scan container/item; QR; NFC read/write/read-back verification; empty NFC registration
 - [ ] Offline browsing and every documented queued write; replay/reconnect; forget/re-pair
 
+## Phase 2 search validation sequence
+
+Use the fixture and record the automated, realistic-volume, simulator/emulator, and physical-device
+evidence described in [search validation](search-validation.md). Connected clients must use canonical
+household-scoped server results; mobile offline search is explicitly a cached fallback. Do not mark
+the web or mobile search rows complete until mutation, archive, error, and resolved-path behavior has
+been exercised in the relevant client.
+
 ## Phase 1 inventory validation sequence
 
 Run this once in web and once on a mobile simulator/emulator, then repeat the photo steps on a
