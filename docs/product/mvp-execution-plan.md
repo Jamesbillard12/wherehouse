@@ -1,6 +1,6 @@
 # MVP execution plan
 
-This is the dependency-ordered plan from repository state through Phase 3 hardening to the first MVP tag. Statuses
+This is the dependency-ordered plan from repository state through Phase 4 hardening to the first MVP tag. Statuses
 mean: **Not started**, **In progress**, **Hardening**, **Blocked**, **Ready for validation**, or
 **Complete**. “Implementation complete,” “physical validation complete,” and “release validated” are
 separate claims. Unknown physical/operational results remain unvalidated, not implicitly passing.
@@ -21,9 +21,9 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | QR generate/display/print/scan | Ready for physical validation | Opaque versioned generation, web label UI, print isolation, payload rejection, and scan deduplication are implemented; printer and physical iOS/Android evidence remain |
 | NFC read/write/verify/empty registration | Ready for physical validation | Write/read-back-before-activation and blank-tag flow are implemented; native iOS/Android evidence remains |
 | Identifier activation/revocation/resolve | Ready for validation | Capability-owned household checks, retry-safe transitions, target integrity, and adverse lifecycle tests are implemented; end-to-end physical validation remains |
-| Offline browse/cache | Implemented but needs hardening | Restart, stale data, and realistic failure validation |
-| Queued offline writes | Partially implemented | Queue concentrates on item work; supported mutation set/conflicts need definition |
-| Idempotent replay | Partially implemented | Item creation has operation IDs/database uniqueness; other queued mutations are not proven |
+| Offline browse/cache | Implemented but needs hardening | Cached startup is implemented; physical restart, stale image, and realistic failure validation remain |
+| Queued offline writes | Implemented, needs validation | MVP scope is explicitly `item.create` v1; edits/moves/quantity/archive and other writes are online-only |
+| Idempotent replay | Ready for validation | Stable persisted creation IDs, payload-conflict detection, uniqueness, retry classification, and restart recovery are implemented; timeout/race validation remains |
 | Realtime reconciliation | Implemented but needs hardening | Disconnect/reconnect/second-client convergence tests |
 | Backup and restore | Not implemented | No supported orchestration, format, verification, or restore exercise |
 | Raspberry Pi deployment | Partially implemented | Docker instructions exist; clean Pi/reboot/update/storage validation is absent |
@@ -103,11 +103,15 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 
 ## Phase 4: Offline and synchronization hardening
 
-- **Purpose/current state:** make current cache, queue, item-create idempotency, and realtime robust.
+- **Purpose/current state:** `item.create` v1 is the explicit MVP offline mutation set. Its optimistic
+  cache/queue write is transactional; operations persist identity, household, type/version, state,
+  attempts/backoff, failure and canonical ID; server creation is idempotent. Manual restart,
+  timeout-after-commit, reconnect and multi-client evidence remains.
 - **Scope/work:** define supported offline mutations; stable/versioned operations; restart persistence,
   replay, reconnect, conflicts, realtime reconciliation, duplicate prevention.
-- **Testing/docs:** disconnect before/during mutation, restart offline, retry duplicate, reconnect, and
-  second-client convergence; place idempotency/event semantics at capability boundaries.
+- **Testing/docs:** queue-policy automation plus the disconnect/restart, duplicate timeout, reconnect,
+  household isolation, realtime race and second-client scenarios in
+  [Phase 4 validation](offline-sync-validation.md); creation idempotency remains capability-owned.
 - **Dependencies/non-goals:** sufficiently stable phase-1 mutations; no generic workflow engine/broker.
 - **Exit criteria:** each supported queued operation survives tested failures and executes exactly once
   where appropriate, with clients converging.
