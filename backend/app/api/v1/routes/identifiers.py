@@ -28,7 +28,7 @@ router = APIRouter()
 def actor_for(principal) -> ActorContext:
     return ActorContext(
         user_id=principal.user.id, client=principal.method, device_id=principal.device_id,
-        household_id=principal.device_household_id,
+        household_id=None,
     )
 
 

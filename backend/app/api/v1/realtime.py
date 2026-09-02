@@ -29,7 +29,7 @@ async def realtime(websocket: WebSocket, session: SessionDep) -> None:
         principal = await authenticate_token(authentication.token, session)
         await require_household_access(authentication.household_id, principal, session)
         household_id = authentication.household_id
-        await realtime_hub.connect(household_id, websocket)
+        await realtime_hub.connect(household_id, websocket, device_id=principal.device_id)
         await websocket.send_json({"type": "realtime.ready", "household_id": str(household_id)})
         while True:
             message = await websocket.receive_json()

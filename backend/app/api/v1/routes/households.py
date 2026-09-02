@@ -4,7 +4,10 @@ from fastapi import APIRouter, status
 from sqlalchemy import select
 
 from app.api.dependencies import PrincipalDep, SessionDep, require_household_access
-from app.models import Household, HouseholdRelationship, HouseholdUser, User
+from app.application.context import ActorContext
+from app.application.households.capabilities import CreateHousehold
+from app.application.households.capabilities import create_household as create
+from app.models import Household, HouseholdUser, User
 from app.repositories.entities import require_entity as require
 from app.schemas.core import (
     HouseholdCreate,
@@ -19,19 +22,16 @@ router = APIRouter()
 async def create_household(
     payload: HouseholdCreate, principal: PrincipalDep, session: SessionDep
 ) -> Household:
-    household = Household(name=payload.name)
-    session.add(household)
-    await session.flush()
-    session.add(
-        HouseholdUser(
-            household_id=household.id,
+    return await create(
+        session,
+        ActorContext(
             user_id=principal.user.id,
-            relationship_type=HouseholdRelationship.OWNER,
-        )
+            client=principal.method,
+            device_id=principal.device_id,
+            household_id=principal.device_household_id,
+        ),
+        CreateHousehold(payload.name),
     )
-    await session.commit()
-    await session.refresh(household)
-    return household
 
 
 @router.get("/households", response_model=list[HouseholdRead])

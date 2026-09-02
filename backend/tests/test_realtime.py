@@ -9,9 +9,13 @@ from app.services.realtime import RealtimeHub
 class RecordingWebSocket:
     def __init__(self) -> None:
         self.messages: list[dict[str, Any]] = []
+        self.closed: tuple[int, str] | None = None
 
     async def send_json(self, message: dict[str, Any]) -> None:
         self.messages.append(message)
+
+    async def close(self, code: int, reason: str) -> None:
+        self.closed = (code, reason)
 
 
 async def test_hub_scopes_inventory_events_to_household() -> None:
@@ -66,3 +70,26 @@ async def test_hub_publishes_identifier_resolution_context() -> None:
     assert websocket.messages[0]["type"] == "identifier.resolved"
     assert websocket.messages[0]["entity_id"] == str(container_id)
     assert websocket.messages[0]["area_id"] == str(area_id)
+
+
+async def test_hub_targets_and_closes_only_the_revoked_device() -> None:
+    hub = RealtimeHub()
+    household_id = uuid4()
+    revoked_device_id = uuid4()
+    other_device_id = uuid4()
+    revoked = RecordingWebSocket()
+    other = RecordingWebSocket()
+    await hub.connect(
+        household_id, cast(WebSocket, revoked), device_id=revoked_device_id
+    )
+    await hub.connect(household_id, cast(WebSocket, other), device_id=other_device_id)
+
+    from datetime import UTC, datetime
+
+    await hub.revoke_device(household_id, revoked_device_id, datetime.now(UTC))
+
+    assert revoked.messages[0]["type"] == "device.revoked"
+    assert revoked.messages[0]["device_id"] == str(revoked_device_id)
+    assert revoked.closed == (4403, "Device access revoked")
+    assert other.messages == []
+    assert other.closed is None

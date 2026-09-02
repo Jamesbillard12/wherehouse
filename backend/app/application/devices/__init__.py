@@ -1,0 +1,2 @@
+"""Device lifecycle application capabilities."""
+

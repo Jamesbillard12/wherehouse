@@ -12,6 +12,15 @@ from app.api.dependencies import (
     SessionDep,
     require_household_access,
 )
+from app.application.context import ActorContext
+from app.application.devices.capabilities import (
+    DeviceAccessDenied,
+    DeviceNotFound,
+    RevokeDevice,
+)
+from app.application.devices.capabilities import (
+    revoke_device as revoke_device_capability,
+)
 from app.core.config import get_settings
 from app.core.security import hash_password, new_token, token_hash, verify_password
 from app.models import (
@@ -144,7 +153,11 @@ async def create_pairing_session(
         expires_at=expires_at,
     )
     session.add(pairing)
-    await session.commit()
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
     pairing_uri = "wherehouse://pair?" + urlencode(
         {"server": instance.base_url, "token": raw_token}
     )
@@ -180,10 +193,14 @@ async def consume_pairing(payload: PairingConsume, session: SessionDep) -> Pairi
         last_seen_at=now,
     )
     session.add(device)
-    await session.flush()
-    pairing.consumed_at = now
-    pairing.consumed_by_device_id = device.id
-    await session.commit()
+    try:
+        await session.flush()
+        pairing.consumed_at = now
+        pairing.consumed_by_device_id = device.id
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
     return PairingResult(
         access_token=credential,
         device_id=device.id,
@@ -209,10 +226,17 @@ async def list_devices(
 
 @router.delete("/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_device(device_id: UUID, principal: PrincipalDep, session: SessionDep) -> None:
-    device = await session.get(Device, device_id)
-    if device is None:
-        raise HTTPException(status_code=404, detail="Device not found")
-    await require_household_access(device.household_id, principal, session, owner=True)
-    device.is_active = False
-    device.revoked_at = datetime.now(UTC)
-    await session.commit()
+    from app.services.realtime import realtime_hub
+
+    actor = ActorContext(
+        user_id=principal.user.id,
+        client=principal.method,
+        device_id=principal.device_id,
+        household_id=principal.device_household_id,
+    )
+    try:
+        await revoke_device_capability(session, actor, RevokeDevice(device_id), realtime_hub)
+    except DeviceNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except DeviceAccessDenied as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error

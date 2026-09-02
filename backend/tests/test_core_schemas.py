@@ -12,10 +12,16 @@ from app.models.core import (
 from app.schemas.core import (
     AreaUpdate,
     ContainerCreate,
+    HouseholdCreate,
     HouseholdUserCreate,
     ItemCreate,
     ItemPlacementCreate,
 )
+
+
+def test_household_name_cannot_be_only_whitespace() -> None:
+    with pytest.raises(ValidationError):
+        HouseholdCreate(name="   ")
 
 
 def test_area_update_accepts_name_or_icon() -> None:

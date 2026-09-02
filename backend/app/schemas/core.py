@@ -21,7 +21,7 @@ class ORMModel(BaseModel):
 
 
 class HouseholdCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
+    name: str = Field(min_length=1, max_length=200, pattern=r".*\S.*")
 
 
 class HouseholdRead(ORMModel):
