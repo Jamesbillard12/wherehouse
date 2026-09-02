@@ -146,12 +146,29 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
     if (!revealItemId) return
     const item = revealItem ?? items.find((entry) => entry.id === revealItemId)
     if (!item) return
+    if (revealAreaId && revealAreaId !== selectedAreaId) {
+      setSelectedAreaId(revealAreaId)
+      return
+    }
+    if (revealContainerId) {
+      if (!containers.some((entry) => entry.id === revealContainerId)) return
+      setSelectedZoneFilter('')
+      setOpenContainerId(revealContainerId)
+    } else if (revealZoneId) {
+      if (!zones.some((entry) => entry.id === revealZoneId)) return
+      setSelectedZoneFilter(revealZoneId)
+      setOpenContainerId(null)
+    } else if (revealAreaId) {
+      setSelectedZoneFilter('')
+      setOpenContainerId(null)
+    }
     setSelectedDetailItem(item)
     setSelectedItemMode('details')
     onRevealConsumed?.()
-  }, [items, onRevealConsumed, revealItem, revealItemId, revealScanKey])
+  }, [containers, items, onRevealConsumed, revealAreaId, revealContainerId, revealItem, revealItemId, revealScanKey, revealZoneId, selectedAreaId, zones])
 
   useEffect(() => {
+    if (revealItemId) return
     if (!revealAreaId) return
     if (revealAreaId !== selectedAreaId) {
       setSelectedAreaId(revealAreaId)
@@ -178,7 +195,7 @@ export function LocationsView({ household, onRevealConsumed, refreshKey = 0, rev
         onRevealConsumed?.()
       }
     }
-  }, [containers, onRevealConsumed, revealAreaId, revealContainerId, revealScanKey, revealZoneId, selectedAreaId, zones])
+  }, [containers, onRevealConsumed, revealAreaId, revealContainerId, revealItemId, revealScanKey, revealZoneId, selectedAreaId, zones])
 
   async function submitArea(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

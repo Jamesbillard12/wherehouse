@@ -83,7 +83,7 @@ export function Dashboard({
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting')
   const [reviewItemIds, setReviewItemIds] = useState<string[]>([])
   const [reviewQueueOpen, setReviewQueueOpen] = useState(false)
-  const [resolvedTarget, setResolvedTarget] = useState<{ type: 'item' | 'container'; id: string; areaId?: string; item?: Item; scanKey: string } | null>(null)
+  const [resolvedTarget, setResolvedTarget] = useState<{ type: 'item' | 'container'; id: string; areaId?: string; containerId?: string; item?: Item; scanKey: string; zoneId?: string } | null>(null)
   const [locationTarget, setLocationTarget] = useState<{ areaId: string; containerId?: string; zoneId?: string } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
@@ -223,7 +223,10 @@ export function Dashboard({
     if (result.kind === 'setting') {
       navigateSettings(result.id)
     } else if (result.kind === 'item') {
-      setResolvedTarget({ type: 'item', id: result.item.id, item: result.item, scanKey: `search-${Date.now()}` })
+      const placement = overview.itemPlacements.find((entry) => entry.item_id === result.item.id)
+      const container = overview.containers.find((entry) => entry.id === placement?.container_id)
+      const zone = overview.zones.find((entry) => entry.id === placement?.zone_id)
+      setResolvedTarget({ type: 'item', id: result.item.id, item: result.item, areaId: placement?.area_id ?? container?.area_id ?? zone?.area_id, containerId: placement?.container_id ?? undefined, zoneId: placement?.zone_id ?? undefined, scanKey: `search-${Date.now()}` })
       if (activeView !== 'items' && activeView !== 'locations') navigate('items')
     } else {
       setResolvedTarget({ type: 'container', id: result.container.id, areaId: result.container.area_id, scanKey: `search-${Date.now()}` })
@@ -293,7 +296,7 @@ export function Dashboard({
         {activeView === 'items' ? (
           <ItemsView createRequestKey={createItemRequestKey} household={household} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
-          <LocationsView household={household} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.areaId : undefined)} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : undefined)} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.scanKey} revealZoneId={locationTarget?.zoneId} token={token} />
+          <LocationsView household={household} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? resolvedTarget?.areaId} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : resolvedTarget?.containerId)} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.scanKey} revealZoneId={locationTarget?.zoneId ?? resolvedTarget?.zoneId} token={token} />
         ) : activeView === 'settings' ? (
           <SettingsView household={household} households={households} isOwner={isOwner} onCreateHousehold={onCreateHousehold} onNavigate={navigateSettings} onSelect={onSelect} section={settingsSection} token={token} user={user} />
         ) : (
