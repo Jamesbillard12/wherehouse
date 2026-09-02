@@ -1,6 +1,6 @@
 import { apiRequest } from '../client'
 import { API_VERSION } from '../types'
-import type { Area, ContainerPlacement, ContainerType, StorageContainer, Zone } from '../types'
+import type { Area, ContainerPlacement, ContainerSearchResult, ContainerType, StorageContainer, Zone } from '../types'
 
 export function listAreas(token: string, householdId: string): Promise<Area[]> {
   return apiRequest(`/households/${householdId}/areas`, { token })
@@ -44,6 +44,10 @@ export function updateZone(
 
 export function listContainers(token: string, areaId: string): Promise<StorageContainer[]> {
   return apiRequest(`/areas/${areaId}/containers`, { token })
+}
+
+export function searchContainers(token: string, householdId: string, query: string): Promise<ContainerSearchResult[]> {
+  return apiRequest(`/households/${householdId}/containers/search?q=${encodeURIComponent(query)}`, { token })
 }
 
 export function createContainer(

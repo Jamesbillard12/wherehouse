@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import String, and_, case, cast, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +35,99 @@ class InvalidMove(MoveItemError):
 
 class IdempotencyConflict(MoveItemError):
     pass
+
+
+MAX_SEARCH_QUERY_LENGTH = 200
+
+
+@dataclass(frozen=True)
+class SearchItems:
+    query: str
+    limit: int = 50
+
+
+@dataclass(frozen=True)
+class ItemSearchMatch:
+    item: Item
+    resolved_path: str | None
+
+
+def normalize_search_query(query: str) -> str:
+    return " ".join(query.split()).casefold()
+
+
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+async def search_items(
+    session: AsyncSession,
+    actor: ActorContext,
+    household_id: UUID,
+    command: SearchItems,
+) -> list[ItemSearchMatch]:
+    """Return deterministic, active, household-scoped matches with canonical locations."""
+    await _require_access(session, actor, household_id)
+    query = normalize_search_query(command.query)
+    if not query:
+        return []
+    if len(query) > MAX_SEARCH_QUERY_LENGTH:
+        raise ValueError(f"Search query must be at most {MAX_SEARCH_QUERY_LENGTH} characters")
+
+    escaped = _escape_like(query)
+    contains = f"%{escaped}%"
+    item_name = func.lower(Item.name)
+    metadata_match = or_(
+        item_name.ilike(contains, escape="\\"),
+        func.lower(func.coalesce(Item.manufacturer, "")).ilike(contains, escape="\\"),
+        func.lower(func.coalesce(Item.model, "")).ilike(contains, escape="\\"),
+        func.lower(Item.code).ilike(contains, escape="\\"),
+        func.lower(func.coalesce(Item.serial_number, "")).ilike(contains, escape="\\"),
+        func.lower(func.coalesce(Area.name, "")).ilike(contains, escape="\\"),
+        func.lower(func.coalesce(Zone.name, "")).ilike(contains, escape="\\"),
+        func.lower(func.coalesce(Container.name, "")).ilike(contains, escape="\\"),
+        func.lower(func.coalesce(Container.code, "")).ilike(contains, escape="\\"),
+    )
+    rank = case(
+        (item_name == query, 0),
+        (item_name.ilike(f"{escaped}%", escape="\\"), 1),
+        (item_name.ilike(contains, escape="\\"), 2),
+        else_=3,
+    )
+    household_area_ids = select(Area.id).where(Area.household_id == household_id)
+    statement = (
+        select(Item, ItemPlacement)
+        .outerjoin(ItemPlacement, ItemPlacement.item_id == Item.id)
+        .outerjoin(
+            Container,
+            and_(
+                Container.id == ItemPlacement.container_id,
+                Container.area_id.in_(household_area_ids),
+                Container.is_archived.is_(False),
+            ),
+        )
+        .outerjoin(
+            Area,
+            and_(
+                Area.id == func.coalesce(ItemPlacement.area_id, Container.area_id),
+                Area.household_id == household_id,
+            ),
+        )
+        .outerjoin(
+            Zone,
+            and_(
+                Zone.id == func.coalesce(ItemPlacement.zone_id, Container.zone_id),
+                Zone.area_id.in_(household_area_ids),
+            ),
+        )
+        .where(Item.household_id == household_id, Item.is_archived.is_(False), metadata_match)
+        .order_by(rank, func.lower(Item.name), cast(Item.id, String))
+        .limit(min(max(command.limit, 1), 100))
+    )
+    rows = list((await session.execute(statement)).all())
+    placements = [placement for _, placement in rows if placement is not None]
+    paths = await resolve_item_locations(session, actor, household_id, placements) if placements else {}
+    return [ItemSearchMatch(item=item, resolved_path=paths.get(placement.id) if placement else None) for item, placement in rows]
 
 
 @dataclass(frozen=True)

@@ -131,6 +131,11 @@ class ContainerRead(ORMModel):
     updated_at: datetime
 
 
+class ContainerSearchResult(BaseModel):
+    container: ContainerRead
+    resolved_path: str
+
+
 class ContainerPlacementCreate(BaseModel):
     parent_container_id: UUID
     relationship_type: ContainerRelationship
@@ -217,6 +222,11 @@ class ItemPlacementRead(ORMModel):
     resolved_path: str = ""
     created_at: datetime
     updated_at: datetime
+
+
+class ItemSearchResult(BaseModel):
+    item: ItemRead
+    resolved_path: str | None = None
 
 
 class IdentifierCreate(BaseModel):

@@ -1,4 +1,4 @@
-import { type Household, type MeResponse, subscribeToHousehold, type RealtimeStatus } from '@wherehouse/api-client'
+import { searchContainers, searchItems, type ContainerSearchResult, type Household, type Item, type ItemSearchResult, type MeResponse, subscribeToHousehold, type RealtimeStatus } from '@wherehouse/api-client'
 import {
   Activity,
   ArrowRightLeft,
@@ -12,17 +12,21 @@ import {
   PackagePlus,
   PanelLeftClose,
   PanelLeftOpen,
+  Pencil,
   Plus,
   Printer,
   Search,
   Settings,
   UserRound,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { PageHeader } from '../../components/wherehouse/PageHeader'
 
-import { ItemsView, itemLocation } from '../items/ItemsView'
+import { ItemDetailsModal, ItemsView, itemLocation } from '../items/ItemsView'
 import { CompanionReviewQueue } from '../items/CompanionReviewQueue'
 import { AreaIcon, LocationsView } from '../locations/LocationsView'
 import { greeting } from '../../shared/utils/date'
@@ -37,6 +41,17 @@ const sectionsForMenu: { id: SettingsSection; label: string }[] = [
   { id: 'preferences', label: 'Preferences' }, { id: 'privacy', label: 'Data & Privacy' },
   { id: 'about', label: 'About' },
 ]
+
+type SearchResult = ({ kind: 'item' } & ItemSearchResult) | ({ kind: 'container' } & ContainerSearchResult)
+type SearchOption = SearchResult | { kind: 'setting'; id: SettingsSection; label: string }
+
+const settingsSearchTerms: Record<SettingsSection, string> = {
+  account: 'account profile display name email password',
+  households: 'households household members devices pairing',
+  preferences: 'preferences appearance theme',
+  privacy: 'data privacy local storage',
+  about: 'about version application',
+}
 
 export function Dashboard({
   household,
@@ -68,9 +83,37 @@ export function Dashboard({
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting')
   const [reviewItemIds, setReviewItemIds] = useState<string[]>([])
   const [reviewQueueOpen, setReviewQueueOpen] = useState(false)
-  const [resolvedTarget, setResolvedTarget] = useState<{ type: 'item' | 'container'; id: string; areaId?: string; scanKey: string } | null>(null)
+  const [resolvedTarget, setResolvedTarget] = useState<{ type: 'item' | 'container'; id: string; areaId?: string; containerId?: string; item?: Item; scanKey: string; zoneId?: string } | null>(null)
   const [locationTarget, setLocationTarget] = useState<{ areaId: string; containerId?: string; zoneId?: string } | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [searchBusy, setSearchBusy] = useState(false)
+  const [searchError, setSearchError] = useState(false)
+  const [createItemRequestKey, setCreateItemRequestKey] = useState(0)
+  const [sidebarCreateOpen, setSidebarCreateOpen] = useState(false)
+  const [householdSelectOpen, setHouseholdSelectOpen] = useState(false)
+  const [selectedOverviewItem, setSelectedOverviewItem] = useState<Item | null>(null)
   const overview = useOverviewInventory(household.id, token, realtimeRevision)
+
+  useEffect(() => {
+    setSearchQuery('')
+    setSearchResults([])
+    setSearchError(false)
+    setSelectedOverviewItem(null)
+  }, [household.id])
+
+  useEffect(() => {
+    const query = searchQuery.trim()
+    if (!query) { setSearchResults([]); setSearchBusy(false); setSearchError(false); return }
+    let cancelled = false
+    setSearchBusy(true)
+    setSearchError(false)
+    const timer = window.setTimeout(() => void Promise.all([searchItems(token, household.id, query), searchContainers(token, household.id, query)])
+      .then(([items, containers]) => { if (!cancelled) setSearchResults([...items.map((result) => ({ kind: 'item' as const, ...result })), ...containers.map((result) => ({ kind: 'container' as const, ...result }))]) })
+      .catch(() => { if (!cancelled) { setSearchResults([]); setSearchError(true) } })
+      .finally(() => { if (!cancelled) setSearchBusy(false) }), 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [household.id, searchQuery, token, realtimeRevision])
 
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem(`wherehouse.review-queue.${household.id}`) ?? '[]') as string[]
@@ -163,11 +206,55 @@ export function Dashboard({
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
     .slice(0, 3)
 
+  const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase()
+  const matchingSettings: SearchOption[] = normalizedSearchQuery
+    ? sectionsForMenu.filter(({ id, label }) => `${label} ${settingsSearchTerms[id]}`.toLocaleLowerCase().includes(normalizedSearchQuery)).map(({ id, label }) => ({ kind: 'setting', id, label }))
+    : []
+  const visibleSearchResults: SearchOption[] = activeView === 'items'
+    ? [...searchResults.filter((result) => result.kind === 'item'), ...matchingSettings]
+    : activeView === 'locations'
+      ? [...searchResults, ...matchingSettings]
+      : activeView === 'settings'
+        ? matchingSettings
+        : [...searchResults, ...matchingSettings]
+
+  function openSearchResult(result: SearchOption) {
+    setSearchQuery('')
+    if (result.kind === 'setting') {
+      navigateSettings(result.id)
+    } else if (result.kind === 'item') {
+      const placement = overview.itemPlacements.find((entry) => entry.item_id === result.item.id)
+      const container = overview.containers.find((entry) => entry.id === placement?.container_id)
+      const zone = overview.zones.find((entry) => entry.id === placement?.zone_id)
+      setResolvedTarget({ type: 'item', id: result.item.id, item: result.item, areaId: placement?.area_id ?? container?.area_id ?? zone?.area_id, containerId: placement?.container_id ?? undefined, zoneId: placement?.zone_id ?? undefined, scanKey: `search-${Date.now()}` })
+      if (activeView !== 'items' && activeView !== 'locations') navigate('items')
+    } else {
+      setResolvedTarget({ type: 'container', id: result.container.id, areaId: result.container.area_id, scanKey: `search-${Date.now()}` })
+      navigate('locations')
+    }
+  }
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (visibleSearchResults[0]) openSearchResult(visibleSearchResults[0])
+    else navigate(activeView === 'items' ? 'items' : 'locations')
+  }
+
   return (
     <main className={`dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <header className="topbar">
-        <span className="wordmark dark"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></span>
-        <div className="global-search"><Search aria-hidden="true" /> <span>Search items, containers, locations</span></div>
+        <div className="topbar-brand">
+          <span className="wordmark dark"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></span>
+          {householdSelectOpen ? (
+            <Select items={households.map((option) => ({ label: option.name, value: option.id }))} onOpenChange={(open) => { if (!open) setHouseholdSelectOpen(false) }} onValueChange={(value) => { if (value && value !== household.id) onSelect(value); setHouseholdSelectOpen(false) }} open value={household.id}>
+              <SelectTrigger aria-label="Select household" autoFocus className="topbar-household-select"><SelectValue /></SelectTrigger>
+              <SelectContent align="start">{households.map((option) => <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>)}</SelectContent>
+            </Select>
+          ) : (
+            <div className="topbar-household"><span>{household.name}</span><Button aria-label="Change household" onClick={() => setHouseholdSelectOpen(true)} size="icon-sm" title="Change household" variant="ghost"><Pencil aria-hidden="true" /></Button></div>
+          )}
+        </div>
+        <form className="global-search" onSubmit={submitSearch}><Search aria-hidden="true" /><Input aria-label="Search" className="global-search-input" maxLength={200} onChange={(event) => setSearchQuery(event.target.value)} placeholder={activeView === 'items' ? 'Search items and settings' : activeView === 'locations' ? 'Search items, containers, and settings' : activeView === 'settings' ? 'Search settings' : 'Search items, containers, and settings'} type="search" value={searchQuery} />{searchQuery ? <Button aria-label="Clear search" onClick={() => setSearchQuery('')} size="icon" type="button" variant="ghost">×</Button> : null}{searchQuery ? <div className="global-search-results" role="status">{searchBusy && activeView !== 'settings' ? <p>Searching…</p> : searchError && !matchingSettings.length ? <p>Search is unavailable. Try again.</p> : visibleSearchResults.length ? visibleSearchResults.map((result) => result.kind === 'item' ? <button key={`item-${result.item.id}`} onClick={() => openSearchResult(result)} type="button"><strong>{result.item.name}</strong><span>Item · {result.resolved_path ?? 'Unplaced'}{result.item.manufacturer ? ` · ${result.item.manufacturer}` : ''}</span></button> : result.kind === 'container' ? <button key={`container-${result.container.id}`} onClick={() => openSearchResult(result)} type="button"><strong>{result.container.name}</strong><span>Container · {result.resolved_path}</span></button> : <button key={`setting-${result.id}`} onClick={() => openSearchResult(result)} type="button"><strong>{result.label}</strong><span>Setting</span></button>) : <p>No matching results.</p>}</div> : null}</form>
         <div className="account-menu" ref={accountMenuRef}>
           <span className="topbar-icon"><Bell aria-hidden="true" /></span>
           <Button aria-expanded={accountMenuOpen} aria-haspopup="menu" aria-label="Open user menu" className="avatar avatar-button" onClick={() => setAccountMenuOpen((open) => !open)}>{user.user.display_name.slice(0, 1).toUpperCase()}</Button>
@@ -190,12 +277,7 @@ export function Dashboard({
             {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
           </Button>
         </div>
-        <div className="sidebar-household">
-          <p className="nav-label">Household</p>
-          <select value={household.id} onChange={(event) => onSelect(event.target.value)}>
-          {households.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-          </select>
-        </div>
+        <Button aria-label="Add item" className="sidebar-add-item" onClick={() => { if (activeView === 'items') setCreateItemRequestKey((current) => current + 1); else setSidebarCreateOpen(true) }}><Plus aria-hidden="true" /><span>Add item</span></Button>
         <nav>
           <a aria-label="Overview" className={`nav-item ${activeView === 'overview' ? 'active' : ''}`} href="/overview" onClick={(event) => { event.preventDefault(); navigate('overview') }} title="Overview"><House aria-hidden="true" /><span>Overview</span></a>
           <a aria-label="Locations" className={`nav-item ${activeView === 'locations' ? 'active' : ''}`} href="/locations" onClick={(event) => { event.preventDefault(); navigate('locations') }} title="Locations"><MapPin aria-hidden="true" /><span>Locations</span></a>
@@ -212,20 +294,14 @@ export function Dashboard({
 
       <section className={`dashboard-content ${activeView === 'overview' ? 'overview-content' : ''}`}>
         {activeView === 'items' ? (
-          <ItemsView household={household} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
+          <ItemsView createRequestKey={createItemRequestKey} household={household} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
-          <LocationsView household={household} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.areaId : undefined)} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : undefined)} revealScanKey={resolvedTarget?.type === 'container' ? resolvedTarget.scanKey : undefined} revealZoneId={locationTarget?.zoneId} token={token} />
+          <LocationsView household={household} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? resolvedTarget?.areaId} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : resolvedTarget?.containerId)} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.scanKey} revealZoneId={locationTarget?.zoneId ?? resolvedTarget?.zoneId} token={token} />
         ) : activeView === 'settings' ? (
           <SettingsView household={household} households={households} isOwner={isOwner} onCreateHousehold={onCreateHousehold} onNavigate={navigateSettings} onSelect={onSelect} section={settingsSection} token={token} user={user} />
         ) : (
         <>
-        <div className="page-heading" id="overview">
-          <div>
-            <p className="eyebrow">{household.name}</p>
-            <h1>{greeting()}, {user.user.display_name.split(' ')[0]} <span className="wave">👋</span></h1>
-          </div>
-          <a className="primary-button compact overview-add" href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }}><Plus aria-hidden="true" /> Add item</a>
-        </div>
+        <PageHeader className="page-header-overview" id="overview" title={<>{greeting()}, {user.user.display_name.split(' ')[0]} <span className="wave">👋</span></>} />
 
         <div className="stat-grid">
           <article><strong>{overview.loading ? '—' : overview.items.length}</strong><span>Items tracked</span></article>
@@ -248,7 +324,7 @@ export function Dashboard({
             <div className="card-heading"><h2>Recently added items</h2><Box aria-hidden="true" /></div>
             {recentOverviewItems.length ? <div className="overview-list item-preview-list">{recentOverviewItems.map((item) => {
               const placement = overview.itemPlacements.find((entry) => entry.item_id === item.id)
-              return <a href={`/items#${item.id}`} key={item.id} onClick={(event) => { event.preventDefault(); setResolvedTarget({ type: 'item', id: item.id, scanKey: `overview-${item.id}` }); navigate('items') }}><span className="area-icon"><Box aria-hidden="true" /></span><span><strong>{item.name}</strong><small>{itemLocation(placement, overview.areas, overview.zones, overview.containers, overview.containerPlacements)}</small></span><ChevronRight aria-hidden="true" /></a>
+              return <button key={item.id} onClick={() => setSelectedOverviewItem(item)} type="button"><span className="area-icon"><Box aria-hidden="true" /></span><span><strong>{item.name}</strong><small>{itemLocation(placement, overview.areas, overview.zones, overview.containers, overview.containerPlacements)}</small></span><ChevronRight aria-hidden="true" /></button>
             })}</div> : <><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>Your inventory is ready</strong><p>Items you add will appear here with their exact location path.</p></>}
             <a className="inline-link" href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }}>View all items →</a>
           </article>
@@ -260,6 +336,7 @@ export function Dashboard({
             <Button className="inline-link" disabled>View all activity →</Button>
           </article>
         </section>
+        {selectedOverviewItem ? <ItemDetailsModal areas={overview.areas} containerPlacements={overview.containerPlacements} containers={overview.containers} imageRevision={realtimeRevision} item={selectedOverviewItem} locationLabel={itemLocation(overview.itemPlacements.find((entry) => entry.item_id === selectedOverviewItem.id), overview.areas, overview.zones, overview.containers, overview.containerPlacements)} onClose={() => setSelectedOverviewItem(null)} onDeleted={() => { setSelectedOverviewItem(null); setRealtimeRevision((current) => current + 1) }} onPlacementUpdated={() => setRealtimeRevision((current) => current + 1)} onUpdated={(item) => { setSelectedOverviewItem(item); setRealtimeRevision((current) => current + 1) }} placement={overview.itemPlacements.find((entry) => entry.item_id === selectedOverviewItem.id)} token={token} zones={overview.zones} /> : null}
 
         <section className="quick-grid">
           <article><div className="quick-icon"><ArrowRightLeft aria-hidden="true" /></div><div><strong>Transfer items</strong><span>Move inventory between locations.</span></div><small>Coming next</small></article>
@@ -270,6 +347,7 @@ export function Dashboard({
         </>
         )}
       </section>
+      {sidebarCreateOpen ? <div className="creation-workflow-host"><ItemsView createRequestKey={1} household={household} onCreateOpenChange={setSidebarCreateOpen} onCreated={() => navigate('items')} onOpenLocation={() => undefined} token={token} /></div> : null}
       {reviewItemIds.length && !reviewQueueOpen ? <Button className="review-queue-launcher" onClick={() => setReviewQueueOpen(true)}><PackagePlus aria-hidden="true" /><span>{reviewItemIds.length}</span> Review companion items</Button> : null}
       {reviewQueueOpen && reviewItemIds.length ? <CompanionReviewQueue inventory={overview} itemIds={reviewItemIds} onClose={() => setReviewQueueOpen(false)} onReviewed={markReviewed} onUpdated={() => setRealtimeRevision((current) => current + 1)} token={token} /> : null}
     </main>

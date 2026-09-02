@@ -2,11 +2,11 @@ from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.context import ActorContext
-from app.models import Area, Container, ContainerPlacement, HouseholdUser
+from app.models import Area, Container, ContainerPlacement, HouseholdUser, Zone
 from app.models.core import ContainerRelationship
 
 
@@ -24,6 +24,112 @@ class LocationAccessDenied(LocationError):
 
 class InvalidContainerPlacement(LocationError):
     pass
+
+
+@dataclass(frozen=True)
+class SearchContainers:
+    query: str
+    limit: int = 25
+
+
+@dataclass(frozen=True)
+class ContainerSearchMatch:
+    container: Container
+    resolved_path: str
+
+
+async def search_containers(
+    session: AsyncSession,
+    actor: ActorContext,
+    household_id: UUID,
+    command: SearchContainers,
+) -> list[ContainerSearchMatch]:
+    if actor.household_id is not None and actor.household_id != household_id:
+        raise LocationAccessDenied("Household access denied")
+    membership = await session.scalar(
+        select(HouseholdUser).where(
+            HouseholdUser.household_id == household_id,
+            HouseholdUser.user_id == actor.user_id,
+        )
+    )
+    if membership is None:
+        raise LocationAccessDenied("Household access denied")
+    query = " ".join(command.query.split()).casefold()
+    if not query:
+        return []
+    if len(query) > 200:
+        raise ValueError("Search query must be at most 200 characters")
+    escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    contains = f"%{escaped}%"
+    name = func.lower(Container.name)
+    statement = (
+        select(Container)
+        .join(Area, Area.id == Container.area_id)
+        .outerjoin(Zone, Zone.id == Container.zone_id)
+        .where(
+            Area.household_id == household_id,
+            Container.is_archived.is_(False),
+            or_(
+                name.ilike(contains, escape="\\"),
+                func.lower(Container.code).ilike(contains, escape="\\"),
+                func.lower(func.coalesce(Container.description, "")).ilike(contains, escape="\\"),
+                func.lower(Area.name).ilike(contains, escape="\\"),
+                func.lower(func.coalesce(Zone.name, "")).ilike(contains, escape="\\"),
+            ),
+        )
+        .order_by(
+            case(
+                (name == query, 0),
+                (name.ilike(f"{escaped}%", escape="\\"), 1),
+                (name.ilike(contains, escape="\\"), 2),
+                else_=3,
+            ),
+            name,
+            cast(Container.id, String),
+        )
+        .limit(min(max(command.limit, 1), 50))
+    )
+    containers = list(await session.scalars(statement))
+    if not containers:
+        return []
+
+    areas = list(await session.scalars(select(Area).where(Area.household_id == household_id)))
+    area_by_id = {area.id: area for area in areas}
+    area_ids = list(area_by_id)
+    zones = list(await session.scalars(select(Zone).where(Zone.area_id.in_(area_ids))))
+    zone_by_id = {zone.id: zone for zone in zones}
+    all_containers = list(
+        await session.scalars(
+            select(Container).where(
+                Container.area_id.in_(area_ids), Container.is_archived.is_(False)
+            )
+        )
+    )
+    container_by_id = {container.id: container for container in all_containers}
+    placements = list(
+        await session.scalars(
+            select(ContainerPlacement).where(
+                ContainerPlacement.container_id.in_(list(container_by_id))
+            )
+        )
+    )
+    parent_by_child = {placement.container_id: placement.parent_container_id for placement in placements}
+
+    def path_for(container: Container) -> str:
+        area = area_by_id[container.area_id]
+        zone = zone_by_id.get(container.zone_id) if container.zone_id else None
+        names: list[str] = []
+        visited: set[UUID] = set()
+        cursor: UUID | None = container.id
+        while cursor is not None:
+            if cursor in visited or cursor not in container_by_id:
+                raise InvalidContainerPlacement("Container hierarchy is malformed")
+            visited.add(cursor)
+            names.append(container_by_id[cursor].name)
+            cursor = parent_by_child.get(cursor)
+        return " > ".join([area.name, *([zone.name] if zone else []), *reversed(names)])
+
+    return [ContainerSearchMatch(container=container, resolved_path=path_for(container)) for container in containers]
 
 
 class EventPublisher(Protocol):

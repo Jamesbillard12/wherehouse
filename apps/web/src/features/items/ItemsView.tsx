@@ -26,6 +26,8 @@ import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
+import { CreateImageField } from '../../components/wherehouse/CreateImageField'
+import { PageHeader } from '../../components/wherehouse/PageHeader'
 import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
@@ -207,7 +209,13 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
   )
 }
 
-export function AddItemDialog({ areas, containerPlacements, containers, finalFocus, onOpenChange, onSubmit, open, saving, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; finalFocus?: RefObject<HTMLElement | null>; onOpenChange: (open: boolean) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; open: boolean; saving: boolean; zones: Zone[] }) {
+export function AddItemDialog({ areas, containerPlacements, containers, finalFocus, onOpenChange, onSubmit, open, saving, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; finalFocus?: RefObject<HTMLElement | null>; onOpenChange: (open: boolean) => void; onSubmit: (event: FormEvent<HTMLFormElement>, image: File | null) => void; open: boolean; saving: boolean; zones: Zone[] }) {
+  const [image, setImage] = useState<File | null>(null)
+
+  useEffect(() => {
+    if (!open) setImage(null)
+  }, [open])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="location-dialog max-w-[calc(100%-3rem)] gap-0 overflow-y-auto p-0 sm:max-w-[560px]" finalFocus={finalFocus} showCloseButton={false}>
@@ -215,7 +223,8 @@ export function AddItemDialog({ areas, containerPlacements, containers, finalFoc
           <div><p className="eyebrow">Inventory</p><DialogTitle id="item-dialog-title">Add an item</DialogTitle></div>
           <DialogClose aria-label="Close add item dialog" render={<Button size="icon" type="button" variant="secondary" />}>×</DialogClose>
         </DialogHeader>
-        <form onSubmit={onSubmit}>
+        <form onSubmit={(event) => onSubmit(event, image)}>
+          <CreateImageField label="Item image" onFileChange={setImage} />
           <label>Name<Input autoFocus name="name" placeholder="Cordless drill" required /></label>
           <div className="form-row"><label>Quantity<Input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><Input name="unit" placeholder="pieces, boxes, feet" /></label></div>
           <div className="form-row"><label>Manufacturer <span className="optional">Optional</span><Input name="manufacturer" /></label><label>Model <span className="optional">Optional</span><Input name="model" /></label></div>
@@ -229,7 +238,7 @@ export function AddItemDialog({ areas, containerPlacements, containers, finalFoc
   )
 }
 
-export function ItemsView({ household, onOpenLocation, onRevealConsumed, refreshKey = 0, revealItemId, revealScanKey, token }: { household: Household; onOpenLocation: (target: { areaId: string; containerId?: string; zoneId?: string }) => void; onRevealConsumed?: () => void; refreshKey?: number; revealItemId?: string; revealScanKey?: string; token: string }) {
+export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange, onCreated, onOpenLocation, onRevealConsumed, refreshKey = 0, revealItem, revealItemId, revealScanKey, token }: { createRequestKey?: number; household: Household; onCreateOpenChange?: (open: boolean) => void; onCreated?: (item: Item) => void; onOpenLocation: (target: { areaId: string; containerId?: string; zoneId?: string }) => void; onRevealConsumed?: () => void; refreshKey?: number; revealItem?: Item; revealItemId?: string; revealScanKey?: string; token: string }) {
   const [items, setItems] = useState<Item[]>([])
   const [placements, setPlacements] = useState<ItemPlacement[]>([])
   const [areas, setAreas] = useState<Area[]>([])
@@ -242,6 +251,10 @@ export function ItemsView({ household, onOpenLocation, onRevealConsumed, refresh
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const addItemTriggerRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (createRequestKey > 0) setShowForm(true)
+  }, [createRequestKey])
 
   function openAddItemDialog(event: MouseEvent<HTMLButtonElement>) {
     addItemTriggerRef.current = event.currentTarget
@@ -279,20 +292,20 @@ export function ItemsView({ household, onOpenLocation, onRevealConsumed, refresh
 
   useEffect(() => {
     if (!revealItemId) return
-    const item = items.find((entry) => entry.id === revealItemId)
+    const item = revealItem ?? items.find((entry) => entry.id === revealItemId)
     if (item) {
       setSelectedItem(item)
       onRevealConsumed?.()
     }
-  }, [items, onRevealConsumed, revealItemId, revealScanKey])
+  }, [items, onRevealConsumed, revealItem, revealItemId, revealScanKey])
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>, image: File | null) {
     event.preventDefault()
     setSaving(true)
     setError(null)
     const data = new FormData(event.currentTarget)
     try {
-      const item = await createItem(token, household.id, {
+      let item = await createItem(token, household.id, {
         name: String(data.get('name')).trim(),
         identifier_type: String(data.get('identifierType')) as Item['identifier_type'],
         description: String(data.get('description')).trim() || undefined,
@@ -305,8 +318,11 @@ export function ItemsView({ household, onOpenLocation, onRevealConsumed, refresh
           return { placement: { [`${targetType}_id`]: targetId, ...(targetType === 'container' ? { relationship_type: 'in' as const } : {}) } }
         })() : {}),
       })
+      if (image?.size) item = await uploadItemImage(token, item.id, image)
       await loadInventory()
       setShowForm(false)
+      onCreateOpenChange?.(false)
+      onCreated?.(item)
     } catch (reason) {
       setError(message(reason))
     } finally {
@@ -316,7 +332,7 @@ export function ItemsView({ household, onOpenLocation, onRevealConsumed, refresh
 
   return (
     <div className="items-view">
-      <div className="page-heading locations-heading"><div><p className="eyebrow">Household inventory</p><h1>Items</h1><p className="page-description">Everything you track, with its exact storage path.</p></div><Button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add item</Button></div>
+      <PageHeader actions={<Button className="primary-button" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add item</Button>} description="Everything you track, with its exact storage path." eyebrow="Household inventory" title="Items" />
       {error ? <div className="alert locations-alert">{error}</div> : null}
       <section className="items-panel">
         {loading ? <div className="locations-loading">Loading items…</div> : items.length ? (
@@ -337,7 +353,7 @@ export function ItemsView({ household, onOpenLocation, onRevealConsumed, refresh
         ) : <div className="location-empty"><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>No items yet</strong><p>Add your first item and place it directly in an area, zone, or container.</p><Button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add first item</Button></div>}
       </section>
       {selectedItem ? <ItemDetailsModal areas={areas} containerPlacements={containerPlacements} containers={containers} imageRevision={refreshKey} item={selectedItem} locationLabel={itemLocation(placements.find((entry) => entry.item_id === selectedItem.id), areas, zones, containers, containerPlacements)} onClose={() => setSelectedItem(null)} onDeleted={(itemId) => { setSelectedItem(null); setItems((current) => current.filter((item) => item.id !== itemId)); setPlacements((current) => current.filter((entry) => entry.item_id !== itemId)) }} onPlacementUpdated={(updated) => setPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={placements.find((entry) => entry.item_id === selectedItem.id)} token={token} zones={zones} /> : null}
-      <AddItemDialog areas={areas} containerPlacements={containerPlacements} containers={containers} finalFocus={addItemTriggerRef} onOpenChange={setShowForm} onSubmit={submit} open={showForm} saving={saving} zones={zones} />
+      <AddItemDialog areas={areas} containerPlacements={containerPlacements} containers={containers} finalFocus={addItemTriggerRef} onOpenChange={(open) => { setShowForm(open); onCreateOpenChange?.(open) }} onSubmit={submit} open={showForm} saving={saving} zones={zones} />
     </div>
   )
 }

@@ -13,6 +13,8 @@ not started. See the evidence and uncertainty in the [execution plan](product/mv
   dependencies, exit criteria, blockers, risks and recommended workstreams.
 - [MVP release checklist](product/mvp-release-checklist.md) — system, physical-device and operational
   validation required before the first tag.
+- [Phase 2 search validation](product/search-validation.md) — exact matching semantics, offline limits,
+  realistic-volume fixture, and manual web/mobile sequence.
 - [Build now vs. later](product/build-now-vs-later.md) — scope guard.
 - [Product roadmap](product/roadmap.md) — post-MVP household, intelligence/interface and spatial work.
 

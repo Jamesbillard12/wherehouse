@@ -17,7 +17,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | Item create/edit/archive, quantity, metadata | Implemented but needs hardening | End-to-end web/mobile parity and realistic-volume testing |
 | Item/container images | Implemented but needs hardening | Media lifecycle, backup, failure and client coverage |
 | Placement/movement/resolved paths | Implemented but needs validation | Create/update placement is transactional; canonical paths now come from the application layer; full-client physical validation remains |
-| Search | Partially implemented | Client filtering exists; metadata/location coverage and realistic performance are unproven |
+| Search | Ready for validation | Canonical server search, metadata/direct-location matching, resolved paths, and client UX are implemented; realistic-volume and physical mobile validation remain |
 | QR generate/display/print/scan | Implemented but needs hardening | Physical iOS/Android and adverse identifier cases are unrecorded |
 | NFC read/write/verify/empty registration | Implemented but needs hardening | Native hardware validation is unrecorded; platform limits must be documented |
 | Identifier activation/revocation/resolve | Implemented but needs hardening | Lifecycle/adverse/cross-household release tests |
@@ -39,7 +39,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | --- | --- | --- | --- |
 | 0 Scope and architecture alignment | Complete on this branch, pending review | Review/merge outside this task | Yes in branch |
 | 1 Core inventory hardening | Hardening | E2E parity, paths, hierarchy/error validation | No |
-| 2 Search and findability | In progress | Metadata/location coverage, performance, mobile/web validation | No |
+| 2 Search and findability | Ready for validation | Realistic-volume/Pi timing and physical mobile/offline validation remain | No |
 | 3 Physical identifiers | Hardening | Real iOS/Android evidence and adverse cases | No |
 | 4 Offline and synchronization | Hardening | Mutation coverage, restart/conflicts, exactly-once scenarios | No |
 | 5 Account, household, settings | Hardening | Setup, isolation, revoke, multi-device validation | No |
@@ -77,10 +77,12 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 
 ## Phase 2: Search and findability
 
-- **Purpose/current state:** make stored possessions findable; basic filtering exists but is unproven.
+- **Purpose/current state:** canonical household-scoped server search and web/mobile UX are implemented;
+  realistic-volume and physical mobile/offline validation remain.
 - **Scope/work:** partial name plus useful manufacturer/model/code and practical location context;
   resolved paths; empty/error states and realistic-volume performance.
-- **Testing/docs:** query variants, household isolation, path accuracy, performance fixture, both clients.
+- **Testing/docs:** automated query/household/path/client coverage plus the realistic-volume and
+  web/mobile sequence in [search validation](search-validation.md).
 - **Dependencies/non-goals:** stable item/location semantics; no semantic or AI search.
 - **Exit criteria:** expected users can reliably locate known test objects from each supported client.
 - **Risk/branch:** client-only filtering may not scale. `feature/mvp-search-and-findability`.
