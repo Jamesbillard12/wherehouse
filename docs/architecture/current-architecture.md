@@ -57,11 +57,12 @@ household realtime events. Transfers, activities, checkouts, a general sync API,
 labels are not implemented. FastAPI exposes OpenAPI; the TypeScript client is currently handwritten,
 so generated clients or automated parity checks remain future-readiness work.
 
-Item findability is exposed by `SearchItems`, a transport-neutral application capability invoked by
-`GET /api/v1/households/{household_id}/items/search?q=...`. It owns access checks, normalization,
-deterministic ordering, active-item semantics, the bounded database query, and canonical resolved
-paths. The shared TypeScript client is used by both connected clients; mobile alone retains a
-documented SQLite-cache fallback for offline search.
+Inventory findability is exposed by transport-neutral `SearchItems` and `SearchContainers`
+application capabilities. Their `/api/v1/households/{household_id}/.../search?q=...` adapters return
+typed item/container results with canonical resolved paths. The capabilities own access checks,
+normalization, deterministic ordering, active-record semantics, and bounded database queries. The
+shared TypeScript client is used by both connected clients; mobile alone retains a documented
+SQLite-cache fallback for offline search.
 
 ## Mobile pairing
 

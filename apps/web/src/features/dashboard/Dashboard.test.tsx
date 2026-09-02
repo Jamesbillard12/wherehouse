@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { searchContainers } from '@wherehouse/api-client'
 
 vi.mock('@wherehouse/api-client', async (importOriginal) => ({
   ...await importOriginal<typeof import('@wherehouse/api-client')>(),
@@ -8,6 +9,7 @@ vi.mock('@wherehouse/api-client', async (importOriginal) => ({
   listItems: vi.fn().mockResolvedValue([]),
   listItemPlacements: vi.fn().mockResolvedValue([]),
   searchItems: vi.fn().mockResolvedValue([{ item: { id: 'stove', household_id: 'home', name: 'Camping Stove', code: 'ITM-001', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: 'Coleman', model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '', updated_at: '' }, resolved_path: 'Garage > North Wall > Shelf > Yellow Bin' }]),
+  searchContainers: vi.fn().mockResolvedValue([]),
   subscribeToHousehold: vi.fn().mockReturnValue(() => undefined),
 }))
 
@@ -35,8 +37,17 @@ describe('Dashboard settings navigation', () => {
     render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search inventory' }), 'camp')
     expect(await screen.findByText('Camping Stove')).toBeInTheDocument()
-    expect(screen.getByText('Garage > North Wall > Shelf > Yellow Bin · Coleman')).toBeInTheDocument()
+    expect(screen.getByText('Item · Garage > North Wall > Shelf > Yellow Bin · Coleman')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /Camping Stove/ }))
     await waitFor(() => expect(location.pathname).toBe('/items'))
+  })
+
+  it('renders and opens a container search result', async () => {
+    vi.mocked(searchContainers).mockResolvedValueOnce([{ container: { id: 'bin', area_id: 'garage', zone_id: null, name: 'Yellow Bin', code: 'BIN-001', container_type: 'bin', identifier_type: 'none', description: null, image_path: null, is_movable: true, is_out_of_space: false, is_archived: false, created_at: '', updated_at: '' }, resolved_path: 'Garage > Shelf > Yellow Bin' }])
+    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search inventory' }), 'yellow')
+    expect(await screen.findByText('Container · Garage > Shelf > Yellow Bin')).toBeInTheDocument()
+    await userEvent.click(screen.getByText('Yellow Bin').closest('button')!)
+    await waitFor(() => expect(location.pathname).toBe('/locations'))
   })
 })

@@ -6,11 +6,12 @@ limits responses to 50 results. An empty or whitespace-only query returns no sea
 than scanning inventory. Input is capped at 200 characters and SQL wildcard characters are escaped
 and treated literally.
 
-Searchable fields are item name (exact, prefix, or partial), manufacturer, model, human-readable item
-code, serial number, and the current direct area, zone, container name, or container code. Results
-are ordered by exact name, name prefix, name substring, other metadata, then case-insensitive item
-name and stable ID. Physical-identifier public IDs are intentionally excluded: scanning and explicit
-identifier resolution own that lifecycle.
+Searchable item fields are name (exact, prefix, or partial), manufacturer, model, human-readable item
+code, serial number, and the current direct area, zone, container name, or container code. Containers
+are also first-class results, searchable by name, code, description, direct area, and zone. Both
+result types are ordered by exact name, name prefix, name substring, other metadata, then
+case-insensitive name and stable ID. Physical-identifier public IDs are intentionally excluded:
+scanning and explicit identifier resolution own that lifecycle.
 
 Every result contains the item projection and its current canonical resolved path. The path is
 calculated through the same bounded-query resolver used by item-placement lists, so hierarchy edits

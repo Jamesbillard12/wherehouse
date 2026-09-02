@@ -1,4 +1,4 @@
-import { searchItems, type Household, type ItemSearchResult, type MeResponse, subscribeToHousehold, type RealtimeStatus } from '@wherehouse/api-client'
+import { searchContainers, searchItems, type ContainerSearchResult, type Household, type ItemSearchResult, type MeResponse, subscribeToHousehold, type RealtimeStatus } from '@wherehouse/api-client'
 import {
   Activity,
   ArrowRightLeft,
@@ -39,6 +39,8 @@ const sectionsForMenu: { id: SettingsSection; label: string }[] = [
   { id: 'about', label: 'About' },
 ]
 
+type SearchResult = ({ kind: 'item' } & ItemSearchResult) | ({ kind: 'container' } & ContainerSearchResult)
+
 export function Dashboard({
   household,
   households,
@@ -72,7 +74,7 @@ export function Dashboard({
   const [resolvedTarget, setResolvedTarget] = useState<{ type: 'item' | 'container'; id: string; areaId?: string; scanKey: string } | null>(null)
   const [locationTarget, setLocationTarget] = useState<{ areaId: string; containerId?: string; zoneId?: string } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<ItemSearchResult[]>([])
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searchBusy, setSearchBusy] = useState(false)
   const [searchError, setSearchError] = useState(false)
   const overview = useOverviewInventory(household.id, token, realtimeRevision)
@@ -89,8 +91,8 @@ export function Dashboard({
     let cancelled = false
     setSearchBusy(true)
     setSearchError(false)
-    const timer = window.setTimeout(() => void searchItems(token, household.id, query)
-      .then((results) => { if (!cancelled) setSearchResults(results) })
+    const timer = window.setTimeout(() => void Promise.all([searchItems(token, household.id, query), searchContainers(token, household.id, query)])
+      .then(([items, containers]) => { if (!cancelled) setSearchResults([...items.map((result) => ({ kind: 'item' as const, ...result })), ...containers.map((result) => ({ kind: 'container' as const, ...result }))]) })
       .catch(() => { if (!cancelled) { setSearchResults([]); setSearchError(true) } })
       .finally(() => { if (!cancelled) setSearchBusy(false) }), 250)
     return () => { cancelled = true; window.clearTimeout(timer) }
@@ -191,7 +193,7 @@ export function Dashboard({
     <main className={`dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <header className="topbar">
         <span className="wordmark dark"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></span>
-        <div className="global-search"><Search aria-hidden="true" /><Input aria-label="Search inventory" className="global-search-input" maxLength={200} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search items and locations" type="search" value={searchQuery} />{searchQuery ? <Button aria-label="Clear search" onClick={() => setSearchQuery('')} size="icon" variant="ghost">×</Button> : null}{searchQuery ? <div className="global-search-results" role="status">{searchBusy ? <p>Searching…</p> : searchError ? <p>Search is unavailable. Try again.</p> : searchResults.length ? searchResults.map((result) => <button key={result.item.id} onClick={() => { setResolvedTarget({ type: 'item', id: result.item.id, scanKey: `search-${Date.now()}` }); setSearchQuery(''); navigate('items') }} type="button"><strong>{result.item.name}</strong><span>{result.resolved_path ?? 'Unplaced'}{result.item.manufacturer ? ` · ${result.item.manufacturer}` : ''}</span></button>) : <p>No matching items.</p>}</div> : null}</div>
+        <div className="global-search"><Search aria-hidden="true" /><Input aria-label="Search inventory" className="global-search-input" maxLength={200} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search items and containers" type="search" value={searchQuery} />{searchQuery ? <Button aria-label="Clear search" onClick={() => setSearchQuery('')} size="icon" variant="ghost">×</Button> : null}{searchQuery ? <div className="global-search-results" role="status">{searchBusy ? <p>Searching…</p> : searchError ? <p>Search is unavailable. Try again.</p> : searchResults.length ? searchResults.map((result) => result.kind === 'item' ? <button key={`item-${result.item.id}`} onClick={() => { setResolvedTarget({ type: 'item', id: result.item.id, scanKey: `search-${Date.now()}` }); setSearchQuery(''); navigate('items') }} type="button"><strong>{result.item.name}</strong><span>Item · {result.resolved_path ?? 'Unplaced'}{result.item.manufacturer ? ` · ${result.item.manufacturer}` : ''}</span></button> : <button key={`container-${result.container.id}`} onClick={() => { setResolvedTarget({ type: 'container', id: result.container.id, areaId: result.container.area_id, scanKey: `search-${Date.now()}` }); setSearchQuery(''); navigate('locations') }} type="button"><strong>{result.container.name}</strong><span>Container · {result.resolved_path}</span></button>) : <p>No matching items or containers.</p>}</div> : null}</div>
         <div className="account-menu" ref={accountMenuRef}>
           <span className="topbar-icon"><Bell aria-hidden="true" /></span>
           <Button aria-expanded={accountMenuOpen} aria-haspopup="menu" aria-label="Open user menu" className="avatar avatar-button" onClick={() => setAccountMenuOpen((open) => !open)}>{user.user.display_name.slice(0, 1).toUpperCase()}</Button>

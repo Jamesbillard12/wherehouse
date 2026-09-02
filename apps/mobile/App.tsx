@@ -81,7 +81,14 @@ export default function App() {
   const locationChoices = useMemo(() => itemLocationChoices(inventory), [inventory])
   const searchInventory = useCallback((query: string) => {
     if (!pairedServer) return Promise.resolve([])
-    return createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).searchItems(pairedServer.householdId, query)
+    const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
+    return Promise.all([
+      client.searchItems(pairedServer.householdId, query),
+      client.searchContainers(pairedServer.householdId, query),
+    ]).then(([items, containers]) => [
+      ...items.map((result) => ({ kind: 'item' as const, ...result })),
+      ...containers.map((result) => ({ kind: 'container' as const, ...result })),
+    ])
   }, [pairedServer])
 
   useEffect(() => {
@@ -501,7 +508,7 @@ export default function App() {
           {busy ? (
             <ActivityIndicator style={styles.activity} color="#166534" size="large" />
           ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={openLocations} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanSession()} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
-            : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} householdId={pairedServer.householdId} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} search={searchInventory} syncing={syncing} />
+            : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} householdId={pairedServer.householdId} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onOpenContainer={(container) => { setSelectedLocation(containerLocationChoice(container, inventory)); setActiveTab('containers') }} onRefresh={() => void refreshInventory()} search={searchInventory} syncing={syncing} />
             : pairedServer && activeTab === 'more' ? <SettingsScreen onForget={() => void forget()} onSwitch={switchHousehold} server={pairedServer} />
             : pairedServer ? <LocationsScreen error={error} inventory={inventory} onAddItem={(location) => { setAddItemLocation(location); setActiveTab('add-item') }} onChangeLocation={openLocations} onOpenItem={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} onSelect={setSelectedLocation} onWriteNfc={async (containerId) => { const container = inventory.containers.find((entry) => entry.id === containerId); if (container) await writeContainerNfc(container) }} selected={selectedLocation} syncing={syncing} />
               : <PairingScreen error={error} onChange={setPairingUri} onPair={() => void pair()} onScan={() => void openScanner('pairing')} value={pairingUri} />}

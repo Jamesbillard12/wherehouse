@@ -131,6 +131,11 @@ class ContainerRead(ORMModel):
     updated_at: datetime
 
 
+class ContainerSearchResult(BaseModel):
+    container: ContainerRead
+    resolved_path: str
+
+
 class ContainerPlacementCreate(BaseModel):
     parent_container_id: UUID
     relationship_type: ContainerRelationship

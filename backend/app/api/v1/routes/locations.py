@@ -11,6 +11,8 @@ from app.application.locations.capabilities import (
     LocationAccessDenied,
     LocationNotFound,
     PlaceContainer,
+    SearchContainers,
+    search_containers,
 )
 from app.application.locations.capabilities import (
     place_container as place_container_capability,
@@ -25,6 +27,7 @@ from app.schemas.core import (
     ContainerPlacementCreate,
     ContainerPlacementRead,
     ContainerRead,
+    ContainerSearchResult,
     ContainerUpdate,
     ZoneCreate,
     ZoneRead,
@@ -38,6 +41,20 @@ router = APIRouter()
 
 CONTAINER_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 MAX_CONTAINER_IMAGE_BYTES = 8 * 1024 * 1024
+
+
+@router.get("/households/{household_id}/containers/search", response_model=list[ContainerSearchResult])
+async def search_household_containers(
+    household_id: UUID, q: str, principal: PrincipalDep, session: SessionDep
+) -> list[ContainerSearchResult]:
+    actor = ActorContext(user_id=principal.user.id, client=principal.method, device_id=principal.device_id, household_id=household_id)
+    try:
+        matches = await search_containers(session, actor, household_id, SearchContainers(q))
+    except LocationAccessDenied as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return [ContainerSearchResult(container=ContainerRead.model_validate(match.container), resolved_path=match.resolved_path) for match in matches]
 
 @router.post(
     "/households/{household_id}/areas",

@@ -116,6 +116,11 @@ export type StorageContainer = {
   updated_at: string
 }
 
+export type ContainerSearchResult = {
+  container: StorageContainer
+  resolved_path: string
+}
+
 export type ContainerPlacement = {
   id: string
   container_id: string
