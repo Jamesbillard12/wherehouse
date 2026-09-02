@@ -8,6 +8,13 @@ export type ApiOptions = Omit<RequestInit, 'body'> & {
 
 const REQUEST_TIMEOUT_MS = 15_000
 
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
 export async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const { baseUrl, body, headers, signal, token, ...requestOptions } = options
   const apiBase = baseUrl ? `${baseUrl.replace(/\/$/, '')}/api/${API_VERSION}` : `/api/${API_VERSION}`
@@ -28,7 +35,7 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     })
     if (!response.ok) {
       const payload = (await response.json().catch(() => null)) as { detail?: string } | null
-      throw new Error(payload?.detail ?? `WhereHouse request failed (${response.status}).`)
+      throw new ApiError(payload?.detail ?? `WhereHouse request failed (${response.status}).`, response.status)
     }
     return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
   } catch (reason) {

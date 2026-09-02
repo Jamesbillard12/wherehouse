@@ -43,16 +43,24 @@ async function syncInventoryOnce(server: PairedServer): Promise<CachedInventory>
       return { zones, containers, placements }
     }),
   )
+  const db = await database()
+  const localRows = await db.getAllAsync<{ entity_type: string; payload: string }>(
+    `SELECT cache.entity_type, cache.payload FROM inventory_cache AS cache
+     JOIN pending_operations AS operation
+       ON cache.entity_id = operation.operation_id
+       OR cache.entity_id = 'local-placement-' || operation.operation_id
+     WHERE operation.household_id = ?`,
+    server.householdId,
+  )
   const inventory: CachedInventory = {
     areas,
     zones: details.flatMap((detail) => detail.zones),
     containers: details.flatMap((detail) => detail.containers),
     placements: details.flatMap((detail) => detail.placements),
-    items,
-    itemPlacements,
+    items: [...items, ...localRows.filter((row) => row.entity_type === 'item').map((row) => JSON.parse(row.payload) as Item)],
+    itemPlacements: [...itemPlacements, ...localRows.filter((row) => row.entity_type === 'item-placement').map((row) => JSON.parse(row.payload) as ItemPlacement)],
     syncedAt: new Date().toISOString(),
   }
-  const db = await database()
   await db.withExclusiveTransactionAsync(async (transaction) => {
     await transaction.runAsync('DELETE FROM inventory_cache WHERE household_id = ?', server.householdId)
     for (const [entityType, entries] of [

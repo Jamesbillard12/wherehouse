@@ -44,6 +44,35 @@ async function initializeDatabase(): Promise<SQLite.SQLiteDatabase> {
       updated_at TEXT NOT NULL,
       last_error TEXT
     );
+    CREATE TABLE IF NOT EXISTS pending_operations (
+      operation_id TEXT PRIMARY KEY,
+      operation_type TEXT NOT NULL,
+      operation_version INTEGER NOT NULL,
+      household_id TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      remote_entity_id TEXT,
+      created_at TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('pending', 'in_progress', 'retryable_failed', 'permanently_failed')),
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at TEXT,
+      last_error TEXT
+    );
+    CREATE INDEX IF NOT EXISTS ix_pending_operations_replay
+      ON pending_operations (household_id, status, created_at);
+    INSERT OR IGNORE INTO pending_operations (
+      operation_id, operation_type, operation_version, household_id, payload,
+      remote_entity_id, created_at, status, attempt_count, last_error
+    ) SELECT local_id, 'item.create', 1, household_id, payload, remote_item_id,
+      created_at, 'pending', 0, last_error FROM pending_items;
+    INSERT OR IGNORE INTO pending_operations (
+      operation_id, operation_type, operation_version, household_id, payload,
+      created_at, status, attempt_count, last_error
+    ) SELECT 'legacy-item-update:' || item_id, 'item.update', 0, household_id,
+      payload, updated_at, 'permanently_failed', 0,
+      'This update was saved by an older app version and needs to be reviewed while online.'
+      FROM pending_item_updates;
+    UPDATE pending_operations SET status = 'retryable_failed'
+      WHERE status = 'in_progress';
   `)
   return db
 }
