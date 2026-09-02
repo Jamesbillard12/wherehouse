@@ -1,13 +1,13 @@
 .dashboard { height: 100dvh; display: grid; grid-template: 64px minmax(0, 1fr) / 252px minmax(0, 1fr); overflow: hidden; background: var(--paper); transition: grid-template-columns 180ms ease; }
 .dashboard.sidebar-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
-.topbar { position: sticky; top: 0; grid-column: 1 / -1; z-index: 20; padding: 0 2rem; background: var(--cream); }
-.topbar-brand { min-width: 0; display: flex; align-items: center; gap: 1rem; }
+.topbar { position: sticky; top: 0; grid-column: 1 / -1; z-index: 20; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 390px) minmax(0, 1fr); gap: 1.5rem; padding: 0 2rem; background: var(--cream); }
+.topbar-brand { min-width: 0; display: flex; align-items: center; gap: 1rem; overflow: hidden; }
 .topbar-brand .wordmark { flex: 0 0 auto; }
 .topbar-household { min-width: 0; display: flex; align-items: center; gap: 0.25rem; border-left: 1px solid var(--line); padding-left: 1rem; color: #344054; font-size: 0.78rem; font-weight: 750; }
 .topbar-household > span { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar-household .button { color: #667085; }
 .topbar-household-select { width: 220px; height: 36px; border-color: #d8deea; background: #fff; font-weight: 700; }
-.account-menu { position: relative; display: flex; align-items: center; gap: 1.5rem; font-size: 0.85rem; font-weight: 600; }
+.account-menu { position: relative; justify-self: end; display: flex; align-items: center; gap: 1.5rem; font-size: 0.85rem; font-weight: 600; }
 .avatar-button { border: 0; cursor: pointer; font: inherit; }
 .user-menu { position: absolute; z-index: 20; top: calc(100% + 0.7rem); right: 0; width: min(260px, calc(100vw - 2rem)); display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 16px 40px rgb(23 33 61 / 18%); }
 .user-menu-identity { display: grid; gap: 0.2rem; border-bottom: 1px solid var(--line); padding: 1rem; }
@@ -16,7 +16,7 @@
 .user-menu a:hover, .user-menu > button:hover, .user-menu a:focus-visible, .user-menu > button:focus-visible { background: #f5f6ff; color: var(--action); outline: none; }
 .user-menu > button { width: 100%; height: auto; min-height: 0; justify-content: flex-start; border-top: 1px solid var(--line); border-radius: 0; color: var(--danger); font-weight: inherit; white-space: normal; }
 .user-menu svg { width: 16px; }
-.global-search { display: flex; align-items: center; gap: 0.55rem; width: min(390px, 34vw); border: 1px solid #d8deea; border-radius: 7px; padding: 0.55rem 0.75rem; color: #98a2b3; background: #fff; font-size: 0.76rem; }
+.global-search { display: flex; align-items: center; gap: 0.55rem; width: 100%; border: 1px solid #d8deea; border-radius: 7px; padding: 0.55rem 0.75rem; color: #98a2b3; background: #fff; font-size: 0.76rem; }
 .global-search svg { width: 16px; height: 16px; }
 .global-search { position: relative; }
 .global-search .global-search-input { height: auto; border: 0; border-radius: 0; padding: 0; background: transparent; color: #101828; box-shadow: none; }

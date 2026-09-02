@@ -6,7 +6,7 @@
   .auth-panel { padding: 3rem 1.5rem; }
   .dashboard { display: block; }
   .dashboard { height: 100dvh; overflow-y: auto; }
-  .topbar { position: sticky; height: 64px; }
+  .topbar { position: sticky; height: 64px; display: flex; }
   .sidebar { display: none; }
   .global-search { display: none; }
   .topbar-brand { gap: 0.6rem; }
