@@ -156,7 +156,7 @@ function Backups({ isOwner, token }: { isOwner: boolean; token: string }) {
     <>
       <p className="eyebrow">Instance scoped</p>
       <h2>Backup & Restore</h2>
-      <p className="muted">
+      <p className="muted backup-settings-intro">
         These destinations protect this entire WhereHouse instance, including
         every household.
       </p>
@@ -173,7 +173,7 @@ function Backups({ isOwner, token }: { isOwner: boolean; token: string }) {
         <div className="settings-card">Loading backup status…</div>
       )}
       {error ? <div className="alert">{error}</div> : null}
-      <div className="settings-card">
+      <div className="settings-card backup-restore-card">
         <h3>Restore</h3>
         <p className="muted">
           Restore remains an administrator operation because it replaces an
@@ -200,31 +200,41 @@ export function BackupStatusPanel({
   running: boolean;
   status: BackupStatus;
 }) {
+  const stateLabel = (state: BackupStatus["destinations"][number]["state"]) =>
+    state === "not_configured"
+      ? "Not connected"
+      : state === "needs_attention" || state === "unavailable"
+        ? "Needs attention"
+        : "Connected";
+  const stateClass = (state: BackupStatus["destinations"][number]["state"]) =>
+    state === "connected"
+      ? "connected"
+      : state === "not_configured"
+        ? "not-connected"
+        : "needs-attention";
   return (
     <div className="backup-destinations">
       {status.destinations.map((destination) => (
-        <article className="settings-card" key={destination.provider}>
-          <div>
-            <strong>{destination.display_name}</strong>
+        <article
+          className="settings-card backup-destination-card"
+          key={destination.provider}
+        >
+          <div className="backup-destination-header">
+            <div>
+              <strong>{destination.display_name}</strong>
+              <small>
+                {destination.kind === "remote"
+                  ? "Remote backup"
+                  : "Server-local backup"}
+              </small>
+            </div>
             <span
-              className={
-                destination.needs_attention
-                  ? "backup-state warning"
-                  : "backup-state"
-              }
+              className={`backup-state ${stateClass(destination.state)}`}
             >
-              {destination.state === "not_configured"
-                ? "Not connected"
-                : destination.state === "needs_attention"
-                  ? "Needs attention"
-                  : "Connected"}
+              {stateLabel(destination.state)}
             </span>
           </div>
-          <p className="muted">
-            {destination.kind === "remote"
-              ? "Remote backup"
-              : "Server-local backup"}{" "}
-            ·{" "}
+          <p className="muted backup-destination-management">
             {destination.management === "cli"
               ? "Configured by the server administrator"
               : "Managed from web settings"}
@@ -234,10 +244,11 @@ export function BackupStatusPanel({
               ? `Last successful backup: ${formatDate(destination.last_successful_backup_at)}`
               : (destination.message ?? "No successful backup recorded.")}
           </p>
-          {destination.kind === "remote" &&
-          destination.configured &&
-          isOwner ? (
-            <>
+          <div className="backup-destination-actions">
+            {destination.kind === "remote" &&
+            destination.configured &&
+            isOwner ? (
+              <>
               <Button
                 className="primary-button compact"
                 disabled={running}
@@ -251,15 +262,16 @@ export function BackupStatusPanel({
               <Button className="danger-button compact" onClick={onDisconnect}>
                 Disconnect
               </Button>
-            </>
-          ) : null}
-          {destination.kind === "remote" &&
-          !destination.configured &&
-          isOwner ? (
-            <Button className="primary-button compact" onClick={onConnect}>
-              Connect Dropbox
-            </Button>
-          ) : null}
+              </>
+            ) : null}
+            {destination.kind === "remote" &&
+            !destination.configured &&
+            isOwner ? (
+              <Button className="primary-button compact" onClick={onConnect}>
+                Connect Dropbox
+              </Button>
+            ) : null}
+          </div>
           {destination.needs_attention ? (
             <p className="alert">Reconnect or reauthorize Dropbox.</p>
           ) : null}

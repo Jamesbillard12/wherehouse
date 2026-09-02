@@ -43,6 +43,7 @@ describe("BackupStatusPanel", () => {
     );
     expect(screen.getByText("Dropbox")).toBeInTheDocument();
     expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(screen.getByText("Connected")).toHaveClass("backup-state", "connected");
     expect(screen.getByText(/Last successful backup:/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Back up now" }),
@@ -61,6 +62,7 @@ describe("BackupStatusPanel", () => {
       />,
     );
     expect(screen.getByText("Not connected")).toBeInTheDocument();
+    expect(screen.getByText("Not connected")).toHaveClass("backup-state", "not-connected");
     expect(
       screen.queryByRole("button", { name: "Back up now" }),
     ).not.toBeInTheDocument();
@@ -78,6 +80,7 @@ describe("BackupStatusPanel", () => {
       />,
     );
     expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Needs attention")).toHaveClass("backup-state", "needs-attention");
     expect(screen.getByText(/Reconnect or reauthorize/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Reauthorize" }),

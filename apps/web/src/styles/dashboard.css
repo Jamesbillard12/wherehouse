@@ -84,6 +84,20 @@
 .settings-card label { display: grid; gap: 0.4rem; color: var(--ink); font-size: 0.75rem; font-weight: 700; }
 .settings-card input { min-height: 42px; border: 1px solid var(--line); border-radius: 7px; padding: 0 0.8rem; background: #f8fafc; }
 .settings-card h3 { margin: 0.5rem 0 0; }
+.backup-settings-intro { margin-bottom: 1.5rem; }
+.backup-destinations { display: grid; gap: 1.25rem; margin-bottom: 1.25rem; }
+.backup-destination-card { gap: 1.25rem; }
+.backup-destination-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.backup-destination-header > div { display: grid; gap: 0.25rem; }
+.backup-destination-header strong { font-size: 1rem; }
+.backup-destination-header small, .backup-destination-management { color: var(--muted-text); font-size: 0.75rem; }
+.backup-destination-management { margin: -0.5rem 0 0; }
+.backup-state { display: inline-flex; align-items: center; min-height: 26px; border: 1px solid transparent; border-radius: 999px; padding: 0.25rem 0.65rem; font-size: 0.7rem; font-weight: 800; line-height: 1; white-space: nowrap; }
+.backup-state.connected { border-color: #a7d7bd; background: #e9f7ef; color: #167443; }
+.backup-state.not-connected { border-color: #d8deea; background: #f4f6f9; color: #596579; }
+.backup-state.needs-attention { border-color: #f3c7a7; background: #fff3e8; color: #9a4b12; }
+.backup-destination-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+.backup-restore-card { margin-top: 1.25rem; }
 .add-household-form { margin-bottom: 1rem; }
 .add-household-form .primary-button { justify-self: start; }
 .household-list { margin-bottom: 1rem; padding: 0.6rem; }
