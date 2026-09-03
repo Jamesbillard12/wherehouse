@@ -26,12 +26,20 @@ docker save --output "$stage/container-images/wherehouse-runtime.tar" \
   "wherehouse-web:$version" wherehouse-web:local postgres:17-alpine
 
 overlay="$stage/layer/wherehouse-appliance.rootfs-overlay"
-mkdir -p "$overlay/opt/wherehouse" "$overlay/etc/systemd/system"
+mkdir -p "$overlay/opt/wherehouse" "$overlay/etc/systemd/system" "$overlay/etc/systemd/network"
 git -C "$repository" archive --format=tar HEAD | tar -xf - -C "$overlay/opt/wherehouse"
 # Image construction tooling is host-only. Keeping its layer YAML in the target
 # overlay makes rpi-image-gen recursively discover a duplicate layer.
 rm -rf "$overlay/opt/wherehouse/deploy/raspberry-pi/image"
 cp "$repository/deploy/raspberry-pi/systemd/"*.service "$overlay/etc/systemd/system/"
+cat > "$overlay/etc/systemd/network/20-wired.network" <<'EOF'
+[Match]
+Name=eth*
+
+[Network]
+DHCP=yes
+MulticastDNS=yes
+EOF
 mkdir -p "$overlay/opt/wherehouse/deploy/raspberry-pi/images"
 cp "$stage/container-images/wherehouse-runtime.tar" "$overlay/opt/wherehouse/deploy/raspberry-pi/images/"
 cat > "$overlay/etc/wherehouse-image" <<EOF
