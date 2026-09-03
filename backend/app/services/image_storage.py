@@ -21,6 +21,8 @@ class ImageStorage(Protocol):
 
     def delete(self, key: str) -> None: ...
 
+    def list_keys(self) -> list[str]: ...
+
 
 CONTENT_TYPES_BY_SUFFIX = {
     ".jpg": "image/jpeg",
@@ -56,6 +58,15 @@ class LocalImageStorage:
         path = self._path(key)
         if path.is_file():
             path.unlink()
+
+    def list_keys(self) -> list[str]:
+        if not self.root.exists():
+            return []
+        return sorted(
+            path.relative_to(self.root).as_posix()
+            for path in self.root.rglob("*")
+            if path.is_file()
+        )
 
 
 class S3ImageStorage:
@@ -97,6 +108,13 @@ class S3ImageStorage:
 
     def delete(self, key: str) -> None:
         self.client.delete_object(Bucket=self.bucket, Key=key)
+
+    def list_keys(self) -> list[str]:
+        keys: list[str] = []
+        paginator = self.client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket):
+            keys.extend(item["Key"] for item in page.get("Contents", []))
+        return sorted(keys)
 
 
 @lru_cache

@@ -28,3 +28,5 @@ backend/.venv/
 # Local data
 .data/
 uploads/
+/backups/
+/backup-staging/

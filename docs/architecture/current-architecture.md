@@ -103,8 +103,9 @@ conflict; mutable-resource conflicts remain outside offline scope rather than us
 ## Storage abstraction
 
 The image service supports configured local filesystem or S3-compatible primary media storage.
-This is separate from the not-yet-implemented provider-neutral backup/restore subsystem; see
-[storage and backup](storage-and-backup.md).
+The separate backup subsystem creates versioned, verified PostgreSQL-and-media artifacts and stores
+them through local/external-volume or Dropbox adapters behind one provider interface. Restore uses
+the same provider-neutral artifact path; see [storage and backup](storage-and-backup.md).
 
 ## AI
 

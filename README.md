@@ -17,7 +17,8 @@ are being established so those systems can be added without duplicating business
 
 React/Vite/TypeScript web; React Native/Expo/TypeScript mobile; FastAPI/Pydantic/SQLAlchemy/Alembic
 backend; PostgreSQL server data and SQLite mobile cache; pnpm/Vitest and uv/Pytest/Ruff; Docker
-Compose/Caddy local deployment; local or S3-compatible primary media storage.
+Compose/Caddy local deployment; local or S3-compatible primary media storage; portable local/Dropbox
+backup providers.
 
 ## Repository layout
 

@@ -16,6 +16,16 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:8000"
     user_session_ttl_hours: int = 24
     pairing_session_ttl_minutes: int = 10
+    backup_provider: str = "local"
+    backup_staging_dir: str = "./backup-staging"
+    backup_local_dir: str = "./backups"
+    backup_retention_count: int = 7
+    dropbox_app_key: str | None = None
+    dropbox_app_secret: str | None = None
+    dropbox_refresh_token: str | None = None
+    dropbox_credential_file: str = "./.data/dropbox-backup-credentials.json"
+    dropbox_redirect_uri: str = "http://localhost:8000/api/v1/backups/providers/dropbox/callback"
+    dropbox_backup_folder: str = "/WhereHouse/Backups"
 
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),
