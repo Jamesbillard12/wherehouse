@@ -20,10 +20,10 @@ git config --global --add safe.directory "$repository"
 docker build --platform linux/arm64 -t "wherehouse-api:$version" -t wherehouse-api:local "$repository/backend"
 docker build --platform linux/arm64 -t "wherehouse-web:$version" -t wherehouse-web:local \
   -f "$repository/deploy/docker/Dockerfile.web" "$repository"
-docker pull --platform linux/arm64 postgres:17-alpine
+docker pull --platform linux/arm64 postgres:17-bookworm
 docker save --output "$stage/container-images/wherehouse-runtime.tar" \
   "wherehouse-api:$version" wherehouse-api:local \
-  "wherehouse-web:$version" wherehouse-web:local postgres:17-alpine
+  "wherehouse-web:$version" wherehouse-web:local postgres:17-bookworm
 
 overlay="$stage/layer/wherehouse-appliance.rootfs-overlay"
 mkdir -p "$overlay/opt/wherehouse" "$overlay/etc/systemd/system" "$overlay/etc/systemd/network"
