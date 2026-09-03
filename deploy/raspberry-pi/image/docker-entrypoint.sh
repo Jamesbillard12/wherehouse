@@ -71,14 +71,14 @@ test -n "$image"
 # rpi-image-gen's Raspberry Pi OS image layout boots through /dev/disk/by-slot/*
 # aliases created by an image-specific udev rule. On real Pi 4 hardware that
 # alias can be unavailable in initramfs even though mmcblk0p1/p2 are present,
-# leaving the machine at an initramfs shell. Replace the generated aliases with
-# the actual partition PARTUUIDs before releasing the image so boot does not
-# depend on runtime udev symlink creation.
+# leaving the machine at an initramfs shell. Replace those generated aliases
+# with filesystem UUIDs before releasing the image. Filesystem UUIDs are read
+# from the filesystems themselves and do not depend on MBR PARTUUID support or
+# runtime udev symlink creation.
 #
 # Docker Desktop's privileged Linux VM does not reliably expose partition child
-# devices such as /dev/loop0p1 after losetup --partscan. Instead, read the MBR
-# geometry from the image and create loop devices directly at each partition's
-# byte offset. This works without kernel partition-node discovery.
+# devices such as /dev/loop0p1. Read the MBR geometry and create loop devices
+# directly at each partition's byte offset instead.
 partition_geometry() {
   python3 - "$image" "$1" <<'PY'
 import json
@@ -107,11 +107,6 @@ root_start=$1
 root_size=$2
 root_sector_size=$3
 
-boot_partuuid=$(sfdisk --part-uuid "$image" 1)
-root_partuuid=$(sfdisk --part-uuid "$image" 2)
-test -n "$boot_partuuid"
-test -n "$root_partuuid"
-
 boot_loop=$(losetup --find --show \
   --offset $((boot_start * boot_sector_size)) \
   --sizelimit $((boot_size * boot_sector_size)) \
@@ -131,21 +126,34 @@ cleanup_image_mounts() {
 }
 trap 'cleanup_image_mounts; rm -rf "$stage"' EXIT INT TERM
 
+boot_uuid=$(blkid -s UUID -o value "$boot_loop")
+root_uuid=$(blkid -s UUID -o value "$root_loop")
+test -n "$boot_uuid"
+test -n "$root_uuid"
+
 mount "$boot_loop" "$boot_mount"
 mount "$root_loop" "$root_mount"
 cmdline="$boot_mount/cmdline.txt"
 fstab="$root_mount/etc/fstab"
 test -f "$cmdline"
 test -f "$fstab"
-sed -i "s#root=/dev/disk/by-slot/system#root=PARTUUID=$root_partuuid#g" "$cmdline"
-sed -i "s#/dev/disk/by-slot/system#PARTUUID=$root_partuuid#g" "$fstab"
-sed -i "s#/dev/disk/by-slot/boot#PARTUUID=$boot_partuuid#g" "$fstab"
+sed -i "s#root=/dev/disk/by-slot/system#root=UUID=$root_uuid#g" "$cmdline"
+sed -i "s#/dev/disk/by-slot/system#UUID=$root_uuid#g" "$fstab"
+sed -i "s#/dev/disk/by-slot/boot#UUID=$boot_uuid#g" "$fstab"
 if grep -q '/dev/disk/by-slot/' "$cmdline" "$fstab"; then
   echo "Generated image still depends on /dev/disk/by-slot aliases" >&2
   exit 1
 fi
-if ! grep -q "root=PARTUUID=$root_partuuid" "$cmdline"; then
-  echo "Generated kernel command line is missing root PARTUUID" >&2
+if ! grep -q "root=UUID=$root_uuid" "$cmdline"; then
+  echo "Generated kernel command line is missing root filesystem UUID" >&2
+  exit 1
+fi
+if ! grep -q "UUID=$root_uuid[[:space:]]\+/[[:space:]]" "$fstab"; then
+  echo "Generated fstab is missing root filesystem UUID" >&2
+  exit 1
+fi
+if ! grep -q "UUID=$boot_uuid[[:space:]]\+/boot/firmware[[:space:]]" "$fstab"; then
+  echo "Generated fstab is missing boot filesystem UUID" >&2
   exit 1
 fi
 sync
