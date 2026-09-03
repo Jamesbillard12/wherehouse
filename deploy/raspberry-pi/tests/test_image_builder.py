@@ -166,8 +166,13 @@ class ImageBuilderTests(unittest.TestCase):
         entrypoint = (
             ROOT / "deploy/raspberry-pi/image/docker-entrypoint.sh"
         ).read_text()
-        self.assertIn("losetup --find --show --partscan", entrypoint)
-        self.assertIn("blkid -s PARTUUID", entrypoint)
+        self.assertIn('sfdisk --part-uuid "$image" 1', entrypoint)
+        self.assertIn('sfdisk --part-uuid "$image" 2', entrypoint)
+        self.assertIn('sfdisk", "--json", image', entrypoint)
+        self.assertIn("--offset $((boot_start * boot_sector_size))", entrypoint)
+        self.assertIn("--offset $((root_start * root_sector_size))", entrypoint)
+        self.assertNotIn("losetup --find --show --partscan", entrypoint)
+        self.assertNotIn('boot_partition="${loopdev}p1"', entrypoint)
         self.assertIn("root=PARTUUID=$root_partuuid", entrypoint)
         self.assertIn("PARTUUID=$boot_partuuid", entrypoint)
         self.assertIn("Generated image still depends on /dev/disk/by-slot aliases", entrypoint)
