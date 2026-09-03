@@ -5,9 +5,9 @@ RPI_IMAGE_GEN_VERSION=${RPI_IMAGE_GEN_VERSION:-v2.6.0}
 RPI_IMAGE_GEN_COMMIT=${RPI_IMAGE_GEN_COMMIT:-3f2c916086ad70197945bfc50ef953c1f6035f10}
 BUILDER_IMAGE=${WHEREHOUSE_PI_BUILDER_IMAGE:-wherehouse-pi-builder:${RPI_IMAGE_GEN_VERSION#v}}
 
-usage() { echo "Usage: $0 <version> <pi4|pi5>" >&2; exit 2; }
+usage() { echo "Usage: $0 <version|next> <pi4|pi5>" >&2; exit 2; }
 [ "$#" -eq 2 ] || usage
-version=$1
+requested_version=$1
 device=$2
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$script_dir/boards.sh"
@@ -17,6 +17,49 @@ config=$(board_config "$device") || {
 }
 
 repository=$(git rev-parse --show-toplevel)
+output=${WHEREHOUSE_PI_OUTPUT_DIR:-$repository/dist/pi}
+mkdir -p "$output"
+
+next_patch_version() {
+  find "$output" -maxdepth 1 -type f -name 'wherehouse-pi[45]-*.img.xz' -print 2>/dev/null | \
+    awk '
+      BEGIN { found = 0; major = 0; minor = 1; patch = -1 }
+      {
+        name = $0
+        sub(/^.*\/wherehouse-pi[45]-/, "", name)
+        sub(/\.img\.xz$/, "", name)
+        count = split(name, parts, ".")
+        if (count != 3 || parts[1] !~ /^[0-9]+$/ || parts[2] !~ /^[0-9]+$/ || parts[3] !~ /^[0-9]+$/) next
+        candidate_major = parts[1] + 0
+        candidate_minor = parts[2] + 0
+        candidate_patch = parts[3] + 0
+        if (!found || candidate_major > major || \
+            (candidate_major == major && candidate_minor > minor) || \
+            (candidate_major == major && candidate_minor == minor && candidate_patch > patch)) {
+          found = 1
+          major = candidate_major
+          minor = candidate_minor
+          patch = candidate_patch
+        }
+      }
+      END {
+        if (found) printf "%d.%d.%d\n", major, minor, patch + 1
+        else print "0.1.0"
+      }
+    '
+}
+
+if [ "$requested_version" = next ]; then
+  version=$(next_patch_version)
+  echo "Auto-selected next version: $version"
+else
+  version=$requested_version
+  if ! printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    echo "Invalid version '$version'; use semantic version X.Y.Z or 'next'" >&2
+    exit 2
+  fi
+fi
+
 if [ "${WHEREHOUSE_ALLOW_DIRTY:-0}" != 1 ] && \
   { ! git -C "$repository" diff --quiet || ! git -C "$repository" diff --cached --quiet; }; then
   echo "Refusing to build a release image from an uncommitted worktree" >&2
@@ -74,8 +117,6 @@ else
   echo "SSH diagnostics: no login account provisioned (set WHEREHOUSE_SSH_PUBLIC_KEY_FILE to enable)"
 fi
 
-output=${WHEREHOUSE_PI_OUTPUT_DIR:-$repository/dist/pi}
-mkdir -p "$output"
 rm -f \
   "$output/wherehouse-$device-$version.img.xz" \
   "$output/wherehouse-$device-$version.img.xz.sha256" \
