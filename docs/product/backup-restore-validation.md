@@ -3,8 +3,9 @@
 Automated tests cover artifact creation/manifest/version/checksums, successful restore through fake
 database/media ports, changed/missing/truncated/future artifacts, explicit confirmation and schema
 compatibility, local-provider storage lifecycle and missing destinations, core retention, PostgreSQL
-credential-table exclusions, and Dropbox request/auth mappings. These are implementation evidence,
-not an actual PostgreSQL, external SSD, or Dropbox recovery drill.
+credential-table exclusions, saved local-destination configuration/permissions/health, Dropbox
+request/auth mappings, and the OAuth PKCE connect/callback/disconnect route flow. These are
+implementation evidence, not an actual PostgreSQL, external SSD, or Dropbox recovery drill.
 
 Provider-neutral status tests cover connected, not-configured, backup-due, last-success, and
 authorization-failure/needs-attention behavior. Web tests cover Dropbox connection states, last
@@ -40,9 +41,9 @@ mapping; paired-server URL/token changes trigger a fresh status fetch.
 
 ## Current evidence (2026-09-02)
 
-- Automated implementation: 88 backend tests passed on `feature/mvp-backup-restore`, including
-  artifact/provider/PostgreSQL/Dropbox/status/credential tests; changed-code Ruff passed. Web 25/25
-  and mobile 10/10 tests passed, and API-client/web/mobile TypeScript checks passed.
+- Automated implementation: 93 backend tests passed, including persisted local-destination
+  administration and Dropbox OAuth route integration; Ruff passed. Web 25/25 and mobile 10/10 tests
+  passed, and API-client/web/mobile TypeScript checks passed.
 - Local/external SSD round trip: not yet run.
 - Actual Dropbox round trip: not yet run; mocks are not counted.
 - Clean PostgreSQL/application restore: not yet run.

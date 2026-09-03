@@ -137,7 +137,8 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 
 - **Purpose/current state:** portable artifact/orchestration, checksum verification, local storage,
   Dropbox storage/OAuth, provider-neutral retention/status, web management, mobile health, and
-  clean-restore safety are implemented. Full-suite,
+  clean-restore safety are implemented. Dedicated CLI configuration and health reporting cover local
+  disks and mounted external volumes without exposing server paths to clients. Full-suite,
   real PostgreSQL/application, external-volume, and actual Dropbox round-trip evidence remains.
 - **Scope/work:** consistent PostgreSQL snapshot, intended media, manifest, app/schema versions,
   checksums, validation, restore, failures, retention, optional encryption, and first local/external-SSD

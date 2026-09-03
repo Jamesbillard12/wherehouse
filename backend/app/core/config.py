@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     backup_provider: str = "local"
     backup_staging_dir: str = "./backup-staging"
     backup_local_dir: str = "./backups"
+    backup_local_config_file: str = "./.data/local-backup-destination.json"
     backup_retention_count: int = 7
     dropbox_app_key: str | None = None
     dropbox_app_secret: str | None = None

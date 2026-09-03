@@ -15,6 +15,12 @@ refresh-token authentication, upload (including upload sessions over 150 MiB), p
 listing, download through an incomplete file, and deletion. Provider failures are translated to
 administrative errors without logging credentials.
 
+Local destination selection is persisted separately from the artifact format in a server-only JSON
+file with mode `0600`. The admin CLI validates that the chosen directory is mounted and writable before
+saving it and exposes a destination-health command for deployment operations. An environment path is
+retained as a headless fallback. Neither the persisted raw path nor the fallback path enters the client
+status contract.
+
 Creation first finalizes and verifies an artifact in `BACKUP_STAGING_DIR`. Provider storage happens
 afterward; a failed local copy or Dropbox upload leaves that valid local artifact available for retry.
 
