@@ -9,7 +9,7 @@ case "${1:-}" in
   create)
     $compose stop api
     trap '$compose start api' EXIT INT TERM
-    $compose run --rm --no-deps api uv run python -m app.application.backups.cli create --provider "${2:-local}"
+    $compose run --rm --no-deps api /app/.venv/bin/python -m app.application.backups.cli create --provider "${2:-local}"
     ;;
   *)
     echo "Usage: wherehouse-backup create [local|dropbox]" >&2

@@ -30,6 +30,7 @@ systemctl enable systemd-networkd.service
 systemctl enable docker.service
 systemctl enable avahi-daemon.service
 systemctl enable wherehouse.service
+systemctl enable wherehouse-update.service
 systemctl enable wherehouse-avahi.service
 systemctl enable ssh.service
 mkdir -p -m 0700 /var/lib/wherehouse

@@ -2,6 +2,7 @@
 
 - [Local development](../development/local-development.md)
 - [Raspberry Pi](raspberry-pi.md)
+- [Application OTA updates](application-ota.md)
 - [Raspberry Pi physical validation](../product/raspberry-pi-validation.md)
 - [Cloud](cloud.md)
 - [Storage and backup architecture](../architecture/storage-and-backup.md)

@@ -16,3 +16,21 @@ and unvalidated; use Ethernet for the first hardware exercise.
 The builder host is stable Debian Bookworm even though the generated appliance is Raspberry Pi OS
 Trixie. This separates a reproducible supported build environment from the target filesystem and
 avoids Docker-layer APT-index loss.
+
+## Application OTA
+
+Application OTA is implemented separately from image/OS updating. Provision an image with a trusted
+manifest URL and the matching release public key:
+
+```sh
+WHEREHOUSE_UPDATE_MANIFEST_URL=https://releases.example/wherehouse/stable/release.json \
+WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE=/secure/wherehouse-release-public.pem \
+deploy/raspberry-pi/image/build-image.sh next pi4
+```
+
+The signing private key must never be put in the repository or appliance. An image without a public
+key intentionally cannot install OTA releases. The host `wherehouse-update.service` persists status
+at `/var/lib/wherehouse/config/update-state.json` and exposes only a local Unix socket to the API.
+Settings → System can check and install; the host operation continues while web/API containers restart.
+
+See [Application OTA operations](application-ota.md) for building, publishing, recovery, and validation.

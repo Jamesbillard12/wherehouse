@@ -30,9 +30,13 @@ mkdir -p "$overlay/opt/wherehouse" "$overlay/etc/systemd/system"
 git -C "$repository" archive --format=tar HEAD | tar -xf - -C "$overlay/opt/wherehouse"
 rm -rf "$overlay/opt/wherehouse/deploy/raspberry-pi/image"
 cp "$repository/deploy/raspberry-pi/systemd/"*.service "$overlay/etc/systemd/system/"
+if [ -f /run/wherehouse-update-key.pem ]; then
+  install -m 0644 /run/wherehouse-update-key.pem \
+    "$overlay/opt/wherehouse/deploy/raspberry-pi/update-public-key.pem"
+fi
 
-# Do not add a broad Type=ether systemd-networkd rule here. rpi-image-gen's
-# Raspberry Pi base already configures eth0 for DHCP. A Type=ether rule also
+# Do not add a broad Ethernet-type systemd-networkd rule here. rpi-image-gen's
+# Raspberry Pi base already configures eth0 for DHCP. Such a rule also
 # matches Docker veth interfaces and causes networkd to interfere with Docker's
 # bridge endpoints, breaking container-to-container networking.
 
@@ -49,6 +53,7 @@ cp "$stage/container-images/wherehouse-runtime.tar" "$overlay/opt/wherehouse/dep
 cat > "$overlay/etc/wherehouse-image" <<EOF
 WHEREHOUSE_IMAGE_VERSION=$version
 WHEREHOUSE_BUILD_DATE=$build_date
+WHEREHOUSE_UPDATE_MANIFEST_URL=${WHEREHOUSE_UPDATE_MANIFEST_URL:-}
 EOF
 
 mkdir -p "$generator/work"

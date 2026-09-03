@@ -1,0 +1,14 @@
+[Unit]
+Description=WhereHouse application update controller
+Wants=network-online.target docker.service
+After=network-online.target docker.service local-fs.target
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update-serve
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

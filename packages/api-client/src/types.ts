@@ -88,6 +88,28 @@ export type SystemStatus = {
   workspace_count: number
 }
 
+export type UpdatePhase = 'idle' | 'checking' | 'available' | 'downloading' | 'verifying' |
+  'backing_up' | 'installing' | 'migrating' | 'restarting' | 'health_check' |
+  'completed' | 'failed' | 'rollback'
+
+export type ApplianceUpdateStatus = {
+  currentVersion: string
+  latestVersion: string | null
+  targetVersion: string | null
+  updateAvailable: boolean
+  channel: 'stable'
+  phase: UpdatePhase
+  progress: number
+  message: string
+  releaseNotes?: string
+  runtimeSize?: number
+  publishedAt?: string
+  lastCheckedAt: string | null
+  errorCode: string | null
+  errorMessage: string | null
+  rollbackPerformed: boolean
+}
+
 export type Device = {
   id: string
   workspace_id: string

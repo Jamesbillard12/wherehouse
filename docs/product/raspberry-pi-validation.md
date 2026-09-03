@@ -32,9 +32,12 @@ timings, and observed result for every row. Automated evidence never completes a
 
 ## Upgrade and failures
 
-- [ ] Upgrade from the oldest supported release; verify backup, migration, health, reported version,
-  web/mobile compatibility, persistence, and recorded success.
+- [ ] Perform the no-SSH/no-SCP/no-reflash physical N → N+1 flow in
+  [Application OTA operations](../deployment/application-ota.md); verify remote discovery, publisher
+  signature and checksum, backup, migration, API/web health, browser/realtime reconnect, reported app
+  version, household/inventory/media persistence, and recorded success.
 - [ ] Inject failed health/migration; verify container recovery where schema-compatible and clean
   restore where it is not.
+- [ ] Reboot after successful OTA; verify N+1 images/version/data/realtime and a non-stuck update state.
 - [ ] Exercise delayed/unavailable PostgreSQL, unavailable/full storage, corrupt backup, unavailable
   network/mDNS, and unavailable Dropbox; confirm visible diagnostics and no state recreation.

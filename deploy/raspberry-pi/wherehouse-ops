@@ -4,21 +4,221 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
+import hashlib
 import json
 import os
+import re
 import secrets
 import shutil
 import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib import error, parse, request
 
 DEFAULT_ROOT = Path("/var/lib/wherehouse")
 INSTALL_DIR = Path("/opt/wherehouse")
+PRODUCT = "WhereHouse"
+SUPPORTED_CHANNEL = "stable"
+ARCHITECTURE = "arm64"
+SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+STATE_NAME = "update-state.json"
+LOCK_NAME = "lifecycle.lock"
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def semver(value: str) -> tuple[int, int, int]:
+    match = SEMVER.fullmatch(value)
+    if not match:
+        raise RuntimeError(f"Invalid semantic version: {value}")
+    return tuple(int(part) for part in match.groups())
+
+
+def state_path(root: Path) -> Path:
+    return root / "config" / STATE_NAME
+
+
+def read_state(root: Path) -> dict:
+    path = state_path(root)
+    if not path.exists():
+        current = current_version(root)
+        return {"currentVersion": current, "targetVersion": None, "latestVersion": None,
+                "updateAvailable": False, "channel": SUPPORTED_CHANNEL, "phase": "idle",
+                "progress": 0, "message": "WhereHouse is up to date", "errorCode": None,
+                "errorMessage": None, "rollbackPerformed": False, "lastCheckedAt": None}
+    return json.loads(path.read_text())
+
+
+def write_state(root: Path, **changes) -> dict:
+    state = read_state(root)
+    state.update(changes)
+    state["updatedAt"] = utc_now()
+    atomic_write(state_path(root), json.dumps(state, indent=2, sort_keys=True) + "\n")
+    return state
+
+
+def current_version(root: Path) -> str:
+    marker = root / "releases/current"
+    if marker.exists():
+        value = marker.read_text().strip()
+        semver(value)
+        return value
+    value = parse_env(root / "config/appliance.env").get("WHEREHOUSE_VERSION") or parse_env(
+        root / "config/appliance.env"
+    ).get("APPLIANCE_IMAGE_VERSION", "0.0.0")
+    try:
+        semver(value)
+    except RuntimeError:
+        return "0.0.0"
+    return value
+
+
+def validate_manifest(data: object, appliance_version: str) -> dict:
+    if not isinstance(data, dict):
+        raise RuntimeError("Release manifest must be a JSON object")
+    required = {"schemaVersion": int, "product": str, "version": str, "channel": str,
+                "architecture": str, "minimumApplianceVersion": str, "runtimeUrl": str,
+                "runtimeSha256": str, "runtimeSize": int, "publishedAt": str,
+                "releaseNotes": str, "requiresReboot": bool, "signatureAlgorithm": str}
+    for field, kind in required.items():
+        if field not in data or type(data[field]) is not kind:
+            raise RuntimeError(f"Release manifest field is invalid: {field}")
+    if data["schemaVersion"] != 1 or data["product"] != PRODUCT:
+        raise RuntimeError("Release manifest is for an unsupported product or schema")
+    version = semver(data["version"])
+    minimum = semver(data["minimumApplianceVersion"])
+    appliance = semver(appliance_version)
+    if data["channel"] != SUPPORTED_CHANNEL or data["architecture"] != ARCHITECTURE:
+        raise RuntimeError("Release channel or architecture is not supported")
+    if appliance < minimum:
+        raise RuntimeError("Release requires a newer appliance image")
+    url = parse.urlparse(data["runtimeUrl"])
+    if url.scheme != "https" or not url.netloc or url.username or url.password:
+        raise RuntimeError("Release runtime URL must be HTTPS")
+    if not re.fullmatch(r"[0-9a-f]{64}", data["runtimeSha256"]):
+        raise RuntimeError("Release checksum is invalid")
+    if data["runtimeSize"] <= 0 or data["requiresReboot"]:
+        raise RuntimeError("Release size or reboot policy is unsupported")
+    if data["signatureAlgorithm"] != "rsa-sha256":
+        raise RuntimeError("Release signature algorithm is unsupported")
+    datetime.fromisoformat(data["publishedAt"].replace("Z", "+00:00"))
+    return dict(data, _version=version)
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def download(url: str, destination: Path, expected_size: int | None = None) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.name}.partial")
+    temporary.unlink(missing_ok=True)
+    try:
+        with request.urlopen(url, timeout=60) as response, temporary.open("wb") as target:
+            length = response.headers.get("Content-Length")
+            if length and expected_size is not None and int(length) != expected_size:
+                raise RuntimeError("Downloaded release size does not match manifest")
+            shutil.copyfileobj(response, target, length=1024 * 1024)
+            target.flush()
+            os.fsync(target.fileno())
+        if expected_size is not None and temporary.stat().st_size != expected_size:
+            raise RuntimeError("Downloaded release is incomplete")
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def verify_signature(manifest: Path, signature: Path, public_key: Path) -> None:
+    if not public_key.is_file():
+        raise RuntimeError("Release verification key is not installed")
+    result = subprocess.run(
+        ["openssl", "dgst", "-sha256", "-verify", str(public_key), "-signature",
+         str(signature), str(manifest)], capture_output=True
+    )
+    if result.returncode:
+        raise RuntimeError("Release publisher signature is invalid")
+
+
+def source_url(root: Path) -> str:
+    url = parse_env(root / "config/appliance.env").get("WHEREHOUSE_UPDATE_MANIFEST_URL", "")
+    parsed = parse.urlparse(url)
+    if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
+        raise RuntimeError("A trusted HTTPS update manifest URL is not configured")
+    return url
+
+
+def fetch_manifest(root: Path, public_key: Path) -> tuple[dict, Path]:
+    write_state(root, phase="checking", message="Checking for updates", errorCode=None,
+                errorMessage=None)
+    release_dir = root / "releases/discovery"
+    manifest_path = release_dir / "release.json"
+    signature_path = release_dir / "release.json.sig"
+    url = source_url(root)
+    download(url, manifest_path)
+    download(url + ".sig", signature_path)
+    verify_signature(manifest_path, signature_path, public_key)
+    manifest = validate_manifest(json.loads(manifest_path.read_text()),
+                                 parse_env(root / "config/appliance.env").get(
+                                     "APPLIANCE_IMAGE_VERSION", "0.0.0"))
+    available = semver(current_version(root)) < manifest["_version"]
+    write_state(root, currentVersion=current_version(root), latestVersion=manifest["version"],
+                targetVersion=manifest["version"] if available else None,
+                updateAvailable=available, channel=manifest["channel"], phase="available" if available else "idle",
+                progress=0, message="Update available" if available else "WhereHouse is up to date",
+                releaseNotes=manifest["releaseNotes"], runtimeSize=manifest["runtimeSize"],
+                publishedAt=manifest["publishedAt"], lastCheckedAt=utc_now())
+    return manifest, manifest_path
+
+
+def download_release(root: Path, manifest: dict, signed_manifest: Path) -> Path:
+    version = manifest["version"]
+    release_dir = root / "releases" / version
+    release_dir.mkdir(parents=True, exist_ok=True)
+    write_state(root, phase="downloading", progress=5, message="Downloading update")
+    archive = release_dir / "wherehouse-runtime.tar"
+    download(manifest["runtimeUrl"], archive, manifest["runtimeSize"])
+    write_state(root, phase="verifying", progress=30, message="Verifying update")
+    if sha256(archive) != manifest["runtimeSha256"]:
+        archive.unlink(missing_ok=True)
+        raise RuntimeError("Release checksum verification failed")
+    shutil.copy2(signed_manifest, release_dir / "release.json")
+    shutil.copy2(signed_manifest.with_name("release.json.sig"), release_dir / "release.json.sig")
+    atomic_write(release_dir / "wherehouse-runtime.tar.sha256",
+                 f"{manifest['runtimeSha256']}  wherehouse-runtime.tar\n", 0o644)
+    return archive
+
+
+class LifecycleLock:
+    def __init__(self, root: Path):
+        self.path = root / "config" / LOCK_NAME
+        self.handle = None
+
+    def __enter__(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.handle = self.path.open("a+")
+        try:
+            fcntl.flock(self.handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError("Another appliance lifecycle operation is already running") from exc
+        return self
+
+    def __exit__(self, *_args):
+        assert self.handle
+        fcntl.flock(self.handle, fcntl.LOCK_UN)
+        self.handle.close()
 
 
 def atomic_write(path: Path, content: str, mode: int = 0o600) -> None:
@@ -67,7 +267,9 @@ def initialize(root: Path, hostname: Optional[str], image_version: str, build_da
         "WHEREHOUSE_DATA_DIR": str(root),
         "WHEREHOUSE_HOSTNAME": hostname,
         "APPLIANCE_IMAGE_VERSION": image_version,
+        "WHEREHOUSE_VERSION": image_version,
         "APPLIANCE_BUILD_DATE": build_date,
+        "WHEREHOUSE_UPDATE_MANIFEST_URL": os.environ.get("WHEREHOUSE_UPDATE_MANIFEST_URL", ""),
     }
     atomic_write(env_file, "".join(f"{key}={value}\n" for key, value in values.items()))
     atomic_write(
@@ -105,12 +307,24 @@ def compose(root: Path, *arguments: str, check: bool = True) -> subprocess.Compl
     return subprocess.run(command, check=check)
 
 
-def update(root: Path, release: str) -> None:
+def verify_http_services() -> None:
+    for url in ("http://127.0.0.1/api/v1/health", "http://127.0.0.1/"):
+        try:
+            with request.urlopen(url, timeout=15) as response:
+                if response.status >= 400:
+                    raise RuntimeError("Updated service health check failed")
+        except (error.HTTPError, error.URLError, TimeoutError) as exc:
+            raise subprocess.CalledProcessError(1, ["health-check", url]) from exc
+
+
+def install_release(root: Path, release: str) -> None:
     validate_storage(root, 1024 * 1024 * 1024)
     archive = root / "releases" / release / "wherehouse-runtime.tar"
     if not archive.is_file():
         raise RuntimeError(f"Release payload is missing: {archive}")
     # Database migrations can be irreversible. Preserve a verified recovery artifact first.
+    write_state(root, targetVersion=release, phase="backing_up", progress=40,
+                message="Creating verified backup")
     subprocess.run(
         [str(INSTALL_DIR / "deploy/raspberry-pi/wherehouse-backup"), "create"], check=True
     )
@@ -123,21 +337,143 @@ def update(root: Path, release: str) -> None:
             text=True,
         )
         previous[image] = result.stdout.strip()
+    write_state(root, phase="installing", progress=55, message="Installing update")
     subprocess.run(["docker", "load", "--input", str(archive)], check=True)
+    for image in (f"wherehouse-api:{release}", f"wherehouse-web:{release}"):
+        subprocess.run(["docker", "image", "inspect", image], check=True,
+                       stdout=subprocess.DEVNULL)
     subprocess.run(["docker", "tag", f"wherehouse-api:{release}", "wherehouse-api:local"], check=True)
     subprocess.run(["docker", "tag", f"wherehouse-web:{release}", "wherehouse-web:local"], check=True)
+    env_path = root / "config/appliance.env"
+    env = parse_env(env_path)
+    previous_version = env.get("WHEREHOUSE_VERSION", env.get("APPLIANCE_IMAGE_VERSION", "0.0.0"))
+    env["WHEREHOUSE_VERSION"] = release
+    atomic_write(env_path, "".join(f"{key}={value}\n" for key, value in env.items()))
     try:
+        write_state(root, phase="migrating", progress=70, message="Updating database")
         compose(root, "up", "migrate", check=True)
+        write_state(root, phase="restarting", progress=82, message="Restarting services")
         compose(root, "up", "-d", "--wait", check=True)
+        write_state(root, phase="health_check", progress=92, message="Verifying installation")
+        verify_http_services()
     except subprocess.CalledProcessError:
+        env["WHEREHOUSE_VERSION"] = previous_version
+        atomic_write(env_path, "".join(f"{key}={value}\n" for key, value in env.items()))
         for image, image_id in previous.items():
             subprocess.run(["docker", "tag", image_id, image], check=True)
         compose(root, "up", "-d", check=False)
+        write_state(root, phase="failed", progress=100, message="Update failed; previous application restored",
+                    errorCode="install_failed", errorMessage="Installation failed. Use the pre-update backup if the database is incompatible.",
+                    rollbackPerformed=True)
         raise RuntimeError(
             "Update health validation failed. Previous containers were restored, but a database "
             "migration may prevent application rollback; follow the documented backup restore path."
         )
     atomic_write(root / "releases/current", release + "\n")
+    write_state(root, currentVersion=release, targetVersion=None, latestVersion=release,
+                updateAvailable=False, phase="completed", progress=100,
+                message="WhereHouse is up to date", errorCode=None, errorMessage=None,
+                rollbackPerformed=False)
+    retain_releases(root)
+
+
+def retain_releases(root: Path, keep: int = 3) -> None:
+    releases = []
+    for candidate in (root / "releases").iterdir():
+        if candidate.is_dir() and SEMVER.fullmatch(candidate.name):
+            releases.append((semver(candidate.name), candidate))
+    protected = {current_version(root), read_state(root).get("targetVersion")}
+    removable = [path for _, path in sorted(releases, reverse=True)[keep:]
+                 if path.name not in protected]
+    for path in removable:
+        shutil.rmtree(path)
+
+
+def recover_interrupted_update(root: Path) -> None:
+    for partial in (root / "releases").glob("**/*.partial"):
+        partial.unlink(missing_ok=True)
+    state = read_state(root)
+    if state.get("phase") in {
+        "checking", "downloading", "verifying", "backing_up", "installing",
+        "migrating", "restarting", "health_check", "rollback",
+    }:
+        write_state(root, phase="failed", progress=100,
+                    message="Update was interrupted; current installation requires verification",
+                    errorCode="update_interrupted",
+                    errorMessage="The appliance restarted during an update. Check service health before retrying.",
+                    rollbackPerformed=False)
+
+
+def perform_update(root: Path, public_key: Path) -> None:
+    try:
+        with LifecycleLock(root):
+            manifest, path = fetch_manifest(root, public_key)
+            if semver(current_version(root)) >= manifest["_version"]:
+                return
+            download_release(root, manifest, path)
+            install_release(root, manifest["version"])
+    except Exception as exc:
+        state = read_state(root)
+        if state.get("phase") != "failed":
+            write_state(root, phase="failed", progress=100, message="Update failed",
+                        errorCode="update_failed",
+                        errorMessage="The update could not be completed. Review appliance logs before retrying.",
+                        rollbackPerformed=False)
+        raise
+
+
+def start_update(root: Path, public_key: Path) -> None:
+    if read_state(root).get("phase") in {
+        "checking", "downloading", "verifying", "backing_up", "installing",
+        "migrating", "restarting", "health_check", "rollback",
+    }:
+        raise RuntimeError("Another appliance lifecycle operation is already running")
+    write_state(root, phase="checking", message="Starting update", progress=0)
+    thread = threading.Thread(target=lambda: _background_update(root, public_key), daemon=True)
+    thread.start()
+
+
+def _background_update(root: Path, public_key: Path) -> None:
+    try:
+        perform_update(root, public_key)
+    except Exception as exc:
+        print(f"wherehouse-ops: background update failed: {exc}", file=sys.stderr)
+
+
+def serve(root: Path, socket_path: Path, public_key: Path) -> None:
+    recover_interrupted_update(root)
+    socket_path.parent.mkdir(parents=True, exist_ok=True)
+    socket_path.unlink(missing_ok=True)
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(str(socket_path))
+    os.chmod(socket_path, 0o666)
+    server.listen(8)
+    while True:
+        connection, _ = server.accept()
+        with connection:
+            try:
+                command = connection.recv(4096).decode().strip()
+                if command == "status":
+                    response = {"ok": True, "status": read_state(root)}
+                elif command == "check":
+                    with LifecycleLock(root):
+                        fetch_manifest(root, public_key)
+                    response = {"ok": True, "status": read_state(root)}
+                elif command == "install":
+                    with LifecycleLock(root):
+                        pass
+                    start_update(root, public_key)
+                    response = {"ok": True, "status": read_state(root)}
+                else:
+                    response = {"ok": False, "error": "Unsupported operation"}
+            except Exception as exc:
+                if command == "check" and read_state(root).get("phase") == "checking":
+                    write_state(root, phase="failed", progress=100, message="Update check failed",
+                                errorCode="check_failed",
+                                errorMessage="The update could not be checked. Verify appliance release configuration and network access.",
+                                rollbackPerformed=False)
+                response = {"ok": False, "error": str(exc)}
+            connection.sendall((json.dumps(response) + "\n").encode())
 
 
 def load_images(root: Path) -> None:
@@ -178,7 +514,13 @@ def main() -> int:
     sub.add_parser("validate-storage")
     sub.add_parser("load-images")
     upgrade = sub.add_parser("update")
-    upgrade.add_argument("release")
+    upgrade.add_argument("release", nargs="?")
+    sub.add_parser("update-check")
+    sub.add_parser("update-status")
+    daemon = sub.add_parser("update-serve")
+    daemon.add_argument("--socket", type=Path, default=DEFAULT_ROOT / "config/update.sock")
+    parser.add_argument("--public-key", type=Path,
+                        default=INSTALL_DIR / "deploy/raspberry-pi/update-public-key.pem")
     reset = sub.add_parser("factory-reset")
     reset.add_argument("--confirm", required=True)
     reset.add_argument("--delete-backups", action="store_true")
@@ -191,7 +533,19 @@ def main() -> int:
         elif args.command == "load-images":
             load_images(args.root)
         elif args.command == "update":
-            update(args.root, args.release)
+            if args.release:
+                with LifecycleLock(args.root):
+                    install_release(args.root, args.release)
+            else:
+                perform_update(args.root, args.public_key)
+        elif args.command == "update-check":
+            with LifecycleLock(args.root):
+                fetch_manifest(args.root, args.public_key)
+            print(json.dumps(read_state(args.root)))
+        elif args.command == "update-status":
+            print(json.dumps(read_state(args.root)))
+        elif args.command == "update-serve":
+            serve(args.root, args.socket, args.public_key)
         elif args.command == "factory-reset":
             factory_reset(args.root, args.confirm, args.delete_backups)
     except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
@@ -202,3 +556,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+# Backward-compatible Python entry point used by appliance lifecycle tests/tools.
+update = install_release

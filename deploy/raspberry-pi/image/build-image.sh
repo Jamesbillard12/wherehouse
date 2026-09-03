@@ -79,6 +79,19 @@ if [ -n "$ssh_public_key_file" ]; then
     exit 1
   fi
 fi
+update_public_key_file=${WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE:-}
+update_manifest_url=${WHEREHOUSE_UPDATE_MANIFEST_URL:-}
+case "$update_manifest_url" in
+  ""|https://*) ;;
+  *) echo "WHEREHOUSE_UPDATE_MANIFEST_URL must use HTTPS" >&2; exit 1 ;;
+esac
+if [ -n "$update_public_key_file" ]; then
+  [ -f "$update_public_key_file" ] || { echo "Update public key does not exist: $update_public_key_file" >&2; exit 1; }
+  update_public_key_file=$(CDPATH= cd -- "$(dirname -- "$update_public_key_file")" && pwd)/$(basename -- "$update_public_key_file")
+  openssl pkey -pubin -in "$update_public_key_file" -noout >/dev/null 2>&1 || {
+    echo "WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE must contain a valid public key" >&2; exit 1;
+  }
+fi
 
 docker_bin=${DOCKER_BIN:-docker}
 if ! command -v "$docker_bin" >/dev/null 2>&1; then
@@ -116,6 +129,11 @@ if [ -n "$ssh_public_key_file" ]; then
 else
   echo "SSH diagnostics: no login account provisioned (set WHEREHOUSE_SSH_PUBLIC_KEY_FILE to enable)"
 fi
+if [ -n "$update_public_key_file" ]; then
+  echo "Application OTA: signed releases enabled"
+else
+  echo "Application OTA: disabled (set WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE to enable)"
+fi
 
 rm -f \
   "$output/wherehouse-$device-$version.img.xz" \
@@ -137,12 +155,16 @@ set -- run --rm --privileged --platform linux/arm64 \
   -e "HOST_UID=$(id -u)" -e "HOST_GID=$(id -g)" \
   -e "RPI_IMAGE_GEN_VERSION=$RPI_IMAGE_GEN_VERSION" \
   -e "RPI_IMAGE_GEN_COMMIT=$RPI_IMAGE_GEN_COMMIT" \
+  -e "WHEREHOUSE_UPDATE_MANIFEST_URL=$update_manifest_url" \
   -v "$repository:/workspace" \
   -v "$output:/output" \
   -v "$docker_socket:/var/run/docker.sock" \
   -v wherehouse-pi-image-cache:/image-cache
 if [ -n "$ssh_public_key_file" ]; then
   set -- "$@" -v "$ssh_public_key_file:/run/wherehouse-ssh-key.pub:ro"
+fi
+if [ -n "$update_public_key_file" ]; then
+  set -- "$@" -v "$update_public_key_file:/run/wherehouse-update-key.pem:ro"
 fi
 set -- "$@" "$BUILDER_IMAGE" "$version" "$device"
 "$docker_bin" "$@"

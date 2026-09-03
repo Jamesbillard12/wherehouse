@@ -43,6 +43,7 @@ import { settingsSectionFromLocation, type SettingsSection } from '../../shared/
 const sectionsForMenu: { id: SettingsSection; label: string }[] = [
   { id: 'account', label: 'Account' }, { id: 'workspaces', label: 'Households' },
   { id: 'backups', label: 'Backup & Restore' }, { id: 'preferences', label: 'Preferences' }, { id: 'privacy', label: 'Data & Privacy' },
+  { id: 'system', label: 'System' },
   { id: 'about', label: 'About' },
 ]
 
@@ -53,6 +54,7 @@ const settingsSearchTerms: Record<SettingsSection, string> = {
   account: 'account profile display name email password',
   workspaces: 'workspaces workspace members devices pairing',
   backups: 'backup restore dropbox remote local external storage',
+  system: 'system software update version release',
   preferences: 'preferences appearance theme',
   privacy: 'data privacy local storage',
   about: 'about version application',
