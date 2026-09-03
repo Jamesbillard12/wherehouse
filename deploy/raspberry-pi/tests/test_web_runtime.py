@@ -15,6 +15,9 @@ class WebRuntimeTests(unittest.TestCase):
         self.assertIn("COPY deploy/docker/nginx.conf", dockerfile)
         self.assertIn("proxy_pass http://api:8000;", nginx_config)
         self.assertIn("try_files $uri $uri/ /index.html;", nginx_config)
+        self.assertIn("proxy_set_header Upgrade $http_upgrade;", nginx_config)
+        self.assertIn("proxy_set_header Connection $connection_upgrade;", nginx_config)
+        self.assertIn("map $http_upgrade $connection_upgrade", nginx_config)
 
 
 if __name__ == "__main__":
