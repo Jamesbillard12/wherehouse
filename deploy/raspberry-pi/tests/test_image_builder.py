@@ -154,8 +154,9 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertIn("systemctl enable systemd-networkd.service", hook)
         self.assertIn("systemctl enable ssh.service", hook)
         self.assertNotIn("systemctl disable ssh.service", hook)
-        self.assertIn('20-wired.network', entrypoint)
-        self.assertIn("Name=eth*", entrypoint)
+        self.assertIn("05-wherehouse-wired.network", entrypoint)
+        self.assertIn("Type=ether", entrypoint)
+        self.assertNotIn("Name=eth*", entrypoint)
         self.assertIn("DHCP=yes", entrypoint)
         self.assertIn("MulticastDNS=yes", entrypoint)
 
