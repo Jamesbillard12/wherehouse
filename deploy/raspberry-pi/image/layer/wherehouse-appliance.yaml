@@ -13,5 +13,7 @@ mmdebstrap:
     - docker.io
     - docker-cli
     - docker-compose
+    - iproute2
+    - nftables
     - openssh-server
     - sudo
