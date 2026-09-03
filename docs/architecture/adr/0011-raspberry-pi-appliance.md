@@ -11,6 +11,10 @@ monolith, ARM64 containers, systemd lifecycle, Avahi discovery, and a small host
 PostgreSQL stays authoritative and application behavior stays in capabilities/APIs. Persistent
 instance secrets and identity are generated once on first boot.
 
+The supported developer builder is a pinned, privileged Linux ARM64 Docker environment that runs
+natively through Docker Desktop on Apple Silicon or on Linux ARM64. It bootstraps `rpi-image-gen` and
+all architecture-specific application artifacts inside Linux rather than copying host dependencies.
+
 System status is an instance-level, transport-neutral read capability. It may expose nonsensitive
 readiness, versions, device model, hostname, counts, and coarse storage health, but never credentials
 or server-local paths. Backup artifacts and providers remain unchanged.
@@ -24,3 +28,5 @@ There is no second deployment architecture, Pi-only domain API, Kubernetes, flee
 web-accessible destructive reset.
 
 Physical boot, SSD, power, backup/restore, and upgrade claims remain unvalidated until recorded.
+Standalone-image Raspberry Pi Imager customization is also unvalidated and unsupported until an
+appropriate manifest/provisioning mechanism and physical Wi-Fi/hostname/SSH/locale tests exist.

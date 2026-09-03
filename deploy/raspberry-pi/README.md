@@ -7,17 +7,40 @@ the upstream `rpi4` image layer.
 
 ## Build a release image
 
-Use an ARM64 Raspberry Pi OS Bookworm/Trixie builder with Docker and pinned `rpi-image-gen`:
+Apple Silicon macOS with Docker Desktop installed and running is a supported image build host. The
+script starts a privileged `linux/arm64` Debian container, fetches pinned `rpi-image-gen` v2.6.0 in
+the builder image, and keeps Linux-only dependencies off macOS. No Raspberry Pi or manual
+`rpi-image-gen` clone is required.
 
 ```sh
-git clone --branch v2.6.0 https://github.com/raspberrypi/rpi-image-gen.git ../rpi-image-gen
-sudo ../rpi-image-gen/install_deps.sh
-./deploy/raspberry-pi/image/build-image.sh 0.1.0 ../rpi-image-gen
+./deploy/raspberry-pi/image/build-image.sh 0.1.0 pi5
+# or
+./deploy/raspberry-pi/image/build-image.sh 0.1.0 pi4
 ```
 
-The build refuses a dirty tree, embeds the committed snapshot, prebuilds ARM64 containers, and emits
-`wherehouse-pi<model>-<version>.img.xz`, `.sha256`, and `.json` metadata in `dist/pi/`. No finished
-image is manually edited. CI runs the same command. Image generation and physical boot remain not run.
+The build verifies Docker/host architecture, refuses unsupported devices and dirty trees, embeds the
+committed snapshot, and builds every application dependency inside Linux ARM64. Docker BuildKit,
+named apt, and `rpi-image-gen` package-cache volumes speed later builds without caching final images.
+Set `RPI_IMAGE_GEN_VERSION` only when deliberately testing another pinned release; the supported
+default is declared once in `build-image.sh` and passed into the Docker build.
+
+Outputs are `dist/pi/wherehouse-pi5-0.1.0.img.xz` (or Pi 4), its `.sha256`, and `.json`, plus the
+separately checksummed application-update runtime tar. The JSON records product/app/build/generator,
+device, architecture, base OS, and hardware metadata. No finished image is manually edited.
+
+Verify the compressed artifact on macOS, then choose it in Raspberry Pi Imager through
+**Choose OS → Use custom**:
+
+```sh
+cd dist/pi
+shasum -a 256 -c wherehouse-pi5-0.1.0.img.xz.sha256
+```
+
+The Docker container requires `--privileged` because `rpi-image-gen` builds filesystems using mount
+namespaces. It mounts the Docker Desktop socket so backend/web/PostgreSQL images are built/saved as
+Linux ARM64 rather than copying macOS binaries. The generated `.img.xz` remains a normal
+`image-rpios` disk image accepted by Raspberry Pi Imager. Image generation and boot remain not run in
+this repository's evidence because Docker was unavailable in the implementation workspace.
 
 ## First boot and lifecycle
 
@@ -34,9 +57,18 @@ sudo systemctl restart wherehouse
 sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-backup create local
 ```
 
-Avahi publishes `wherehouse.local`. When `.local` is unavailable on a VLAN or unsupported client, use
-the Pi's DHCP address. SSH is disabled. Provision network credentials per installation with Raspberry
-Pi Imager; no release image contains credentials.
+Avahi publishes `<hostname>.local`, which defaults to `wherehouse.local`. When `.local` is unavailable
+on a VLAN or unsupported client, use the Pi's DHCP address. SSH is disabled by default.
+
+### Raspberry Pi Imager customization limitation
+
+Use Ethernet for initial physical validation. Standard Wi-Fi/hostname/SSH/locale/timezone customization
+is **not currently supported or validated** when this Trixie `.img.xz` is selected with **Use custom**.
+Raspberry Pi Imager 2.x treats a standalone local image as `init_format: none` unless it is supplied
+through an OS manifest, and upstream `rpi-image-gen` cloud-init integration is still open. Imager 1.x
+may display customization but applies the wrong mechanism to Trixie. WhereHouse now respects the OS
+hostname if a supported provisioning method sets it, but the release must not claim customization
+until the dedicated physical follow-up passes. Do not enable SSH with a universal credential.
 
 ## Data, external storage, and backup
 

@@ -6,7 +6,6 @@ Requires=wherehouse.service avahi-daemon.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/sh -c 'test "$(hostname)" = wherehouse || hostnamectl set-hostname wherehouse'
 ExecStart=/usr/bin/systemctl restart avahi-daemon
 
 [Install]
