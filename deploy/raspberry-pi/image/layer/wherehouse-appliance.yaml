@@ -11,3 +11,4 @@ mmdebstrap:
     - curl
     - docker.io
     - docker-compose
+    - openssh-server
