@@ -28,14 +28,8 @@ docker save --output "$stage/container-images/wherehouse-runtime.tar" \
 overlay="$stage/layer/wherehouse-appliance.rootfs-overlay"
 mkdir -p "$overlay/opt/wherehouse" "$overlay/etc/systemd/system" "$overlay/etc/systemd/network"
 git -C "$repository" archive --format=tar HEAD | tar -xf - -C "$overlay/opt/wherehouse"
-# Image construction tooling is host-only. Keeping its layer YAML in the target
-# overlay makes rpi-image-gen recursively discover a duplicate layer.
 rm -rf "$overlay/opt/wherehouse/deploy/raspberry-pi/image"
 cp "$repository/deploy/raspberry-pi/systemd/"*.service "$overlay/etc/systemd/system/"
-# Match wired Ethernet by link type rather than interface name. Raspberry Pi OS
-# may expose the onboard NIC as eth0, end0, or another predictable name. The
-# low sort order also ensures this deterministic appliance DHCP policy wins over
-# less-specific upstream .network files.
 cat > "$overlay/etc/systemd/network/05-wherehouse-wired.network" <<'EOF'
 [Match]
 Type=ether
@@ -44,6 +38,15 @@ Type=ether
 DHCP=yes
 MulticastDNS=yes
 EOF
+
+# Optional developer/admin SSH access. The public key is only staged when the
+# host explicitly mounted /run/wherehouse-ssh-key.pub. The customize hook
+# consumes it, creates the account, and removes the staging copy from /etc.
+if [ -f /run/wherehouse-ssh-key.pub ]; then
+  mkdir -p "$overlay/etc/wherehouse-build"
+  install -m 0644 /run/wherehouse-ssh-key.pub "$overlay/etc/wherehouse-build/ssh-authorized-key"
+fi
+
 mkdir -p "$overlay/opt/wherehouse/deploy/raspberry-pi/images"
 cp "$stage/container-images/wherehouse-runtime.tar" "$overlay/opt/wherehouse/deploy/raspberry-pi/images/"
 cat > "$overlay/etc/wherehouse-image" <<EOF
@@ -68,17 +71,6 @@ if [ -d "$generator/work/cache" ]; then cp -a "$generator/work/cache/." /image-c
 image=$(find "$generator/work" -type f -name "wherehouse-$device.img" -print | sort | tail -1)
 test -n "$image"
 
-# rpi-image-gen's Raspberry Pi OS image layout boots through /dev/disk/by-slot/*
-# aliases created by an image-specific udev rule. On real Pi 4 hardware that
-# alias can be unavailable in initramfs even though mmcblk0p1/p2 are present,
-# leaving the machine at an initramfs shell. Replace those generated aliases
-# with filesystem UUIDs before releasing the image. Filesystem UUIDs are read
-# from the filesystems themselves and do not depend on MBR PARTUUID support or
-# runtime udev symlink creation.
-#
-# Docker Desktop's privileged Linux VM does not reliably expose partition child
-# devices such as /dev/loop0p1. Read the MBR geometry and create loop devices
-# directly at each partition's byte offset instead.
 partition_geometry() {
   python3 - "$image" "$1" <<'PY'
 import json
