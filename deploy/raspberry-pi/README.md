@@ -19,6 +19,20 @@ the builder image, and keeps Linux-only dependencies off macOS. No Raspberry Pi 
 ./deploy/raspberry-pi/image/build-image.sh 0.1.0 pi4
 ```
 
+For physical validation or an explicitly administered appliance, a build can provision a dedicated
+key-only `wherehouse` SSH administrator. The key must be supplied explicitly; normal builds do not
+embed a maintainer key or shared password:
+
+```sh
+WHEREHOUSE_SSH_PUBLIC_KEY_FILE="$HOME/.ssh/id_ed25519.pub" \
+  ./deploy/raspberry-pi/image/build-image.sh 0.1.4 pi4
+```
+
+When this option is used the image creates `wherehouse`, installs only the supplied public key in
+`authorized_keys`, disables password and keyboard-interactive authentication for that account, and
+grants passwordless `sudo` for appliance diagnostics. The private key never enters the build. Do not
+use a personal maintainer key in a public release image.
+
 The build verifies Docker/host architecture and required configuration, refuses unsupported boards
 and dirty trees, embeds the committed snapshot, and builds every application dependency inside Linux
 ARM64. A named `rpi-image-gen` package cache speeds later builds without caching final images.
@@ -34,9 +48,9 @@ v2.6.0 `depends` manifest is installed explicitly in the same Docker layer as `a
 Outputs are `dist/pi/wherehouse-pi5-0.1.0.img.xz` (or Pi 4), its `.sha256`, and `.json`, plus the
 separately checksummed application-update runtime tar. The JSON records product/app/build/generator,
 device, architecture, base OS, and hardware metadata. After `rpi-image-gen` creates the disk image, the
-builder resolves the actual boot and root partition PARTUUIDs and rewrites the generated kernel
-command line and `/etc/fstab` to use those stable identifiers. Release images therefore do not depend
-on `/dev/disk/by-slot/*` udev aliases being present in initramfs.
+builder resolves the actual boot and root filesystem UUIDs and rewrites the generated kernel command
+line and `/etc/fstab` to use those stable identifiers. Release images therefore do not depend on
+`/dev/disk/by-slot/*` udev aliases being present in initramfs.
 
 Verify the compressed artifact on macOS, then choose it in Raspberry Pi Imager through
 **Choose OS → Use custom**:
@@ -47,26 +61,27 @@ shasum -a 256 -c wherehouse-pi5-0.1.0.img.xz.sha256
 ```
 
 The Docker container requires `--privileged` because `rpi-image-gen` builds filesystems using mount
-namespaces and the final boot-identifier verification attaches the generated disk image through a loop
-device. It mounts the Docker Desktop socket so backend/web/PostgreSQL images are built/saved as Linux
-ARM64 rather than copying macOS binaries. The generated `.img.xz` remains a normal `image-rpios` disk
-image accepted by Raspberry Pi Imager.
+namespaces and the final boot-identifier verification attaches the generated disk image through loop
+devices at the partition offsets. It mounts the Docker Desktop socket so backend/web/PostgreSQL images
+are built/saved as Linux ARM64 rather than copying macOS binaries. The generated `.img.xz` remains a
+normal `image-rpios` disk image accepted by Raspberry Pi Imager.
 
-During a normal run the wrapper prints version, board, detected host, `linux/arm64`, and the pinned
-generator revision. Failures propagate without creating a success message. The builder refuses to
-release an image if the kernel command line or fstab still contains `/dev/disk/by-slot/`. The final line
-names the verified host artifact.
+During a normal run the wrapper prints version, board, detected host, `linux/arm64`, the pinned
+generator revision, and whether explicit SSH diagnostics were provisioned. Failures propagate without
+creating a success message. The builder refuses to release an image if the kernel command line or
+fstab still contains `/dev/disk/by-slot/`. The final line names the verified host artifact.
 
 ### Build troubleshooting
 
 - `Docker is required`: install Docker Desktop for Apple Silicon.
 - `daemon is not running`: start Docker Desktop and wait for `docker info` to succeed.
 - `unsupported build host`: confirm the Mac is Apple Silicon (`uname -m` prints `arm64`).
+- invalid `WHEREHOUSE_SSH_PUBLIC_KEY_FILE`: supply a file containing exactly one OpenSSH public key.
 - builder dependency failure: rebuild without Docker cache and retain the failing package name:
   `docker builder prune` is not required and should not be the first response.
 - mount/namespace/loop failure: confirm Docker Desktop permits privileged containers. The image build
-  intentionally runs under `docker run --privileged`, and final PARTUUID verification also needs loop
-  devices and temporary filesystem mounts.
+  intentionally runs under `docker run --privileged`, and final filesystem UUID verification also
+  needs loop devices and temporary filesystem mounts.
 - `Generated image still depends on /dev/disk/by-slot aliases`: do not flash the image. Inspect the
   upstream image layout or post-build rewrite before releasing it.
 - missing expected artifact: inspect the preceding `rpi-image-gen` failure; the wrapper refuses to
@@ -80,8 +95,9 @@ generic builder orchestration. Original ARMv6 Pi Zero W support is out of scope.
 
 `wherehouse.service` creates `/var/lib/wherehouse`, generates a UUID, database password, and app
 secret with OS entropy, persists them mode `0600`, loads embedded containers once, validates storage,
-and starts the canonical Compose dependency chain. It never creates a user or workspace. Reboots
-validate and reuse the same state.
+and starts the canonical Compose dependency chain. It never creates an application user or workspace.
+A Linux `wherehouse` administrator account is created only when an SSH public key was explicitly
+supplied at image build time. Reboots validate and reuse the same application state.
 
 The appliance explicitly configures wired Ethernet links for DHCP with `systemd-networkd`. Matching
 by Ethernet link type avoids depending on whether a Raspberry Pi exposes the interface as `eth0`,
@@ -100,9 +116,15 @@ sudo systemctl restart wherehouse
 sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-backup create local
 ```
 
-`openssh-server` is installed and the SSH service is enabled so a provisioned account can be used for
-headless validation and recovery. The image does not create a universal username or password. Do not
-ship shared credentials in a release image.
+When a key-enabled diagnostic image is flashed, connect with:
+
+```sh
+ssh wherehouse@wherehouse.local
+```
+
+`openssh-server` is installed and the SSH service is enabled, but normal builds do not create a
+universal login username/password. Never ship shared credentials or an unintended maintainer key in a
+release image.
 
 ### Raspberry Pi Imager customization limitation
 
@@ -115,8 +137,8 @@ respects the OS hostname if a supported provisioning method sets it, but the rel
 Imager customization until the dedicated physical follow-up passes.
 
 SSH being enabled at the service level does not make unsupported Raspberry Pi Imager user/password
-customization reliable. A valid local account and authentication method must still be provisioned by
-a supported mechanism before SSH login can succeed.
+customization reliable. Use the explicit public-key build option for diagnostic SSH access until a
+first-boot provisioning mechanism is implemented.
 
 ## Data, external storage, and backup
 
