@@ -67,6 +67,61 @@ if [ -d "$generator/work/cache" ]; then cp -a "$generator/work/cache/." /image-c
 
 image=$(find "$generator/work" -type f -name "wherehouse-$device.img" -print | sort | tail -1)
 test -n "$image"
+
+# rpi-image-gen's Raspberry Pi OS image layout boots through /dev/disk/by-slot/*
+# aliases created by an image-specific udev rule. On real Pi 4 hardware that
+# alias can be unavailable in initramfs even though mmcblk0p1/p2 are present,
+# leaving the machine at an initramfs shell. Replace the generated aliases with
+# the actual partition PARTUUIDs before releasing the image so boot does not
+# depend on runtime udev symlink creation.
+loopdev=$(losetup --find --show --partscan "$image")
+boot_mount=$(mktemp -d)
+root_mount=$(mktemp -d)
+cleanup_image_mounts() {
+  umount "$root_mount" 2>/dev/null || true
+  umount "$boot_mount" 2>/dev/null || true
+  losetup -d "$loopdev" 2>/dev/null || true
+  rmdir "$root_mount" "$boot_mount" 2>/dev/null || true
+}
+trap 'cleanup_image_mounts; rm -rf "$stage"' EXIT INT TERM
+boot_partition="${loopdev}p1"
+root_partition="${loopdev}p2"
+for partition in "$boot_partition" "$root_partition"; do
+  tries=0
+  while [ ! -b "$partition" ] && [ "$tries" -lt 20 ]; do
+    sleep 0.1
+    tries=$((tries + 1))
+  done
+  if [ ! -b "$partition" ]; then
+    echo "Image partition device did not appear: $partition" >&2
+    exit 1
+  fi
+done
+boot_partuuid=$(blkid -s PARTUUID -o value "$boot_partition")
+root_partuuid=$(blkid -s PARTUUID -o value "$root_partition")
+test -n "$boot_partuuid"
+test -n "$root_partuuid"
+mount "$boot_partition" "$boot_mount"
+mount "$root_partition" "$root_mount"
+cmdline="$boot_mount/cmdline.txt"
+fstab="$root_mount/etc/fstab"
+test -f "$cmdline"
+test -f "$fstab"
+sed -i "s#root=/dev/disk/by-slot/system#root=PARTUUID=$root_partuuid#g" "$cmdline"
+sed -i "s#/dev/disk/by-slot/system#PARTUUID=$root_partuuid#g" "$fstab"
+sed -i "s#/dev/disk/by-slot/boot#PARTUUID=$boot_partuuid#g" "$fstab"
+if grep -q '/dev/disk/by-slot/' "$cmdline" "$fstab"; then
+  echo "Generated image still depends on /dev/disk/by-slot aliases" >&2
+  exit 1
+fi
+if ! grep -q "root=PARTUUID=$root_partuuid" "$cmdline"; then
+  echo "Generated kernel command line is missing root PARTUUID" >&2
+  exit 1
+fi
+sync
+cleanup_image_mounts
+trap 'rm -rf "$stage"' EXIT INT TERM
+
 artifact="$output/wherehouse-$device-$version.img.xz"
 xz -T0 -9 -c "$image" > "$artifact"
 python3 "$repository/deploy/raspberry-pi/image/release_metadata.py" \
