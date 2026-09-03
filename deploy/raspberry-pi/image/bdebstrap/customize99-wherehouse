@@ -5,6 +5,27 @@ rootfs=${1:?root filesystem path is required}
 chroot "$rootfs" /bin/sh -eu <<'EOF'
 chmod 0755 /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops
 chmod 0755 /opt/wherehouse/deploy/raspberry-pi/wherehouse-backup
+
+# Docker is a hard appliance dependency. Validate the target rootfs while the
+# image is being built so a release can never boot successfully but fail later
+# with "docker: command not found".
+command -v docker >/dev/null 2>&1 || {
+  echo "WhereHouse image is missing the Docker CLI" >&2
+  exit 1
+}
+command -v dockerd >/dev/null 2>&1 || {
+  echo "WhereHouse image is missing the Docker daemon" >&2
+  exit 1
+}
+docker compose version >/dev/null 2>&1 || {
+  echo "WhereHouse image is missing Docker Compose v2" >&2
+  exit 1
+}
+getent group docker >/dev/null 2>&1 || {
+  echo "WhereHouse image is missing the docker group" >&2
+  exit 1
+}
+
 systemctl enable systemd-networkd.service
 systemctl enable docker.service
 systemctl enable avahi-daemon.service
