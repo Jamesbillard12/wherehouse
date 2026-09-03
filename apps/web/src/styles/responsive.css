@@ -29,6 +29,9 @@
 }
 
 @media (max-width: 480px) {
+  .backup-destination-header { align-items: flex-start; flex-direction: column; }
+  .backup-destination-actions { display: grid; grid-template-columns: 1fr; }
+  .backup-destination-actions .compact { width: 100%; }
   .auth-story { min-height: 390px; }
   .account-menu > span { display: none; }
   .topbar { padding-inline: 0.75rem; }
