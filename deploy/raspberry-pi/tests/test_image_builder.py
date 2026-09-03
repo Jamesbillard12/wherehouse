@@ -138,6 +138,27 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertIn("/opt/wherehouse/deploy/raspberry-pi/wherehouse-ops", hook)
         self.assertIn("systemctl enable wherehouse.service", hook)
 
+    def test_appliance_configures_wired_dhcp_and_remote_diagnostics(self):
+        layer = (
+            ROOT
+            / "deploy/raspberry-pi/image/layer/wherehouse-appliance.yaml"
+        ).read_text()
+        hook = (
+            ROOT
+            / "deploy/raspberry-pi/image/bdebstrap/customize99-wherehouse"
+        ).read_text()
+        entrypoint = (
+            ROOT / "deploy/raspberry-pi/image/docker-entrypoint.sh"
+        ).read_text()
+        self.assertIn("    - openssh-server\n", layer)
+        self.assertIn("systemctl enable systemd-networkd.service", hook)
+        self.assertIn("systemctl enable ssh.service", hook)
+        self.assertNotIn("systemctl disable ssh.service", hook)
+        self.assertIn('20-wired.network', entrypoint)
+        self.assertIn("Name=eth*", entrypoint)
+        self.assertIn("DHCP=yes", entrypoint)
+        self.assertIn("MulticastDNS=yes", entrypoint)
+
     def test_image_builder_source_is_not_embedded_in_appliance_overlay(self):
         entrypoint = (
             ROOT / "deploy/raspberry-pi/image/docker-entrypoint.sh"
