@@ -20,6 +20,7 @@ from app.core.config import get_settings
 from app.db.session import AsyncSessionFactory
 from app.infrastructure.backups import DropboxBackupProvider, LocalBackupProvider, PostgresBackup
 from app.infrastructure.backups.dropbox_credentials import DropboxCredentialStore
+from app.infrastructure.backups.local_config import LocalDestinationStore
 from app.models.core import Container, Item
 from app.services.image_storage import get_image_storage
 
@@ -51,7 +52,8 @@ def schema_revision() -> str:
 def provider_from_settings(name: str):
     settings = get_settings()
     if name == "local":
-        return LocalBackupProvider(settings.backup_local_dir)
+        configured = LocalDestinationStore(settings.backup_local_config_file).load()
+        return LocalBackupProvider(configured.path if configured else settings.backup_local_dir)
     if name == "dropbox":
         refresh_token = DropboxCredentialStore(settings.dropbox_credential_file).load()
         return DropboxBackupProvider(
@@ -87,6 +89,10 @@ def parser() -> argparse.ArgumentParser:
     restore = commands.add_parser("restore", help="restore into an empty database")
     restore.add_argument("artifact", type=Path)
     restore.add_argument("--confirm", required=True, metavar="RESTORE_BACKUP_ID")
+    commands.add_parser("destinations", help="show configured destinations and health")
+    configure = commands.add_parser("configure-local", help="configure local or mounted storage")
+    configure.add_argument("path", type=Path)
+    configure.add_argument("--label", default="External storage")
     return result
 
 
@@ -95,6 +101,57 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     settings = get_settings()
     try:
+        if args.command == "configure-local":
+            configured = LocalDestinationStore(settings.backup_local_config_file).save(
+                args.path, args.label
+            )
+            free = LocalDestinationStore.validate(configured.path)
+            print(
+                json.dumps(
+                    {
+                        "provider": "local",
+                        "label": configured.label,
+                        "path": str(configured.path),
+                        "healthy": True,
+                        "free_bytes": free,
+                    }
+                )
+            )
+            return 0
+        if args.command == "destinations":
+            configured = LocalDestinationStore(settings.backup_local_config_file).load()
+            local_path = (
+                configured.path
+                if configured
+                else Path(settings.backup_local_dir).expanduser().resolve()
+            )
+            try:
+                free = LocalDestinationStore.validate(local_path)
+                local = {"healthy": True, "free_bytes": free}
+            except BackupError as error:
+                local = {"healthy": False, "error": str(error)}
+            print(
+                json.dumps(
+                    {
+                        "local": {
+                            "label": configured.label if configured else "External storage",
+                            "path": str(local_path),
+                            **local,
+                        },
+                        "dropbox": {
+                            "configured": bool(
+                                settings.dropbox_app_key
+                                and (
+                                    DropboxCredentialStore(settings.dropbox_credential_file).load()
+                                    or settings.dropbox_refresh_token
+                                )
+                            )
+                        },
+                    },
+                    indent=2,
+                )
+            )
+            return 0
         if args.command == "verify":
             print(verify_artifact(args.artifact))
             return 0

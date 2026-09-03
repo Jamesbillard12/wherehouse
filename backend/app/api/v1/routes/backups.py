@@ -28,6 +28,7 @@ from app.application.backups.status import destination_status, summarize
 from app.core.config import get_settings
 from app.infrastructure.backups import DropboxBackupProvider, LocalBackupProvider, PostgresBackup
 from app.infrastructure.backups.dropbox_credentials import DropboxCredentialStore
+from app.infrastructure.backups.local_config import LocalDestinationStore
 from app.models import HouseholdRelationship, HouseholdUser
 from app.schemas.backups import BackupStatusRead
 from app.services.image_storage import get_image_storage
@@ -61,7 +62,9 @@ async def require_instance_owner(principal: PrincipalDep, session: SessionDep) -
 
 def current_status():
     settings = get_settings()
-    local = LocalBackupProvider(settings.backup_local_dir)
+    local_config = LocalDestinationStore(settings.backup_local_config_file).load()
+    local_path = local_config.path if local_config else Path(settings.backup_local_dir)
+    local = LocalBackupProvider(local_path)
     credential_store = DropboxCredentialStore(settings.dropbox_credential_file)
     refresh_token = credential_store.load() or settings.dropbox_refresh_token
     dropbox_configured = bool(settings.dropbox_app_key and refresh_token)
@@ -88,9 +91,9 @@ def current_status():
             destination_status(
                 kind="local",
                 provider_name="local",
-                display_name="External storage",
+                display_name=local_config.label if local_config else "External storage",
                 management="cli",
-                configured=Path(settings.backup_local_dir).expanduser().is_dir(),
+                configured=local_path.expanduser().is_dir(),
                 provider=local,
             ),
         ]

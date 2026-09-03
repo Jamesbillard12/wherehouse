@@ -15,10 +15,14 @@ policy; monitor this directory's disk use.
 
 ## Local disk or mounted external SSD
 
-Create the destination first and set `BACKUP_LOCAL_DIR` to its absolute path. WhereHouse intentionally
-does not create it: an absent/unmounted SSD therefore fails instead of writing to the system disk.
+Create and mount the destination first, then save it with the server-side admin CLI. WhereHouse
+intentionally does not create the destination: an absent or unmounted SSD therefore fails instead of
+silently writing to the system disk.
 
 ```bash
+python -m app.application.backups.cli configure-local /mnt/wherehouse-backups \
+  --label "Backup SSD"
+python -m app.application.backups.cli destinations
 python -m app.application.backups.cli create --provider local
 python -m app.application.backups.cli list --provider local
 python -m app.application.backups.cli retrieve <key.whbackup> /safe/copy.whbackup --provider local
@@ -27,6 +31,12 @@ python -m app.application.backups.cli inspect /safe/copy.whbackup
 python -m app.application.backups.cli prune --provider local --keep 7
 python -m app.application.backups.cli delete <key.whbackup> --provider local
 ```
+
+The configuration is stored in `BACKUP_LOCAL_CONFIG_FILE` (default
+`./.data/local-backup-destination.json`) with mode `0600`. `BACKUP_LOCAL_DIR` remains a deployment
+environment fallback when no saved configuration exists. The `destinations` command reports the raw
+path, mount/write health, and available bytes to the server administrator; authenticated client status
+receives only the friendly label and health state.
 
 Writes use a hidden `.incomplete` sibling, check available bytes, flush/fsync, and atomically rename.
 Missing mounts, insufficient space, permission errors, disconnect/write failures, and missing objects
@@ -53,7 +63,7 @@ tokens are never logged.
 The authenticated `GET /api/v1/backups/status` response is instance-scoped and reports Dropbox plus
 friendly local/external-storage health without exposing absolute paths. Web can connect, reauthorize,
 disconnect, and run Dropbox backup. Mobile presents status and last success only. Local destination
-configuration remains CLI-only.
+configuration and raw-path health remain CLI-only.
 
 ## Clean restore
 
