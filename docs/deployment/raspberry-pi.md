@@ -12,3 +12,7 @@ Apple Silicon macOS with Docker Desktop is the supported developer build path; t
 pinned privileged Linux ARM64 environment and does not require a physical Pi or host-installed Linux
 image tools. Raspberry Pi Imager customization for a standalone local Trixie image remains unsupported
 and unvalidated; use Ethernet for the first hardware exercise.
+
+The builder host is stable Debian Bookworm even though the generated appliance is Raspberry Pi OS
+Trixie. This separates a reproducible supported build environment from the target filesystem and
+avoids Docker-layer APT-index loss.

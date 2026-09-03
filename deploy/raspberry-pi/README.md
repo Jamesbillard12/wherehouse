@@ -8,7 +8,8 @@ the upstream `rpi4` image layer.
 ## Build a release image
 
 Apple Silicon macOS with Docker Desktop installed and running is a supported image build host. The
-script starts a privileged `linux/arm64` Debian container, fetches pinned `rpi-image-gen` v2.6.0 in
+script starts a privileged `linux/arm64` Debian Bookworm container, fetches pinned `rpi-image-gen`
+v2.6.0 at commit `3f2c916086ad70197945bfc50ef953c1f6035f10` in
 the builder image, and keeps Linux-only dependencies off macOS. No Raspberry Pi or manual
 `rpi-image-gen` clone is required.
 
@@ -18,11 +19,17 @@ the builder image, and keeps Linux-only dependencies off macOS. No Raspberry Pi 
 ./deploy/raspberry-pi/image/build-image.sh 0.1.0 pi4
 ```
 
-The build verifies Docker/host architecture, refuses unsupported devices and dirty trees, embeds the
-committed snapshot, and builds every application dependency inside Linux ARM64. Docker BuildKit,
-named apt, and `rpi-image-gen` package-cache volumes speed later builds without caching final images.
+The build verifies Docker/host architecture and required configuration, refuses unsupported boards
+and dirty trees, embeds the committed snapshot, and builds every application dependency inside Linux
+ARM64. A named `rpi-image-gen` package cache speeds later builds without caching final images.
 Set `RPI_IMAGE_GEN_VERSION` only when deliberately testing another pinned release; the supported
-default is declared once in `build-image.sh` and passed into the Docker build.
+default and expected commit are declared in `build-image.sh` and passed into the Docker build.
+
+The builder uses stable Debian Bookworm rather than Trixie because both are supported build hosts by
+upstream, while Bookworm is the stable base and the target OS may still be Trixie. The complete
+v2.6.0 `depends` manifest is installed explicitly in the same Docker layer as `apt-get update`.
+`install_deps.sh` is deliberately not run: Docker APT list cleanup between layers caused the previous
+“package cannot be found” failure. Package lists are removed only after installation succeeds.
 
 Outputs are `dist/pi/wherehouse-pi5-0.1.0.img.xz` (or Pi 4), its `.sha256`, and `.json`, plus the
 separately checksummed application-update runtime tar. The JSON records product/app/build/generator,
@@ -41,6 +48,26 @@ namespaces. It mounts the Docker Desktop socket so backend/web/PostgreSQL images
 Linux ARM64 rather than copying macOS binaries. The generated `.img.xz` remains a normal
 `image-rpios` disk image accepted by Raspberry Pi Imager. Image generation and boot remain not run in
 this repository's evidence because Docker was unavailable in the implementation workspace.
+
+During a normal run the wrapper prints version, board, detected host, `linux/arm64`, and the pinned
+generator revision. Failures propagate without creating a success message. The final line names the
+verified host artifact.
+
+### Build troubleshooting
+
+- `Docker is required`: install Docker Desktop for Apple Silicon.
+- `daemon is not running`: start Docker Desktop and wait for `docker info` to succeed.
+- `unsupported build host`: confirm the Mac is Apple Silicon (`uname -m` prints `arm64`).
+- builder dependency failure: rebuild without Docker cache and retain the failing package name:
+  `docker builder prune` is not required and should not be the first response.
+- mount/namespace/loop failure: confirm Docker Desktop permits privileged containers. The image build
+  intentionally runs under `docker run --privileged`, not during `docker build`.
+- missing expected artifact: inspect the preceding `rpi-image-gen` failure; the wrapper refuses to
+  report success unless the image, checksum, and metadata all exist.
+
+Pi 5 is the initial required build target. Pi 4 has an isolated configuration but remains physically
+unvalidated. A future Pi Zero 2 W can be added in `boards.sh` plus one config file without changing
+generic builder orchestration. Original ARMv6 Pi Zero W support is out of scope.
 
 ## First boot and lifecycle
 

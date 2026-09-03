@@ -1,6 +1,6 @@
 # METABEGIN
 # X-Env-Layer-Name: wherehouse-appliance
-# X-Env-Layer-Description: WhereHouse local-first appliance runtime
+# X-Env-Layer-Desc: WhereHouse local-first appliance runtime
 # X-Env-Layer-Category: application
 # X-Env-Layer-Requires: systemd-min
 # METAEND
@@ -10,16 +10,4 @@ mmdebstrap:
     - ca-certificates
     - curl
     - docker.io
-    - docker-compose-plugin
-  customize-hooks:
-    - |
-      chroot $1 /bin/sh -eu <<'EOF'
-      chmod 0755 /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops
-      chmod 0755 /opt/wherehouse/deploy/raspberry-pi/wherehouse-backup
-      systemctl enable docker.service
-      systemctl enable avahi-daemon.service
-      systemctl enable wherehouse.service
-      systemctl enable wherehouse-avahi.service
-      systemctl disable ssh.service 2>/dev/null || true
-      mkdir -p -m 0700 /var/lib/wherehouse
-      EOF
+    - docker-compose
