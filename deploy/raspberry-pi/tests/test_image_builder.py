@@ -138,6 +138,15 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertIn("/opt/wherehouse/deploy/raspberry-pi/wherehouse-ops", hook)
         self.assertIn("systemctl enable wherehouse.service", hook)
 
+    def test_image_builder_source_is_not_embedded_in_appliance_overlay(self):
+        entrypoint = (
+            ROOT / "deploy/raspberry-pi/image/docker-entrypoint.sh"
+        ).read_text()
+        self.assertIn(
+            'rm -rf "$overlay/opt/wherehouse/deploy/raspberry-pi/image"',
+            entrypoint,
+        )
+
     def test_metadata_and_compressed_artifact_checksum(self):
         with tempfile.TemporaryDirectory() as directory:
             artifact = Path(directory) / "wherehouse-pi4-0.1.0.img.xz"
