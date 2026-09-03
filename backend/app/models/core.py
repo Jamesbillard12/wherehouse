@@ -24,9 +24,13 @@ def enum_values(enum_cls: type[enum.Enum]) -> list[str]:
     return [member.value for member in enum_cls]
 
 
-class HouseholdRelationship(str, enum.Enum):
+class WorkspaceRole(str, enum.Enum):
     OWNER = "owner"
     BORROWER = "borrower"
+
+
+class WorkspaceType(str, enum.Enum):
+    HOUSEHOLD = "household"
 
 
 class ContainerRelationship(str, enum.Enum):
@@ -82,13 +86,18 @@ class IdentifierStatus(str, enum.Enum):
     REVOKED = "revoked"
 
 
-class Household(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    __tablename__ = "households"
+class Workspace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "workspaces"
 
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    workspace_type: Mapped[WorkspaceType] = mapped_column(
+        Enum(WorkspaceType, name="workspace_type", values_callable=enum_values),
+        nullable=False,
+        default=WorkspaceType.HOUSEHOLD,
+    )
 
-    users: Mapped[list[HouseholdUser]] = relationship(back_populates="household")
-    areas: Mapped[list[Area]] = relationship(back_populates="household")
+    users: Mapped[list[WorkspaceMembership]] = relationship(back_populates="workspace")
+    areas: Mapped[list[Area]] = relationship(back_populates="workspace")
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -98,44 +107,46 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
-    households: Mapped[list[HouseholdUser]] = relationship(back_populates="user")
+    workspaces: Mapped[list[WorkspaceMembership]] = relationship(back_populates="user")
 
 
-class HouseholdUser(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    __tablename__ = "household_users"
-    __table_args__ = (UniqueConstraint("household_id", "user_id", name="uq_household_user"),)
+class WorkspaceMembership(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "workspace_memberships"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "user_id", name="uq_workspace_membership"),
+    )
 
-    household_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False
+    workspace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
     user_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    relationship_type: Mapped[HouseholdRelationship] = mapped_column(
+    role: Mapped[WorkspaceRole] = mapped_column(
         Enum(
-            HouseholdRelationship,
-            name="household_relationship",
+            WorkspaceRole,
+            name="workspace_role",
             values_callable=enum_values,
         ),
         nullable=False,
     )
 
-    household: Mapped[Household] = relationship(back_populates="users")
-    user: Mapped[User] = relationship(back_populates="households")
+    workspace: Mapped[Workspace] = relationship(back_populates="users")
+    user: Mapped[User] = relationship(back_populates="workspaces")
 
 
 class Area(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "areas"
-    __table_args__ = (UniqueConstraint("household_id", "name", name="uq_area_household_name"),)
+    __table_args__ = (UniqueConstraint("workspace_id", "name", name="uq_area_workspace_name"),)
 
-    household_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False
+    workspace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     icon: Mapped[str] = mapped_column(String(50), nullable=False, default="warehouse")
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    household: Mapped[Household] = relationship(back_populates="areas")
+    workspace: Mapped[Workspace] = relationship(back_populates="areas")
     zones: Mapped[list[Zone]] = relationship(back_populates="area")
     containers: Mapped[list[Container]] = relationship(back_populates="area")
 
@@ -220,15 +231,15 @@ class Item(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("code", name="uq_item_code"),
         UniqueConstraint(
-            "household_id",
+            "workspace_id",
             "creation_operation_id",
-            name="uq_item_household_creation_operation",
+            name="uq_item_workspace_creation_operation",
         ),
     )
 
-    household_id: Mapped[UUID] = mapped_column(
+    workspace_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("households.id", ondelete="CASCADE"),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -296,8 +307,8 @@ class PhysicalIdentifier(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("public_id", name="uq_physical_identifier_public_id"),
     )
 
-    household_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False, index=True
+    workspace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
     )
     public_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     target_type: Mapped[IdentifierTargetType] = mapped_column(

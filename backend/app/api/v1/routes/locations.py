@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy import select
 
-from app.api.dependencies import PrincipalDep, SessionDep, require_household_access
+from app.api.dependencies import PrincipalDep, SessionDep, require_workspace_access
 from app.application.context import ActorContext
 from app.application.locations.capabilities import (
     InvalidContainerPlacement,
@@ -43,13 +43,18 @@ CONTAINER_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp"
 MAX_CONTAINER_IMAGE_BYTES = 8 * 1024 * 1024
 
 
-@router.get("/households/{household_id}/containers/search", response_model=list[ContainerSearchResult])
-async def search_household_containers(
-    household_id: UUID, q: str, principal: PrincipalDep, session: SessionDep
+@router.get(
+    "/households/{workspace_id}/containers/search",
+    response_model=list[ContainerSearchResult],
+    include_in_schema=False,
+)
+@router.get("/workspaces/{workspace_id}/containers/search", response_model=list[ContainerSearchResult])
+async def search_workspace_containers(
+    workspace_id: UUID, q: str, principal: PrincipalDep, session: SessionDep
 ) -> list[ContainerSearchResult]:
-    actor = ActorContext(user_id=principal.user.id, client=principal.method, device_id=principal.device_id, household_id=household_id)
+    actor = ActorContext(user_id=principal.user.id, client=principal.method, device_id=principal.device_id, workspace_id=workspace_id)
     try:
-        matches = await search_containers(session, actor, household_id, SearchContainers(q))
+        matches = await search_containers(session, actor, workspace_id, SearchContainers(q))
     except LocationAccessDenied as error:
         raise HTTPException(status_code=403, detail=str(error)) from error
     except ValueError as error:
@@ -57,32 +62,43 @@ async def search_household_containers(
     return [ContainerSearchResult(container=ContainerRead.model_validate(match.container), resolved_path=match.resolved_path) for match in matches]
 
 @router.post(
-    "/households/{household_id}/areas",
+    "/households/{workspace_id}/areas",
+    response_model=AreaRead,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
+@router.post(
+    "/workspaces/{workspace_id}/areas",
     response_model=AreaRead,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_area(
-    household_id: UUID,
+    workspace_id: UUID,
     payload: AreaCreate,
     principal: PrincipalDep,
     session: SessionDep,
 ) -> Area:
-    await require_household_access(household_id, principal, session)
-    area = Area(household_id=household_id, **payload.model_dump())
+    await require_workspace_access(workspace_id, principal, session)
+    area = Area(workspace_id=workspace_id, **payload.model_dump())
     session.add(area)
     await session.commit()
     await session.refresh(area)
-    await realtime_hub.publish(household_id, entity="area", action="created", entity_id=area.id, source=principal.method)
+    await realtime_hub.publish(workspace_id, entity="area", action="created", entity_id=area.id, source=principal.method)
     return area
 
 
-@router.get("/households/{household_id}/areas", response_model=list[AreaRead])
+@router.get(
+    "/households/{workspace_id}/areas",
+    response_model=list[AreaRead],
+    include_in_schema=False,
+)
+@router.get("/workspaces/{workspace_id}/areas", response_model=list[AreaRead])
 async def list_areas(
-    household_id: UUID, principal: PrincipalDep, session: SessionDep
+    workspace_id: UUID, principal: PrincipalDep, session: SessionDep
 ) -> list[Area]:
-    await require_household_access(household_id, principal, session)
+    await require_workspace_access(workspace_id, principal, session)
     result = await session.scalars(
-        select(Area).where(Area.household_id == household_id).order_by(Area.name)
+        select(Area).where(Area.workspace_id == workspace_id).order_by(Area.name)
     )
     return list(result)
 
@@ -92,7 +108,7 @@ async def update_area(
     area_id: UUID, payload: AreaUpdate, principal: PrincipalDep, session: SessionDep
 ) -> Area:
     area = await require(session, Area, area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     if payload.name is not None:
         area.name = payload.name
     if payload.icon is not None:
@@ -101,18 +117,18 @@ async def update_area(
         area.description = payload.description
     await session.commit()
     await session.refresh(area)
-    await realtime_hub.publish(area.household_id, entity="area", action="updated", entity_id=area.id, source=principal.method)
+    await realtime_hub.publish(area.workspace_id, entity="area", action="updated", entity_id=area.id, source=principal.method)
     return area
 
 
 @router.delete("/areas/{area_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_area(area_id: UUID, principal: PrincipalDep, session: SessionDep) -> None:
     area = await require(session, Area, area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
-    household_id = area.household_id
+    await require_workspace_access(area.workspace_id, principal, session)
+    workspace_id = area.workspace_id
     await session.delete(area)
     await session.commit()
-    await realtime_hub.publish(household_id, entity="area", action="deleted", entity_id=area_id, source=principal.method)
+    await realtime_hub.publish(workspace_id, entity="area", action="deleted", entity_id=area_id, source=principal.method)
 
 
 @router.post("/areas/{area_id}/zones", response_model=ZoneRead, status_code=status.HTTP_201_CREATED)
@@ -120,19 +136,19 @@ async def create_zone(
     area_id: UUID, payload: ZoneCreate, principal: PrincipalDep, session: SessionDep
 ) -> Zone:
     area = await require(session, Area, area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     zone = Zone(area_id=area_id, **payload.model_dump())
     session.add(zone)
     await session.commit()
     await session.refresh(zone)
-    await realtime_hub.publish(area.household_id, entity="zone", action="created", entity_id=zone.id, source=principal.method)
+    await realtime_hub.publish(area.workspace_id, entity="zone", action="created", entity_id=zone.id, source=principal.method)
     return zone
 
 
 @router.get("/areas/{area_id}/zones", response_model=list[ZoneRead])
 async def list_zones(area_id: UUID, principal: PrincipalDep, session: SessionDep) -> list[Zone]:
     area = await require(session, Area, area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     result = await session.scalars(select(Zone).where(Zone.area_id == area_id).order_by(Zone.name))
     return list(result)
 
@@ -143,12 +159,12 @@ async def update_zone(
 ) -> Zone:
     zone = await require(session, Zone, zone_id, "Zone")
     area = await require(session, Area, zone.area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     zone.name = payload.name
     zone.description = payload.description
     await session.commit()
     await session.refresh(zone)
-    await realtime_hub.publish(area.household_id, entity="zone", action="updated", entity_id=zone.id, source=principal.method)
+    await realtime_hub.publish(area.workspace_id, entity="zone", action="updated", entity_id=zone.id, source=principal.method)
     return zone
 
 
@@ -157,7 +173,7 @@ async def create_container(
     payload: ContainerCreate, principal: PrincipalDep, session: SessionDep
 ) -> Container:
     area = await require(session, Area, payload.area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     if payload.zone_id is not None:
         zone = await require(session, Zone, payload.zone_id, "Zone")
         if zone.area_id != area.id:
@@ -167,7 +183,7 @@ async def create_container(
     session.add(container)
     await session.commit()
     await session.refresh(container)
-    await realtime_hub.publish(area.household_id, entity="container", action="created", entity_id=container.id, source=principal.method)
+    await realtime_hub.publish(area.workspace_id, entity="container", action="created", entity_id=container.id, source=principal.method)
     return container
 
 
@@ -180,7 +196,7 @@ async def update_container(
 ) -> Container:
     container = await require(session, Container, container_id, "Container")
     area = await require(session, Area, container.area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     if payload.zone_id is not None:
         zone = await require(session, Zone, payload.zone_id, "Zone")
         if zone.area_id != area.id:
@@ -189,7 +205,7 @@ async def update_container(
         setattr(container, field, value)
     await session.commit()
     await session.refresh(container)
-    await realtime_hub.publish(area.household_id, entity="container", action="updated", entity_id=container.id, source=principal.method)
+    await realtime_hub.publish(area.workspace_id, entity="container", action="updated", entity_id=container.id, source=principal.method)
     return container
 
 
@@ -199,7 +215,7 @@ async def upload_container_image(
 ) -> Container:
     container = await require(session, Container, container_id, "Container")
     area = await require(session, Area, container.area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     content_type = request.headers.get("content-type", "").split(";", 1)[0].lower()
     extension = CONTAINER_IMAGE_TYPES.get(content_type)
     if extension is None:
@@ -209,12 +225,12 @@ async def upload_container_image(
         raise HTTPException(status_code=413, detail="Container images must be between 1 byte and 8 MB.")
     storage = get_image_storage()
     previous_key = container.image_path
-    object_key = f"households/{area.household_id}/containers/{container.id}{extension}"
+    object_key = f"workspaces/{area.workspace_id}/containers/{container.id}{extension}"
     storage.put(object_key, body, content_type)
     container.image_path = object_key
     await session.commit()
     await session.refresh(container)
-    await realtime_hub.publish(area.household_id, entity="container", action="image.updated", entity_id=container.id, source=principal.method)
+    await realtime_hub.publish(area.workspace_id, entity="container", action="image.updated", entity_id=container.id, source=principal.method)
     if previous_key and previous_key != object_key:
         storage.delete(previous_key)
     return container
@@ -226,7 +242,7 @@ async def get_container_image(
 ) -> Response:
     container = await require(session, Container, container_id, "Container")
     area = await require(session, Area, container.area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     if not container.image_path:
         raise HTTPException(status_code=404, detail="Container image not found")
     stored = get_image_storage().get(container.image_path)
@@ -241,11 +257,11 @@ async def delete_container(
 ) -> None:
     container = await require(session, Container, container_id, "Container")
     area = await require(session, Area, container.area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
-    household_id = area.household_id
+    await require_workspace_access(area.workspace_id, principal, session)
+    workspace_id = area.workspace_id
     await session.delete(container)
     await session.commit()
-    await realtime_hub.publish(household_id, entity="container", action="deleted", entity_id=container_id, source=principal.method)
+    await realtime_hub.publish(workspace_id, entity="container", action="deleted", entity_id=container_id, source=principal.method)
 
 
 @router.get("/areas/{area_id}/containers", response_model=list[ContainerRead])
@@ -253,7 +269,7 @@ async def list_containers(
     area_id: UUID, principal: PrincipalDep, session: SessionDep
 ) -> list[Container]:
     area = await require(session, Area, area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     result = await session.scalars(
         select(Container)
         .where(Container.area_id == area_id, Container.is_archived.is_(False))
@@ -274,7 +290,7 @@ async def get_container_by_code(
     if container is None:
         raise HTTPException(status_code=404, detail="Container not found")
     area = await require(session, Area, container.area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     return container
 
 
@@ -286,7 +302,7 @@ async def list_container_placements(
     area_id: UUID, principal: PrincipalDep, session: SessionDep
 ) -> list[ContainerPlacement]:
     area = await require(session, Area, area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     result = await session.scalars(
         select(ContainerPlacement)
         .join(Container, Container.id == ContainerPlacement.container_id)
@@ -307,7 +323,7 @@ async def place_container(
         user_id=principal.user.id,
         client=principal.method,
         device_id=principal.device_id,
-        household_id=None,
+        workspace_id=None,
     )
     try:
         return await place_container_capability(
@@ -330,7 +346,7 @@ async def remove_container_placement(
 ) -> None:
     container = await require(session, Container, container_id, "Container")
     area = await require(session, Area, container.area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     placement = await session.scalar(
         select(ContainerPlacement).where(ContainerPlacement.container_id == container_id)
     )
@@ -338,7 +354,7 @@ async def remove_container_placement(
         placement_id = placement.id
         await session.delete(placement)
         await session.commit()
-        await realtime_hub.publish(area.household_id, entity="container-placement", action="deleted", entity_id=placement_id, source=principal.method)
+        await realtime_hub.publish(area.workspace_id, entity="container-placement", action="deleted", entity_id=placement_id, source=principal.method)
 
 
 @router.patch("/containers/{container_id}/space", response_model=ContainerRead)
@@ -350,9 +366,9 @@ async def set_container_space(
 ) -> Container:
     container = await require(session, Container, container_id, "Container")
     area = await require(session, Area, container.area_id, "Area")
-    await require_household_access(area.household_id, principal, session)
+    await require_workspace_access(area.workspace_id, principal, session)
     container.is_out_of_space = is_out_of_space
     await session.commit()
     await session.refresh(container)
-    await realtime_hub.publish(area.household_id, entity="container", action="updated", entity_id=container.id, source=principal.method)
+    await realtime_hub.publish(area.workspace_id, entity="container", action="updated", entity_id=container.id, source=principal.method)
     return container

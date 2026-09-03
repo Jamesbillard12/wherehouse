@@ -49,21 +49,32 @@ def rewrite_zip(source: Path, destination: Path, mutate) -> None:
 def test_create_verify_and_restore_complete_artifact(tmp_path: Path) -> None:
     database = FakeDatabase()
     source_media = FakeMedia()
-    artifact = create_artifact(tmp_path, database, source_media, "0012", "0.0.1")
+    artifact = create_artifact(
+        tmp_path,
+        database,
+        source_media,
+        "0013_workspace_model",
+        "0.0.1",
+        [{"id": "workspace-a", "type": "household"}],
+    )
 
     verified = verify_artifact(artifact)
     target_media = FakeMedia()
     target_media.images.clear()
-    restored = BackupService.restore(artifact, database, target_media, "0012", confirmed=True)
+    restored = BackupService.restore(
+        artifact, database, target_media, "0013_workspace_model", confirmed=True
+    )
 
     assert verified.backup_id == restored.backup_id
     assert verified.media_count == 1
+    assert verified.workspaces == (("workspace-a", "household"),)
     assert database.restored == b"consistent postgres snapshot"
     assert target_media.images["items/a.jpg"].content == b"image"
     with zipfile.ZipFile(artifact) as archive:
         manifest = json.loads(archive.read("manifest.json"))
         assert manifest["format_version"] == 1
         assert manifest["scope"] == "full-instance"
+        assert manifest["workspaces"] == [{"id": "workspace-a", "type": "household"}]
         assert manifest["excluded"] == [
             "user_sessions",
             "pairing_sessions",

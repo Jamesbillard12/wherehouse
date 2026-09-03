@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import token_hash
 from app.db.session import get_db_session
-from app.models import Device, HouseholdRelationship, HouseholdUser, User, UserSession
+from app.models import Device, User, UserSession, WorkspaceMembership, WorkspaceRole
 
 SessionDep = Annotated[AsyncSession, Depends(get_db_session)]
 bearer = HTTPBearer(auto_error=False)
@@ -22,7 +22,7 @@ class Principal:
     user: User
     method: str
     device_id: UUID | None = None
-    device_household_id: UUID | None = None
+    device_workspace_id: UUID | None = None
 
 
 async def get_current_principal(credentials: BearerDep, session: SessionDep) -> Principal:
@@ -66,7 +66,7 @@ async def authenticate_token(token: str, session: AsyncSession) -> Principal:
                 user=user,
                 method="device",
                 device_id=device.id,
-                device_household_id=device.household_id,
+                device_workspace_id=device.workspace_id,
             )
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -75,21 +75,26 @@ async def authenticate_token(token: str, session: AsyncSession) -> Principal:
 PrincipalDep = Annotated[Principal, Depends(get_current_principal)]
 
 
-async def require_household_access(
-    household_id: UUID,
+async def require_workspace_access(
+    workspace_id: UUID,
     principal: Principal,
     session: AsyncSession,
     *,
     owner: bool = False,
-) -> HouseholdUser:
+) -> WorkspaceMembership:
+    if (
+        principal.device_workspace_id is not None
+        and principal.device_workspace_id != workspace_id
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Workspace access denied")
     membership = await session.scalar(
-        select(HouseholdUser).where(
-            HouseholdUser.household_id == household_id,
-            HouseholdUser.user_id == principal.user.id,
+        select(WorkspaceMembership).where(
+            WorkspaceMembership.workspace_id == workspace_id,
+            WorkspaceMembership.user_id == principal.user.id,
         )
     )
     if membership is None or (
-        owner and membership.relationship_type is not HouseholdRelationship.OWNER
+        owner and membership.role is not WorkspaceRole.OWNER
     ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Household access denied")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Workspace access denied")
     return membership

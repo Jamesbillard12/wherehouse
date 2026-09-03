@@ -1,4 +1,4 @@
-import { subscribeToHousehold } from '@wherehouse/api-client'
+import { subscribeToWorkspace } from '@wherehouse/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 class FakeWebSocket {
@@ -23,16 +23,16 @@ describe('realtime authorization lifecycle', () => {
 
   it('delivers a targeted revocation and stops reconnecting', () => {
     const revoked = vi.fn()
-    subscribeToHousehold({
+    subscribeToWorkspace({
       baseUrl: 'https://wherehouse.test',
-      householdId: 'household-a',
+      workspaceId: 'workspace-a',
       token: 'device-token',
       onEvent: vi.fn(),
       onDeviceRevoked: revoked,
     })
     const socket = FakeWebSocket.instances[0]
     socket.onmessage?.({ data: JSON.stringify({
-      type: 'device.revoked', household_id: 'household-a', device_id: 'device-a', occurred_at: 'now',
+      type: 'device.revoked', workspace_id: 'workspace-a', device_id: 'device-a', occurred_at: 'now',
     }) })
     socket.onclose?.({ code: 4403 })
 
@@ -43,8 +43,8 @@ describe('realtime authorization lifecycle', () => {
 
   it('surfaces rejected reconnect credentials without retrying', () => {
     const unauthorized = vi.fn()
-    subscribeToHousehold({
-      householdId: 'household-a',
+    subscribeToWorkspace({
+      workspaceId: 'workspace-a',
       token: 'revoked-token',
       onEvent: vi.fn(),
       onAuthorizationFailure: unauthorized,

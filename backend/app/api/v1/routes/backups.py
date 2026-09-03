@@ -20,6 +20,7 @@ from app.application.backups.cli import (
     canonical_media_keys,
     provider_from_settings,
     schema_revision,
+    workspace_identities,
 )
 from app.application.backups.errors import BackupError
 from app.application.backups.media import SelectedMediaRepository
@@ -29,7 +30,7 @@ from app.core.config import get_settings
 from app.infrastructure.backups import DropboxBackupProvider, LocalBackupProvider, PostgresBackup
 from app.infrastructure.backups.dropbox_credentials import DropboxCredentialStore
 from app.infrastructure.backups.local_config import LocalDestinationStore
-from app.models import HouseholdRelationship, HouseholdUser
+from app.models import WorkspaceMembership, WorkspaceRole
 from app.schemas.backups import BackupStatusRead
 from app.services.image_storage import get_image_storage
 
@@ -51,9 +52,9 @@ def exchange_dropbox_code(fields: dict[str, str]) -> str | None:
 
 async def require_instance_owner(principal: PrincipalDep, session: SessionDep) -> None:
     owner = await session.scalar(
-        select(HouseholdUser.id).where(
-            HouseholdUser.user_id == principal.user.id,
-            HouseholdUser.relationship_type == HouseholdRelationship.OWNER,
+        select(WorkspaceMembership.id).where(
+            WorkspaceMembership.user_id == principal.user.id,
+            WorkspaceMembership.role == WorkspaceRole.OWNER,
         )
     )
     if owner is None:
@@ -117,6 +118,7 @@ async def run_remote_backup(
     try:
         provider = provider_from_settings(provider_name)
         keys = await canonical_media_keys()
+        workspace_metadata = await workspace_identities()
         media = SelectedMediaRepository(get_image_storage(), keys)
         artifact = await asyncio.to_thread(
             create_artifact,
@@ -125,6 +127,7 @@ async def run_remote_backup(
             media,
             schema_revision(),
             version("wherehouse-api"),
+            workspace_metadata,
         )
         stored = await asyncio.to_thread(BackupService(provider).store, artifact)
         return {"key": stored.key, "size": stored.size}

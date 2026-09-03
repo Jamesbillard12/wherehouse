@@ -7,11 +7,11 @@ import pytest
 from app.application.context import ActorContext
 from app.application.items.capabilities import (
     EntityNotFound,
-    HouseholdAccessDenied,
     InvalidMove,
     ItemDestination,
     MoveItem,
     UpdateItem,
+    WorkspaceAccessDenied,
     move_item,
     resolve_item_location,
     update_item,
@@ -47,12 +47,12 @@ class EventRecorder:
     def __init__(self) -> None:
         self.events: list[tuple[object, dict[str, object]]] = []
 
-    async def publish(self, household_id, **event) -> None:
-        self.events.append((household_id, event))
+    async def publish(self, workspace_id, **event) -> None:
+        self.events.append((workspace_id, event))
 
 
-def actor(*, household_id=None) -> ActorContext:
-    return ActorContext(user_id=uuid4(), client="test", household_id=household_id)
+def actor(*, workspace_id=None) -> ActorContext:
+    return ActorContext(user_id=uuid4(), client="test", workspace_id=workspace_id)
 
 
 def update_command(destination: ItemDestination | None = None) -> UpdateItem:
@@ -66,7 +66,7 @@ def update_command(destination: ItemDestination | None = None) -> UpdateItem:
 
 @pytest.mark.parametrize("destination", ["area", "zone", "container"])
 async def test_move_item_supports_each_destination(destination: str) -> None:
-    household_id = uuid4()
+    workspace_id = uuid4()
     item_id = uuid4()
     area_id = uuid4()
     zone_id = uuid4()
@@ -81,8 +81,8 @@ async def test_move_item_supports_each_destination(destination: str) -> None:
     }[destination]
     session = FakeSession(
         {
-            (Item, item_id): SimpleNamespace(id=item_id, household_id=household_id),
-            (Area, area_id): SimpleNamespace(id=area_id, household_id=household_id),
+            (Item, item_id): SimpleNamespace(id=item_id, workspace_id=workspace_id),
+            (Area, area_id): SimpleNamespace(id=area_id, workspace_id=workspace_id),
             (Zone, zone_id): SimpleNamespace(id=zone_id, area_id=area_id),
             (Container, container_id): SimpleNamespace(id=container_id, area_id=area_id),
         },
@@ -102,7 +102,7 @@ async def test_move_item_supports_each_destination(destination: str) -> None:
     assert placement.container_id == command_values.get("container_id")
     assert events.events == [
         (
-            household_id,
+            workspace_id,
             {
                 "entity": "item-placement",
                 "action": "updated",
@@ -114,7 +114,7 @@ async def test_move_item_supports_each_destination(destination: str) -> None:
 
 
 async def test_move_item_replaces_the_existing_destination() -> None:
-    household_id = uuid4()
+    workspace_id = uuid4()
     item_id = uuid4()
     area_id = uuid4()
     placement = ItemPlacement(
@@ -125,8 +125,8 @@ async def test_move_item_replaces_the_existing_destination() -> None:
     )
     session = FakeSession(
         {
-            (Item, item_id): SimpleNamespace(id=item_id, household_id=household_id),
-            (Area, area_id): SimpleNamespace(id=area_id, household_id=household_id),
+            (Item, item_id): SimpleNamespace(id=item_id, workspace_id=workspace_id),
+            (Area, area_id): SimpleNamespace(id=area_id, workspace_id=workspace_id),
         },
         [SimpleNamespace(), placement],
     )
@@ -144,11 +144,11 @@ async def test_move_item_replaces_the_existing_destination() -> None:
 
 
 async def test_move_item_rejects_an_unknown_destination() -> None:
-    household_id = uuid4()
+    workspace_id = uuid4()
     item_id = uuid4()
     area_id = uuid4()
     session = FakeSession(
-        {(Item, item_id): SimpleNamespace(id=item_id, household_id=household_id)},
+        {(Item, item_id): SimpleNamespace(id=item_id, workspace_id=workspace_id)},
         [SimpleNamespace()],
     )
 
@@ -160,44 +160,44 @@ async def test_move_item_rejects_an_unknown_destination() -> None:
     session.commit.assert_not_awaited()
 
 
-async def test_move_item_rejects_a_cross_household_destination() -> None:
-    item_household_id = uuid4()
+async def test_move_item_rejects_a_cross_workspace_destination() -> None:
+    item_workspace_id = uuid4()
     item_id = uuid4()
     area_id = uuid4()
     session = FakeSession(
         {
-            (Item, item_id): SimpleNamespace(id=item_id, household_id=item_household_id),
-            (Area, area_id): SimpleNamespace(id=area_id, household_id=uuid4()),
+            (Item, item_id): SimpleNamespace(id=item_id, workspace_id=item_workspace_id),
+            (Area, area_id): SimpleNamespace(id=area_id, workspace_id=uuid4()),
         },
         [SimpleNamespace()],
     )
 
-    with pytest.raises(InvalidMove, match="same household"):
+    with pytest.raises(InvalidMove, match="same workspace"):
         await move_item(
             session, actor(), MoveItem(item_id=item_id, area_id=area_id), EventRecorder()
         )
 
 
-async def test_move_item_enforces_actor_household_and_membership() -> None:
-    household_id = uuid4()
+async def test_move_item_enforces_actor_workspace_and_membership() -> None:
+    workspace_id = uuid4()
     item_id = uuid4()
     area_id = uuid4()
     entities = {
-        (Item, item_id): SimpleNamespace(id=item_id, household_id=household_id),
-        (Area, area_id): SimpleNamespace(id=area_id, household_id=household_id),
+        (Item, item_id): SimpleNamespace(id=item_id, workspace_id=workspace_id),
+        (Area, area_id): SimpleNamespace(id=area_id, workspace_id=workspace_id),
     }
 
     restricted_session = FakeSession(entities, [])
-    with pytest.raises(HouseholdAccessDenied):
+    with pytest.raises(WorkspaceAccessDenied):
         await move_item(
             restricted_session,
-            actor(household_id=uuid4()),
+            actor(workspace_id=uuid4()),
             MoveItem(item_id=item_id, area_id=area_id),
             EventRecorder(),
         )
 
     nonmember_session = FakeSession(entities, [None])
-    with pytest.raises(HouseholdAccessDenied):
+    with pytest.raises(WorkspaceAccessDenied):
         await move_item(
             nonmember_session,
             actor(),
@@ -207,13 +207,13 @@ async def test_move_item_enforces_actor_household_and_membership() -> None:
 
 
 async def test_move_item_rolls_back_and_does_not_publish_when_commit_fails() -> None:
-    household_id = uuid4()
+    workspace_id = uuid4()
     item_id = uuid4()
     area_id = uuid4()
     session = FakeSession(
         {
-            (Item, item_id): SimpleNamespace(id=item_id, household_id=household_id),
-            (Area, area_id): SimpleNamespace(id=area_id, household_id=household_id),
+            (Item, item_id): SimpleNamespace(id=item_id, workspace_id=workspace_id),
+            (Area, area_id): SimpleNamespace(id=area_id, workspace_id=workspace_id),
         },
         [SimpleNamespace(), None],
     )
@@ -228,15 +228,15 @@ async def test_move_item_rolls_back_and_does_not_publish_when_commit_fails() -> 
 
 
 async def test_update_item_and_move_share_one_transaction_and_event() -> None:
-    household_id = uuid4()
+    workspace_id = uuid4()
     item_id = uuid4()
     area_id = uuid4()
     placement = ItemPlacement(item_id=item_id, container_id=uuid4())
-    item = SimpleNamespace(id=item_id, household_id=household_id, is_archived=False)
+    item = SimpleNamespace(id=item_id, workspace_id=workspace_id, is_archived=False)
     session = FakeSession(
         {
             (Item, item_id): item,
-            (Area, area_id): SimpleNamespace(id=area_id, household_id=household_id),
+            (Area, area_id): SimpleNamespace(id=area_id, workspace_id=workspace_id),
         },
         [SimpleNamespace(), placement],
     )
@@ -257,7 +257,7 @@ async def test_update_item_and_move_share_one_transaction_and_event() -> None:
 
 
 async def test_resolves_deep_container_path_from_canonical_hierarchy() -> None:
-    household_id = uuid4()
+    workspace_id = uuid4()
     item_id = uuid4()
     area_id = uuid4()
     zone_id = uuid4()
@@ -266,8 +266,8 @@ async def test_resolves_deep_container_path_from_canonical_hierarchy() -> None:
     placement = ItemPlacement(item_id=item_id, container_id=bin_id)
     session = FakeSession(
         {
-            (Item, item_id): SimpleNamespace(id=item_id, household_id=household_id, is_archived=False),
-            (Area, area_id): SimpleNamespace(id=area_id, household_id=household_id, name="Garage"),
+            (Item, item_id): SimpleNamespace(id=item_id, workspace_id=workspace_id, is_archived=False),
+            (Area, area_id): SimpleNamespace(id=area_id, workspace_id=workspace_id, name="Garage"),
             (Zone, zone_id): SimpleNamespace(id=zone_id, area_id=area_id, name="North Wall"),
             (Container, bin_id): SimpleNamespace(id=bin_id, area_id=area_id, zone_id=zone_id, name="Yellow Bin", is_archived=False),
             (Container, shelf_id): SimpleNamespace(id=shelf_id, area_id=area_id, zone_id=zone_id, name="Shelf", is_archived=False),

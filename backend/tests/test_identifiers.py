@@ -20,7 +20,7 @@ from app.models.core import IdentifierMedium, IdentifierStatus, IdentifierTarget
 def test_identifier_payload_is_versioned_and_opaque() -> None:
     payload = identifier_payload("idn_example-token")
     assert payload == "wherehouse://identify/v1/idn_example-token"
-    assert "household" not in payload
+    assert "workspace" not in payload
 
 
 class IdentifierSession:
@@ -46,13 +46,13 @@ class IdentifierSession:
         self.refreshes += 1
 
 
-def actor(household_id=None):
-    return ActorContext(user_id=uuid4(), client="test", household_id=household_id)
+def actor(workspace_id=None):
+    return ActorContext(user_id=uuid4(), client="test", workspace_id=workspace_id)
 
 
 def identifier(status=IdentifierStatus.PENDING):
     return PhysicalIdentifier(
-        id=uuid4(), household_id=uuid4(), public_id="idn_test",
+        id=uuid4(), workspace_id=uuid4(), public_id="idn_test",
         target_type=IdentifierTargetType.ITEM, target_id=uuid4(),
         medium=IdentifierMedium.NFC, status=status, payload_version=1,
     )
@@ -78,7 +78,7 @@ async def test_revoke_is_idempotent() -> None:
     assert session.commits == 0
 
 
-async def test_device_household_boundary_is_enforced_before_membership_lookup() -> None:
+async def test_device_workspace_boundary_is_enforced_before_membership_lookup() -> None:
     value = identifier()
     session = IdentifierSession(value)
     with pytest.raises(IdentifierAccessDenied):
@@ -92,9 +92,9 @@ async def test_revoked_identifier_does_not_resolve() -> None:
         await resolve_identifier(session, actor(), "idn_revoked")
 
 
-async def test_identifier_target_must_remain_in_same_household() -> None:
+async def test_identifier_target_must_remain_in_same_workspace() -> None:
     value = identifier(IdentifierStatus.ACTIVE)
-    target = Item(id=value.target_id, household_id=uuid4(), name="Drill", code="ITM-001", quantity=1)
+    target = Item(id=value.target_id, workspace_id=uuid4(), name="Drill", code="ITM-001", quantity=1)
     session = IdentifierSession(value, membership=SimpleNamespace(), target=target)
     with pytest.raises(IdentifierNotFound, match="target"):
         await resolve_identifier(session, actor(), value.public_id)

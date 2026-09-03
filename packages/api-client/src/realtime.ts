@@ -2,7 +2,9 @@ import { API_VERSION } from './types'
 
 export type RealtimeEvent = {
   type: 'inventory.changed' | 'identifier.resolved'
-  household_id: string
+  workspace_id: string
+  /** @deprecated Use workspace_id. */
+  household_id?: string
   entity: 'area' | 'zone' | 'container' | 'container-placement' | 'item' | 'item-placement'
   action: string
   entity_id: string
@@ -13,7 +15,9 @@ export type RealtimeEvent = {
 
 export type DeviceRevokedEvent = {
   type: 'device.revoked'
-  household_id: string
+  workspace_id: string
+  /** @deprecated Use workspace_id. */
+  household_id?: string
   device_id: string
   occurred_at: string
 }
@@ -25,9 +29,9 @@ function realtimeUrl(baseUrl?: string): string {
   return `${origin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')}/api/${API_VERSION}/realtime`
 }
 
-export function subscribeToHousehold(options: {
+export function subscribeToWorkspace(options: {
   baseUrl?: string
-  householdId: string
+  workspaceId: string
   token: string
   onEvent: (event: RealtimeEvent) => void
   onDeviceRevoked?: (event: DeviceRevokedEvent) => void
@@ -44,7 +48,7 @@ export function subscribeToHousehold(options: {
     if (!active) return
     options.onStatus?.('connecting')
     socket = new WebSocket(realtimeUrl(options.baseUrl))
-    socket.onopen = () => socket?.send(JSON.stringify({ type: 'authenticate', token: options.token, household_id: options.householdId }))
+    socket.onopen = () => socket?.send(JSON.stringify({ type: 'authenticate', token: options.token, workspace_id: options.workspaceId }))
     socket.onmessage = ({ data }) => {
       const message = JSON.parse(String(data)) as RealtimeEvent | DeviceRevokedEvent | { type: 'realtime.ready' }
       if (message.type === 'realtime.ready') {
@@ -79,4 +83,19 @@ export function subscribeToHousehold(options: {
     if (reconnectTimer) clearTimeout(reconnectTimer)
     socket?.close()
   }
+}
+
+/** @deprecated Use subscribeToWorkspace with workspaceId. */
+export function subscribeToHousehold(options: {
+  baseUrl?: string
+  householdId: string
+  token: string
+  onEvent: (event: RealtimeEvent) => void
+  onDeviceRevoked?: (event: DeviceRevokedEvent) => void
+  onAuthorizationFailure?: () => void
+  onStatus?: (status: RealtimeStatus) => void
+  onReady?: () => void
+}): () => void {
+  const { householdId, ...rest } = options
+  return subscribeToWorkspace({ ...rest, workspaceId: householdId })
 }

@@ -82,6 +82,11 @@ only after restore succeeds and validate household/login, hierarchy, items/quant
 identifiers, and every intended image. If database restore fails, its single transaction rolls back.
 If a media write fails after database commit, discard/recreate both clean targets and retry.
 
+New artifacts enumerate every workspace UUID and type in the manifest. The full-instance restore keeps
+those stable IDs, memberships, and workspace-scoped resources together; it does not merge one workspace
+into an existing instance. Pre-workspace format-v1 artifacts remain verifiable, but their older Alembic
+revision prevents restoring them directly into the workspace schema.
+
 Secrets and active session/device credentials are not restored. Re-enter environment secrets, sign
 in again, re-pair mobile clients, resync their caches, and review old queued mutations. Version 1
 does not support in-place restore, merges, older-schema migration during restore, or encryption.

@@ -40,22 +40,22 @@ class Events:
     def __init__(self):
         self.values = []
 
-    async def publish(self, household_id, **event):
-        self.values.append((household_id, event))
+    async def publish(self, workspace_id, **event):
+        self.values.append((workspace_id, event))
 
 
 def fixture(*, child_zone_id=None, parent_zone_id=None):
-    household_id = uuid4()
+    workspace_id = uuid4()
     area_id = uuid4()
     child_id = uuid4()
     parent_id = uuid4()
-    area = SimpleNamespace(id=area_id, household_id=household_id)
+    area = SimpleNamespace(id=area_id, workspace_id=workspace_id)
     entities = {
         (Area, area_id): area,
         (Container, child_id): SimpleNamespace(id=child_id, area_id=area_id, zone_id=child_zone_id, is_archived=False),
         (Container, parent_id): SimpleNamespace(id=parent_id, area_id=area_id, zone_id=parent_zone_id, is_archived=False),
     }
-    return household_id, child_id, parent_id, entities
+    return workspace_id, child_id, parent_id, entities
 
 
 async def test_places_nested_container_and_publishes_after_commit() -> None:

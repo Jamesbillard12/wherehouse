@@ -2,17 +2,18 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field, model_validator
 
 from app.models.core import (
     ContainerIdentifierType,
     ContainerRelationship,
     ContainerType,
-    HouseholdRelationship,
     IdentifierMedium,
     IdentifierStatus,
     IdentifierTargetType,
     ItemIdentifierType,
+    WorkspaceRole,
+    WorkspaceType,
 )
 
 
@@ -20,13 +21,14 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class HouseholdCreate(BaseModel):
+class WorkspaceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200, pattern=r".*\S.*")
 
 
-class HouseholdRead(ORMModel):
+class WorkspaceRead(ORMModel):
     id: UUID
     name: str
+    workspace_type: WorkspaceType
     created_at: datetime
     updated_at: datetime
 
@@ -44,18 +46,32 @@ class UserRead(ORMModel):
     updated_at: datetime
 
 
-class HouseholdUserCreate(BaseModel):
+class WorkspaceMembershipCreate(BaseModel):
     user_id: UUID
-    relationship_type: HouseholdRelationship
+    role: WorkspaceRole = Field(
+        validation_alias=AliasChoices("role", "relationship_type")
+    )
 
 
-class HouseholdUserRead(ORMModel):
+class WorkspaceMembershipRead(ORMModel):
     id: UUID
-    household_id: UUID
+    workspace_id: UUID
     user_id: UUID
-    relationship_type: HouseholdRelationship
+    role: WorkspaceRole
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def household_id(self) -> UUID:
+        """Deprecated v1 compatibility alias."""
+        return self.workspace_id
+
+    @computed_field
+    @property
+    def relationship_type(self) -> WorkspaceRole:
+        """Deprecated v1 compatibility alias."""
+        return self.role
 
 
 class AreaCreate(BaseModel):
@@ -72,12 +88,18 @@ class AreaUpdate(BaseModel):
 
 class AreaRead(ORMModel):
     id: UUID
-    household_id: UUID
+    workspace_id: UUID
     name: str
     icon: str
     description: str | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def household_id(self) -> UUID:
+        """Deprecated v1 compatibility alias."""
+        return self.workspace_id
 
 
 class ZoneCreate(BaseModel):
@@ -197,7 +219,7 @@ class ItemUpdate(ItemFields):
 
 class ItemRead(ORMModel):
     id: UUID
-    household_id: UUID
+    workspace_id: UUID
     name: str
     code: str
     identifier_type: ItemIdentifierType
@@ -212,6 +234,12 @@ class ItemRead(ORMModel):
     is_archived: bool
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def household_id(self) -> UUID:
+        """Deprecated v1 compatibility alias."""
+        return self.workspace_id
 
 
 class ItemPlacementRead(ORMModel):
@@ -239,7 +267,7 @@ class IdentifierCreate(BaseModel):
 
 class IdentifierRead(ORMModel):
     id: UUID
-    household_id: UUID
+    workspace_id: UUID
     public_id: str
     target_type: IdentifierTargetType
     target_id: UUID
@@ -249,6 +277,12 @@ class IdentifierRead(ORMModel):
     payload: str
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def household_id(self) -> UUID:
+        """Deprecated v1 compatibility alias."""
+        return self.workspace_id
 
 
 class IdentifierResolution(BaseModel):

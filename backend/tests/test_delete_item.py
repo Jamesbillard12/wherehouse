@@ -7,7 +7,7 @@ import pytest
 from app.application.context import ActorContext
 from app.application.items.capabilities import (
     EntityNotFound,
-    HouseholdAccessDenied,
+    WorkspaceAccessDenied,
     delete_item,
 )
 from app.models import Item
@@ -31,18 +31,18 @@ class EventRecorder:
     def __init__(self) -> None:
         self.events = []
 
-    async def publish(self, household_id, **event) -> None:
-        self.events.append((household_id, event))
+    async def publish(self, workspace_id, **event) -> None:
+        self.events.append((workspace_id, event))
 
 
-def actor(*, household_id=None) -> ActorContext:
-    return ActorContext(user_id=uuid4(), client="test", household_id=household_id)
+def actor(*, workspace_id=None) -> ActorContext:
+    return ActorContext(user_id=uuid4(), client="test", workspace_id=workspace_id)
 
 
 async def test_delete_item_archives_and_publishes() -> None:
-    household_id = uuid4()
+    workspace_id = uuid4()
     item_id = uuid4()
-    item = SimpleNamespace(id=item_id, household_id=household_id, is_archived=False)
+    item = SimpleNamespace(id=item_id, workspace_id=workspace_id, is_archived=False)
     session = FakeSession(item)
     events = EventRecorder()
 
@@ -53,7 +53,7 @@ async def test_delete_item_archives_and_publishes() -> None:
     session.rollback.assert_not_awaited()
     assert events.events == [
         (
-            household_id,
+            workspace_id,
             {
                 "entity": "item",
                 "action": "deleted",
@@ -74,14 +74,14 @@ async def test_delete_item_rejects_missing_or_already_deleted_item(item) -> None
     session.commit.assert_not_awaited()
 
 
-async def test_delete_item_enforces_household_access() -> None:
-    item = SimpleNamespace(id=uuid4(), household_id=uuid4(), is_archived=False)
+async def test_delete_item_enforces_workspace_access() -> None:
+    item = SimpleNamespace(id=uuid4(), workspace_id=uuid4(), is_archived=False)
     session = FakeSession(item)
 
-    with pytest.raises(HouseholdAccessDenied):
+    with pytest.raises(WorkspaceAccessDenied):
         await delete_item(
             session,
-            actor(household_id=uuid4()),
+            actor(workspace_id=uuid4()),
             item.id,
             EventRecorder(),
         )
@@ -91,7 +91,7 @@ async def test_delete_item_enforces_household_access() -> None:
 
 
 async def test_delete_item_rolls_back_without_publishing_on_failure() -> None:
-    item = SimpleNamespace(id=uuid4(), household_id=uuid4(), is_archived=False)
+    item = SimpleNamespace(id=uuid4(), workspace_id=uuid4(), is_archived=False)
     session = FakeSession(item)
     session.commit.side_effect = RuntimeError("database unavailable")
     events = EventRecorder()

@@ -8,25 +8,25 @@ vi.mock('@wherehouse/api-client', async (importOriginal) => ({
   listAreas: vi.fn().mockResolvedValue([]),
   listItems: vi.fn().mockResolvedValue([]),
   listItemPlacements: vi.fn().mockResolvedValue([]),
-  createItem: vi.fn().mockResolvedValue({ id: 'new-item', household_id: 'home', name: 'New Item', code: 'ITM-002', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: null, model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '', updated_at: '' }),
-  uploadItemImage: vi.fn().mockResolvedValue({ id: 'new-item', household_id: 'home', name: 'New Item', code: 'ITM-002', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: null, model: null, serial_number: null, notes: null, image_path: 'households/home/items/new-item.jpg', is_archived: false, created_at: '', updated_at: '' }),
-  searchItems: vi.fn().mockResolvedValue([{ item: { id: 'stove', household_id: 'home', name: 'Camping Stove', code: 'ITM-001', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: 'Coleman', model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '', updated_at: '' }, resolved_path: 'Garage > North Wall > Shelf > Yellow Bin' }]),
+  createItem: vi.fn().mockResolvedValue({ id: 'new-item', workspace_id: 'home', name: 'New Item', code: 'ITM-002', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: null, model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '', updated_at: '' }),
+  uploadItemImage: vi.fn().mockResolvedValue({ id: 'new-item', workspace_id: 'home', name: 'New Item', code: 'ITM-002', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: null, model: null, serial_number: null, notes: null, image_path: 'workspaces/home/items/new-item.jpg', is_archived: false, created_at: '', updated_at: '' }),
+  searchItems: vi.fn().mockResolvedValue([{ item: { id: 'stove', workspace_id: 'home', name: 'Camping Stove', code: 'ITM-001', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: 'Coleman', model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '', updated_at: '' }, resolved_path: 'Garage > North Wall > Shelf > Yellow Bin' }]),
   searchContainers: vi.fn().mockResolvedValue([]),
-  subscribeToHousehold: vi.fn().mockReturnValue(() => undefined),
+  subscribeToWorkspace: vi.fn().mockReturnValue(() => undefined),
 }))
 
 import { Dashboard } from './Dashboard'
 
-const household = { id: 'home', name: 'Home', created_at: '', updated_at: '' }
-const user = { user: { id: 'user', display_name: 'Alex Owner', email: 'alex@example.com' }, authenticated_by: 'user_session' as const, device_id: null, households: [{ household_id: 'home', relationship_type: 'owner' as const }] }
+const workspace = { id: 'home', name: 'Home', workspace_type: 'household' as const, created_at: '', updated_at: '' }
+const user = { user: { id: 'user', display_name: 'Alex Owner', email: 'alex@example.com' }, authenticated_by: 'user_session' as const, device_id: null, workspaces: [{ workspace_id: 'home', role: 'owner' as const }], households: [{ workspace_id: 'home', role: 'owner' as const, household_id: 'home', relationship_type: 'owner' as const }] }
 
 describe('Dashboard settings navigation', () => {
   beforeEach(() => history.replaceState({}, '', '/overview'))
 
-  it('switches households from the header shadcn select', async () => {
+  it('switches workspaces from the header shadcn select', async () => {
     const onSelect = vi.fn()
-    const secondHousehold = { id: 'cabin', name: 'Lake Cabin', created_at: '', updated_at: '' }
-    render(<Dashboard household={household} households={[household, secondHousehold]} isOwner onCreateHousehold={vi.fn()} onSelect={onSelect} onSignOut={vi.fn()} token="token" user={user} />)
+    const secondWorkspace = { id: 'cabin', name: 'Lake Cabin', workspace_type: 'household' as const, created_at: '', updated_at: '' }
+    render(<Dashboard workspace={workspace} workspaces={[workspace, secondWorkspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={onSelect} onSignOut={vi.fn()} token="token" user={user} />)
 
     expect(screen.queryByRole('combobox', { name: 'Select household' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Change household' }))
@@ -36,8 +36,8 @@ describe('Dashboard settings navigation', () => {
   })
 
   it('opens a recent item in place without navigating away from overview', async () => {
-    vi.mocked(listItems).mockResolvedValueOnce([{ id: 'drill', household_id: 'home', name: 'Cordless Drill', code: 'ITM-003', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: null, model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '2026-09-02T12:00:00Z', updated_at: '2026-09-02T12:00:00Z' }])
-    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    vi.mocked(listItems).mockResolvedValueOnce([{ id: 'drill', workspace_id: 'home', name: 'Cordless Drill', code: 'ITM-003', identifier_type: 'none', description: null, quantity: '1', unit: null, manufacturer: null, model: null, serial_number: null, notes: null, image_path: null, is_archived: false, created_at: '2026-09-02T12:00:00Z', updated_at: '2026-09-02T12:00:00Z' }])
+    render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
 
     await userEvent.click(await screen.findByRole('button', { name: /Cordless Drill/ }))
 
@@ -47,7 +47,7 @@ describe('Dashboard settings navigation', () => {
 
   it('opens the user menu, deep-navigates, and keeps device administration off Overview', async () => {
     const signOut = vi.fn().mockResolvedValue(undefined)
-    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={signOut} token="token" user={user} />)
+    render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={signOut} token="token" user={user} />)
 
     expect(screen.queryByRole('button', { name: 'Pair a device' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Open user menu' }))
@@ -58,7 +58,7 @@ describe('Dashboard settings navigation', () => {
   })
 
   it('searches canonical inventory and opens a result', async () => {
-    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search' }), 'camp')
     expect(await screen.findByText('Camping Stove')).toBeInTheDocument()
     expect(screen.getByText('Item · Garage > North Wall > Shelf > Yellow Bin · Coleman')).toBeInTheDocument()
@@ -67,7 +67,7 @@ describe('Dashboard settings navigation', () => {
   })
 
   it('waits for search submission before navigating and preserves the Items context', async () => {
-    const { unmount } = render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    const { unmount } = render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.click(screen.getByRole('searchbox', { name: 'Search' }))
     expect(location.pathname).toBe('/overview')
     await userEvent.keyboard('{Enter}')
@@ -75,14 +75,14 @@ describe('Dashboard settings navigation', () => {
 
     unmount()
     history.replaceState({}, '', '/items')
-    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.click(screen.getByRole('searchbox', { name: 'Search' }))
     await userEvent.keyboard('{Enter}')
     expect(location.pathname).toBe('/items')
   })
 
   it('finds and opens settings from header search', async () => {
-    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search' }), 'privacy')
     await userEvent.click(await screen.findByRole('button', { name: /Data & Privacy/ }))
     expect(location.pathname).toBe('/settings/privacy')
@@ -90,7 +90,7 @@ describe('Dashboard settings navigation', () => {
 
   it('renders and opens a container search result', async () => {
     vi.mocked(searchContainers).mockResolvedValueOnce([{ container: { id: 'bin', area_id: 'garage', zone_id: null, name: 'Yellow Bin', code: 'BIN-001', container_type: 'bin', identifier_type: 'none', description: null, image_path: null, is_movable: true, is_out_of_space: false, is_archived: false, created_at: '', updated_at: '' }, resolved_path: 'Garage > Shelf > Yellow Bin' }])
-    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search' }), 'yellow')
     expect(await screen.findByText('Container · Garage > Shelf > Yellow Bin')).toBeInTheDocument()
     await userEvent.click(screen.getByText('Yellow Bin').closest('button')!)
@@ -99,7 +99,7 @@ describe('Dashboard settings navigation', () => {
 
   it('includes item results when searching from Locations', async () => {
     history.replaceState({}, '', '/locations')
-    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search' }), 'camp')
     expect(await screen.findByText('Camping Stove')).toBeInTheDocument()
     expect(screen.getByText(/Item · Garage/)).toBeInTheDocument()
@@ -110,7 +110,7 @@ describe('Dashboard settings navigation', () => {
 
   it('opens item search results in place on Items', async () => {
     history.replaceState({}, '', '/items')
-    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search' }), 'camp')
     await userEvent.click(await screen.findByRole('button', { name: /Camping Stove/ }))
     expect(location.pathname).toBe('/items')
@@ -118,7 +118,7 @@ describe('Dashboard settings navigation', () => {
   })
 
   it('keeps the current page when sidebar item creation is cancelled', async () => {
-    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.click(screen.getByRole('button', { name: 'Create new' }))
     await userEvent.click(screen.getByRole('menuitem', { name: /Item/ }))
     expect(location.pathname).toBe('/overview')
@@ -130,7 +130,7 @@ describe('Dashboard settings navigation', () => {
   })
 
   it('opens area creation from the sidebar create menu', async () => {
-    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
 
     await userEvent.click(screen.getByRole('button', { name: 'Create new' }))
     expect(screen.getByRole('menuitem', { name: /Zone/ })).toBeDisabled()
@@ -142,7 +142,7 @@ describe('Dashboard settings navigation', () => {
   })
 
   it('creates an item without navigating away from the current page', async () => {
-    render(<Dashboard household={household} households={[household]} isOwner onCreateHousehold={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
+    render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
     await userEvent.click(screen.getByRole('button', { name: 'Create new' }))
     await userEvent.click(screen.getByRole('menuitem', { name: /Item/ }))
     await userEvent.type(await screen.findByRole('textbox', { name: 'Name' }), 'New Item')

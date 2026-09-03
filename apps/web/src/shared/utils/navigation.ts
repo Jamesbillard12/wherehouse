@@ -1,9 +1,9 @@
-export type SettingsSection = 'account' | 'households' | 'backups' | 'preferences' | 'privacy' | 'about'
+export type SettingsSection = 'account' | 'workspaces' | 'backups' | 'preferences' | 'privacy' | 'about'
 export type DashboardView = 'overview' | 'items' | 'locations' | 'settings'
 
 export function settingsSectionFromLocation(): SettingsSection {
   const section = location.pathname.split('/')[2]
-  return section === 'households' || section === 'backups' || section === 'preferences' || section === 'privacy' || section === 'about' ? section : 'account'
+  return section === 'workspaces' || section === 'backups' || section === 'preferences' || section === 'privacy' || section === 'about' ? section : 'account'
 }
 
 export function viewFromLocation(): DashboardView {

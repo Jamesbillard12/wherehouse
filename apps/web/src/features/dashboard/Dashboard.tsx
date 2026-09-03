@@ -1,4 +1,4 @@
-import { searchContainers, searchItems, type ContainerSearchResult, type Household, type Item, type ItemSearchResult, type MeResponse, subscribeToHousehold, type RealtimeStatus } from '@wherehouse/api-client'
+import { searchContainers, searchItems, type ContainerSearchResult, type Workspace, type Item, type ItemSearchResult, type MeResponse, subscribeToWorkspace, type RealtimeStatus } from '@wherehouse/api-client'
 import {
   Activity,
   ArrowRightLeft,
@@ -41,7 +41,7 @@ import { GlobalFeatureHost } from '../app/GlobalFeatureHost'
 import { settingsSectionFromLocation, type SettingsSection } from '../../shared/utils/navigation'
 
 const sectionsForMenu: { id: SettingsSection; label: string }[] = [
-  { id: 'account', label: 'Account' }, { id: 'households', label: 'Households' },
+  { id: 'account', label: 'Account' }, { id: 'workspaces', label: 'Households' },
   { id: 'backups', label: 'Backup & Restore' }, { id: 'preferences', label: 'Preferences' }, { id: 'privacy', label: 'Data & Privacy' },
   { id: 'about', label: 'About' },
 ]
@@ -51,7 +51,7 @@ type SearchOption = SearchResult | { kind: 'setting'; id: SettingsSection; label
 
 const settingsSearchTerms: Record<SettingsSection, string> = {
   account: 'account profile display name email password',
-  households: 'households household members devices pairing',
+  workspaces: 'workspaces workspace members devices pairing',
   backups: 'backup restore dropbox remote local external storage',
   preferences: 'preferences appearance theme',
   privacy: 'data privacy local storage',
@@ -63,19 +63,19 @@ export function Dashboard(props: Parameters<typeof DashboardContent>[0]) {
 }
 
 function DashboardContent({
-  household,
-  households,
+  workspace,
+  workspaces,
   isOwner,
-  onCreateHousehold,
+  onCreateWorkspace,
   onSelect,
   onSignOut,
   token,
   user,
 }: {
-  household: Household
-  households: Household[]
+  workspace: Workspace
+  workspaces: Workspace[]
   isOwner: boolean
-  onCreateHousehold: (name: string) => Promise<void>
+  onCreateWorkspace: (name: string) => Promise<void>
   onSelect: (id: string) => void
   onSignOut: () => Promise<void>
   token: string
@@ -100,9 +100,9 @@ function DashboardContent({
   const [searchBusy, setSearchBusy] = useState(false)
   const [searchError, setSearchError] = useState(false)
   const [quickCreateOpen, setQuickCreateOpen] = useState(false)
-  const [householdSelectOpen, setHouseholdSelectOpen] = useState(false)
+  const [workspaceSelectOpen, setWorkspaceSelectOpen] = useState(false)
   const [selectedOverviewItem, setSelectedOverviewItem] = useState<Item | null>(null)
-  const overview = useOverviewInventory(household.id, token, realtimeRevision)
+  const overview = useOverviewInventory(workspace.id, token, realtimeRevision)
   const { actions: featureActions } = useFeatureActions()
 
   useEffect(() => {
@@ -110,7 +110,7 @@ function DashboardContent({
     setSearchResults([])
     setSearchError(false)
     setSelectedOverviewItem(null)
-  }, [household.id])
+  }, [workspace.id])
 
   useEffect(() => {
     const query = searchQuery.trim()
@@ -118,21 +118,21 @@ function DashboardContent({
     let cancelled = false
     setSearchBusy(true)
     setSearchError(false)
-    const timer = window.setTimeout(() => void Promise.all([searchItems(token, household.id, query), searchContainers(token, household.id, query)])
+    const timer = window.setTimeout(() => void Promise.all([searchItems(token, workspace.id, query), searchContainers(token, workspace.id, query)])
       .then(([items, containers]) => { if (!cancelled) setSearchResults([...items.map((result) => ({ kind: 'item' as const, ...result })), ...containers.map((result) => ({ kind: 'container' as const, ...result }))]) })
       .catch(() => { if (!cancelled) { setSearchResults([]); setSearchError(true) } })
       .finally(() => { if (!cancelled) setSearchBusy(false) }), 250)
     return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [household.id, searchQuery, token, realtimeRevision])
+  }, [workspace.id, searchQuery, token, realtimeRevision])
 
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem(`wherehouse.review-queue.${household.id}`) ?? '[]') as string[]
+    const stored = JSON.parse(localStorage.getItem(`wherehouse.review-queue.${workspace.id}`) ?? '[]') as string[]
     setReviewItemIds(stored)
     setReviewQueueOpen(stored.length > 0)
-  }, [household.id])
+  }, [workspace.id])
 
-  useEffect(() => subscribeToHousehold({
-    householdId: household.id,
+  useEffect(() => subscribeToWorkspace({
+    workspaceId: workspace.id,
     token,
     onEvent: (event) => {
       if (event.type === 'identifier.resolved' && (event.entity === 'item' || event.entity === 'container')) {
@@ -144,7 +144,7 @@ function DashboardContent({
       if (event.entity === 'item' && event.action === 'created' && event.source === 'device') {
         setReviewItemIds((current) => {
           const next = current.includes(event.entity_id) ? current : [...current, event.entity_id]
-          localStorage.setItem(`wherehouse.review-queue.${household.id}`, JSON.stringify(next))
+          localStorage.setItem(`wherehouse.review-queue.${workspace.id}`, JSON.stringify(next))
           return next
         })
         setReviewQueueOpen(true)
@@ -152,12 +152,12 @@ function DashboardContent({
     },
     onReady: () => setRealtimeRevision((current) => current + 1),
     onStatus: setRealtimeStatus,
-  }), [household.id, token])
+  }), [workspace.id, token])
 
   function markReviewed(itemId: string) {
     setReviewItemIds((current) => {
       const next = current.filter((id) => id !== itemId)
-      localStorage.setItem(`wherehouse.review-queue.${household.id}`, JSON.stringify(next))
+      localStorage.setItem(`wherehouse.review-queue.${workspace.id}`, JSON.stringify(next))
       if (!next.length) setReviewQueueOpen(false)
       return next
     })
@@ -226,8 +226,8 @@ function DashboardContent({
   }
 
   function navigateToPairing() {
-    history.pushState({}, '', '/settings/households#connected-devices')
-    setSettingsSection('households')
+    history.pushState({}, '', '/settings/workspaces#connected-devices')
+    setSettingsSection('workspaces')
     setActiveView('settings')
     setAccountMenuOpen(false)
     requestAnimationFrame(() => document.querySelector('#connected-devices')?.scrollIntoView())
@@ -276,20 +276,20 @@ function DashboardContent({
       <header className="topbar">
         <div className="topbar-brand">
           <span className="wordmark dark"><img alt="WhereHouse" className="brand-logo" src="/logo.png" /></span>
-          {householdSelectOpen ? (
-            <Select items={households.map((option) => ({ label: option.name, value: option.id }))} onOpenChange={(open) => { if (!open) setHouseholdSelectOpen(false) }} onValueChange={(value) => { if (value && value !== household.id) onSelect(value); setHouseholdSelectOpen(false) }} open value={household.id}>
-              <SelectTrigger aria-label="Select household" autoFocus className="topbar-household-select"><SelectValue /></SelectTrigger>
-              <SelectContent align="start">{households.map((option) => <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>)}</SelectContent>
+          {workspaceSelectOpen ? (
+            <Select items={workspaces.map((option) => ({ label: option.name, value: option.id }))} onOpenChange={(open) => { if (!open) setWorkspaceSelectOpen(false) }} onValueChange={(value) => { if (value && value !== workspace.id) onSelect(value); setWorkspaceSelectOpen(false) }} open value={workspace.id}>
+              <SelectTrigger aria-label="Select household" autoFocus className="topbar-workspace-select"><SelectValue /></SelectTrigger>
+              <SelectContent align="start">{workspaces.map((option) => <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>)}</SelectContent>
             </Select>
           ) : (
-            <div className="topbar-household"><span>{household.name}</span><Button aria-label="Change household" onClick={() => setHouseholdSelectOpen(true)} size="icon-sm" title="Change household" variant="ghost"><Pencil aria-hidden="true" /></Button></div>
+            <div className="topbar-workspace"><span>{workspace.name}</span><Button aria-label="Change household" onClick={() => setWorkspaceSelectOpen(true)} size="icon-sm" title="Change household" variant="ghost"><Pencil aria-hidden="true" /></Button></div>
           )}
         </div>
         <form className="global-search" onSubmit={submitSearch}><Search aria-hidden="true" /><Input aria-label="Search" className="global-search-input" maxLength={200} onChange={(event) => setSearchQuery(event.target.value)} placeholder={activeView === 'items' ? 'Search items and settings' : activeView === 'locations' ? 'Search items, containers, and settings' : activeView === 'settings' ? 'Search settings' : 'Search items, containers, and settings'} type="search" value={searchQuery} />{searchQuery ? <Button aria-label="Clear search" onClick={() => setSearchQuery('')} size="icon" type="button" variant="ghost">×</Button> : null}{searchQuery ? <div className="global-search-results" role="status">{searchBusy && activeView !== 'settings' ? <p>Searching…</p> : searchError && !matchingSettings.length ? <p>Search is unavailable. Try again.</p> : visibleSearchResults.length ? visibleSearchResults.map((result) => result.kind === 'item' ? <button key={`item-${result.item.id}`} onClick={() => openSearchResult(result)} type="button"><strong>{result.item.name}</strong><span>Item · {result.resolved_path ?? 'Unplaced'}{result.item.manufacturer ? ` · ${result.item.manufacturer}` : ''}</span></button> : result.kind === 'container' ? <button key={`container-${result.container.id}`} onClick={() => openSearchResult(result)} type="button"><strong>{result.container.name}</strong><span>Container · {result.resolved_path}</span></button> : <button key={`setting-${result.id}`} onClick={() => openSearchResult(result)} type="button"><strong>{result.label}</strong><span>Setting</span></button>) : <p>No matching results.</p>}</div> : null}</form>
         <div className="account-menu" ref={accountMenuRef}>
           <span className="topbar-icon"><Bell aria-hidden="true" /></span>
           <Button aria-expanded={accountMenuOpen} aria-haspopup="menu" aria-label="Open user menu" className="avatar avatar-button" onClick={() => setAccountMenuOpen((open) => !open)}>{user.user.display_name.slice(0, 1).toUpperCase()}</Button>
-          {accountMenuOpen ? <div className="user-menu" role="menu"><div className="user-menu-identity"><strong>{user.user.display_name}</strong><span>{user.user.email}</span></div>{sectionsForMenu.map(({ id, label }) => <a href={`/settings/${id}`} key={id} onClick={(event) => { event.preventDefault(); navigateSettings(id) }} role="menuitem">{label}</a>)}{isOwner ? <a href="/settings/households#connected-devices" onClick={(event) => { event.preventDefault(); navigateToPairing() }} role="menuitem">Pair device</a> : null}<Button onClick={() => { setAccountMenuOpen(false); void onSignOut() }} role="menuitem"><UserRound aria-hidden="true" /> Sign out</Button></div> : null}
+          {accountMenuOpen ? <div className="user-menu" role="menu"><div className="user-menu-identity"><strong>{user.user.display_name}</strong><span>{user.user.email}</span></div>{sectionsForMenu.map(({ id, label }) => <a href={`/settings/${id}`} key={id} onClick={(event) => { event.preventDefault(); navigateSettings(id) }} role="menuitem">{label}</a>)}{isOwner ? <a href="/settings/workspaces#connected-devices" onClick={(event) => { event.preventDefault(); navigateToPairing() }} role="menuitem">Pair device</a> : null}<Button onClick={() => { setAccountMenuOpen(false); void onSignOut() }} role="menuitem"><UserRound aria-hidden="true" /> Sign out</Button></div> : null}
         </div>
       </header>
 
@@ -315,7 +315,7 @@ function DashboardContent({
             <Button disabled={!overview.areas.length} onClick={() => createLocation('zone')} role="menuitem"><Package aria-hidden="true" /><span><strong>Zone</strong><small>{overview.areas.length ? 'Add to the selected area' : 'Create an area first'}</small></span></Button>
             <Button disabled={!overview.areas.length} onClick={() => createLocation('container')} role="menuitem"><Container aria-hidden="true" /><span><strong>Container</strong><small>{overview.areas.length ? 'Add storage' : 'Create an area first'}</small></span></Button>
             <Button onClick={createItemFromSidebar} role="menuitem"><Box aria-hidden="true" /><span><strong>Item</strong><small>Add inventory</small></span></Button>
-            <Button onClick={() => { setQuickCreateOpen(false); navigateSettings('households') }} role="menuitem"><House aria-hidden="true" /><span><strong>Household</strong><small>Add another household</small></span></Button>
+            <Button onClick={() => { setQuickCreateOpen(false); navigateSettings('workspaces') }} role="menuitem"><House aria-hidden="true" /><span><strong>Household</strong><small>Add another household</small></span></Button>
           </div> : null}
         </div>
         <nav>
@@ -334,11 +334,11 @@ function DashboardContent({
 
       <section className={`dashboard-content ${activeView === 'overview' ? 'overview-content' : ''}`}>
         {activeView === 'items' ? (
-          <ItemsView household={household} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
+          <ItemsView workspace={workspace} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
-          <LocationsView household={household} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? resolvedTarget?.areaId} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : resolvedTarget?.containerId)} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.scanKey} revealZoneId={locationTarget?.zoneId ?? resolvedTarget?.zoneId} token={token} />
+          <LocationsView workspace={workspace} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? resolvedTarget?.areaId} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : resolvedTarget?.containerId)} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.scanKey} revealZoneId={locationTarget?.zoneId ?? resolvedTarget?.zoneId} token={token} />
         ) : activeView === 'settings' ? (
-          <SettingsView household={household} households={households} isOwner={isOwner} onCreateHousehold={onCreateHousehold} onNavigate={navigateSettings} onSelect={onSelect} section={settingsSection} token={token} user={user} />
+          <SettingsView workspace={workspace} workspaces={workspaces} isOwner={isOwner} onCreateWorkspace={onCreateWorkspace} onNavigate={navigateSettings} onSelect={onSelect} section={settingsSection} token={token} user={user} />
         ) : (
         <>
         <PageHeader className="page-header-overview" id="overview" title={<>{greeting()}, {user.user.display_name.split(' ')[0]} <span className="wave">👋</span></>} />
@@ -387,7 +387,7 @@ function DashboardContent({
         </>
         )}
       </section>
-      <GlobalFeatureHost household={household} onChanged={() => setRealtimeRevision((current) => current + 1)} token={token} />
+      <GlobalFeatureHost workspace={workspace} onChanged={() => setRealtimeRevision((current) => current + 1)} token={token} />
       {reviewItemIds.length && !reviewQueueOpen ? <Button className="review-queue-launcher" onClick={() => setReviewQueueOpen(true)}><PackagePlus aria-hidden="true" /><span>{reviewItemIds.length}</span> Review companion items</Button> : null}
       {reviewQueueOpen && reviewItemIds.length ? <CompanionReviewQueue inventory={overview} itemIds={reviewItemIds} onClose={() => setReviewQueueOpen(false)} onReviewed={markReviewed} onUpdated={() => setRealtimeRevision((current) => current + 1)} token={token} /> : null}
     </main>

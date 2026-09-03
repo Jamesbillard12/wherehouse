@@ -51,14 +51,14 @@ Recommended target: Raspberry Pi 4 with 4 GB minimum, preferably Pi 5 with SSD s
 
 ## API
 
-The implemented `/api/v1` REST surface covers account/session, households, devices and pairing,
+The implemented `/api/v1` REST surface covers account/session, workspaces, devices and pairing,
 areas, zones, containers and placements, items and placements/images, physical identifiers, and
-household realtime events. Transfers, activities, checkouts, a general sync API, and server PDF
+workspace realtime events. Transfers, activities, checkouts, a general sync API, and server PDF
 labels are not implemented. FastAPI exposes OpenAPI; the TypeScript client is currently handwritten,
 so generated clients or automated parity checks remain future-readiness work.
 
 Inventory findability is exposed by transport-neutral `SearchItems` and `SearchContainers`
-application capabilities. Their `/api/v1/households/{household_id}/.../search?q=...` adapters return
+application capabilities. Their `/api/v1/workspaces/{workspace_id}/.../search?q=...` adapters return
 typed item/container results with canonical resolved paths. The capabilities own access checks,
 normalization, deterministic ordering, active-record semantics, and bounded database queries. The
 shared TypeScript client is used by both connected clients; mobile alone retains a documented
@@ -71,7 +71,7 @@ The companion app pairs to an application instance using a short-lived one-time 
 Pairing establishes:
 
 - instance URL
-- household identity
+- workspace identity
 - user/device identity
 - device credentials
 
@@ -86,8 +86,8 @@ PostgreSQL is canonical. SQLite is the mobile replica/cache.
 
 The companion caches areas, zones, containers/placements, items/placements, and supports local
 browsing/search. The supported offline mutation set is `item.create` version 1 only. SQLite persists
-its stable operation ID, household, versioned payload, state, attempts/backoff, error, remote ID, and
-transactionally written optimistic cache rows. The server uses household-scoped operation uniqueness
+its stable operation ID, workspace, versioned payload, state, attempts/backoff, error, remote ID, and
+transactionally written optimistic cache rows. The server uses workspace-scoped operation uniqueness
 and payload hashing for retry-safe creation. Item edit/move/quantity/archive and other writes are
 online-only; do not infer broader offline support from cached entities. Physical restart, reconnect,
 and multi-client validation remains outstanding.
@@ -95,7 +95,7 @@ and multi-client validation remains outstanding.
 ## Sync
 
 There is no general push/pull sync endpoint. Mobile replays its creation queue through the ordinary
-item-create endpoint and then fetches canonical collections. Household WebSocket events invalidate
+item-create endpoint and then fetches canonical collections. Workspace WebSocket events invalidate
 clients after mutations; events are in-process and are neither durable sync history nor audit.
 Creation conflicts are deterministic: reuse of an operation ID with a different payload is a permanent
 conflict; mutable-resource conflicts remain outside offline scope rather than using last-write-wins.
@@ -120,11 +120,11 @@ human-readable item/container codes remain compatibility identifiers. There is n
 generator.
 
 Identifier registration, resolution, activation, and revocation are application capabilities with
-framework-neutral actor context and household membership enforcement. QR identifiers activate at
+framework-neutral actor context and workspace membership enforcement. QR identifiers activate at
 creation. NFC identifiers remain pending until the native client writes and reads back the exact
 versioned NDEF URI; only then does it request activation. Activation/revocation retries are safe,
 revoked identifiers cannot reactivate, and resolution verifies that the target still belongs to the
-identifier household. Physical platform support remains conditional on the evidence recorded in the
+identifier workspace. Physical platform support remains conditional on the evidence recorded in the
 [Phase 3 validation matrix](../product/physical-identifier-validation.md). Physical iOS and Android
 validation is not recorded in the repository.
 
@@ -159,7 +159,7 @@ apps/web/src/
 ├── features/          # Domain views, feature components, and feature hooks
 │   ├── auth/
 │   ├── dashboard/
-│   ├── households/
+│   ├── workspaces/
 │   ├── items/
 │   └── locations/
 ├── shared/            # Cross-feature UI utilities and browser helpers
@@ -223,7 +223,7 @@ navigation, and presentation remain in their respective applications.
 
 Inventory writes continue to use the versioned REST API as the source of truth. Authenticated
 clients also connect to `/api/v1/realtime`, authenticate in their first WebSocket message, and
-subscribe to one household. Successful area, zone, container, placement, item, and image mutations
+subscribe to one workspace. Successful area, zone, container, placement, item, and image mutations
 emit a small `inventory.changed` invalidation event. Clients then refetch canonical state instead of
 trying to apply partial records from the socket.
 
@@ -236,7 +236,7 @@ local and initial self-hosted deployments. A multi-worker or multi-instance depl
 shared fan-out adapter such as PostgreSQL `LISTEN/NOTIFY` or Redis pub/sub while retaining the same
 WebSocket event contract.
 
-The hub also indexes device-authenticated sockets independently of their active household
+The hub also indexes device-authenticated sockets independently of their active workspace
 subscription. A post-commit `device.revoked` event is delivered only to the affected device and its
 active sockets are closed; unrelated devices continue normally. Revoked credentials fail ordinary
 REST authentication and future WebSocket authentication. The transient event improves recovery UX,

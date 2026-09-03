@@ -7,30 +7,30 @@ const connection: PairedServer = {
   accessToken: 'secret',
   baseUrl: 'https://wherehouse.test',
   deviceId: 'device-a',
-  householdId: 'household-b',
-  pairedHouseholdId: 'household-a',
+  workspaceId: 'workspace-b',
+  pairedWorkspaceId: 'workspace-a',
   instanceId: 'instance-a',
-  instanceName: 'Household B',
+  instanceName: 'Workspace B',
   userId: 'user-a',
 }
 
 describe('device revocation targeting', () => {
-  it('accepts the current device event even after switching households', () => {
+  it('accepts the current device event even after switching workspaces', () => {
     expect(isRevocationForConnection(connection, {
       type: 'device.revoked',
       device_id: 'device-a',
-      household_id: 'household-a',
+      workspace_id: 'workspace-a',
       occurred_at: new Date().toISOString(),
     })).toBe(true)
   })
 
-  it('ignores another device and a stale pre-repair household identity', () => {
+  it('ignores another device and a stale pre-repair workspace identity', () => {
     const occurred_at = new Date().toISOString()
     expect(isRevocationForConnection(connection, {
-      type: 'device.revoked', device_id: 'device-b', household_id: 'household-a', occurred_at,
+      type: 'device.revoked', device_id: 'device-b', workspace_id: 'workspace-a', occurred_at,
     })).toBe(false)
     expect(isRevocationForConnection(connection, {
-      type: 'device.revoked', device_id: 'device-a', household_id: 'old-household', occurred_at,
+      type: 'device.revoked', device_id: 'device-a', workspace_id: 'old-workspace', occurred_at,
     })).toBe(false)
   })
 })

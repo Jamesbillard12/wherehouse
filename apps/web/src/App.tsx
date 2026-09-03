@@ -1,26 +1,26 @@
-import { createHousehold, getMe, listHouseholds, logout, type Household, type MeResponse } from '@wherehouse/api-client'
+import { createWorkspace, getMe, listWorkspaces, logout, type Workspace, type MeResponse } from '@wherehouse/api-client'
 import { useEffect, useState } from 'react'
 
 import { AuthScreen } from './features/auth/AuthScreen'
 import { Dashboard } from './features/dashboard/Dashboard'
-import { HouseholdSetup } from './features/households/HouseholdSetup'
+import { WorkspaceSetup } from './features/workspaces/WorkspaceSetup'
 import { message } from './shared/utils/errors'
-import { HOUSEHOLD_KEY, SESSION_KEY } from './shared/utils/storage'
+import { ACTIVE_WORKSPACE_KEY, loadActiveWorkspaceId, SESSION_KEY } from './shared/utils/storage'
 
 export function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem(SESSION_KEY) ?? '')
   const [me, setMe] = useState<MeResponse | null>(null)
-  const [households, setHouseholds] = useState<Household[]>([])
-  const [selectedId, setSelectedId] = useState(() => localStorage.getItem(HOUSEHOLD_KEY) ?? '')
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [selectedId, setSelectedId] = useState(loadActiveWorkspaceId)
   const [loading, setLoading] = useState(Boolean(token))
   const [error, setError] = useState<string | null>(null)
 
   function clearSession() {
     sessionStorage.removeItem(SESSION_KEY)
-    localStorage.removeItem(HOUSEHOLD_KEY)
+    localStorage.removeItem(ACTIVE_WORKSPACE_KEY)
     setToken('')
     setMe(null)
-    setHouseholds([])
+    setWorkspaces([])
     setSelectedId('')
   }
 
@@ -28,10 +28,10 @@ export function App() {
     setLoading(true)
     setError(null)
     try {
-      const [account, householdList] = await Promise.all([getMe(accessToken), listHouseholds(accessToken)])
+      const [account, workspaceList] = await Promise.all([getMe(accessToken), listWorkspaces(accessToken)])
       setMe(account)
-      setHouseholds(householdList)
-      setSelectedId((current) => householdList.some((household) => household.id === current) ? current : (householdList[0]?.id ?? ''))
+      setWorkspaces(workspaceList)
+      setSelectedId((current) => workspaceList.some((workspace) => workspace.id === current) ? current : (workspaceList[0]?.id ?? ''))
     } catch (reason) {
       clearSession()
       setError(message(reason))
@@ -54,11 +54,11 @@ export function App() {
     }
   }
 
-  async function addHousehold(name: string) {
-    const household = await createHousehold(token, name)
-    setHouseholds((current) => [...current, household])
-    setSelectedId(household.id)
-    localStorage.setItem(HOUSEHOLD_KEY, household.id)
+  async function addWorkspace(name: string) {
+    const workspace = await createWorkspace(token, name)
+    setWorkspaces((current) => [...current, workspace])
+    setSelectedId(workspace.id)
+    localStorage.setItem(ACTIVE_WORKSPACE_KEY, workspace.id)
     setMe(await getMe(token))
   }
 
@@ -71,9 +71,9 @@ export function App() {
     )
   }
   if (!token || !me) return <AuthScreen busy={loading} initialError={error} onAuthenticated={acceptToken} />
-  if (!households.length) return <HouseholdSetup user={me} onCreate={addHousehold} onSignOut={signOut} />
+  if (!workspaces.length) return <WorkspaceSetup user={me} onCreate={addWorkspace} onSignOut={signOut} />
 
-  const selected = households.find((household) => household.id === selectedId) ?? households[0]
-  const membership = me.households.find((access) => access.household_id === selected.id)
-  return <Dashboard household={selected} households={households} isOwner={membership?.relationship_type === 'owner'} onCreateHousehold={addHousehold} onSelect={(id) => { setSelectedId(id); localStorage.setItem(HOUSEHOLD_KEY, id) }} onSignOut={signOut} token={token} user={me} />
+  const selected = workspaces.find((workspace) => workspace.id === selectedId) ?? workspaces[0]
+  const membership = me.workspaces.find((access) => access.workspace_id === selected.id)
+  return <Dashboard workspace={selected} workspaces={workspaces} isOwner={membership?.role === 'owner'} onCreateWorkspace={addWorkspace} onSelect={(id) => { setSelectedId(id); localStorage.setItem(ACTIVE_WORKSPACE_KEY, id) }} onSignOut={signOut} token={token} user={me} />
 }

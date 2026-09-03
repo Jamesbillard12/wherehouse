@@ -12,8 +12,8 @@ export type SyncResult = { failed: number; itemIds: Record<string, string>; need
 const syncs = new Map<string, Promise<SyncResult>>()
 let revocationEpoch = 0
 
-function optimisticItem(householdId: string, draft: ItemDraft): Item {
-  return { id: draft.localId, household_id: householdId, name: draft.name, code: 'Pending sync', identifier_type: 'none', description: null, quantity: String(draft.quantity), unit: draft.unit ?? null, manufacturer: draft.manufacturer ?? null, model: null, serial_number: null, notes: draft.notes ?? null, image_path: draft.photoUri ?? null, is_archived: false, created_at: draft.createdAt, updated_at: draft.createdAt }
+function optimisticItem(workspaceId: string, draft: ItemDraft): Item {
+  return { id: draft.localId, workspace_id: workspaceId, name: draft.name, code: 'Pending sync', identifier_type: 'none', description: null, quantity: String(draft.quantity), unit: draft.unit ?? null, manufacturer: draft.manufacturer ?? null, model: null, serial_number: null, notes: draft.notes ?? null, image_path: draft.photoUri ?? null, is_archived: false, created_at: draft.createdAt, updated_at: draft.createdAt }
 }
 
 function optimisticPlacement(draft: ItemDraft): ItemPlacement | null {
@@ -21,28 +21,28 @@ function optimisticPlacement(draft: ItemDraft): ItemPlacement | null {
   return { id: `local-placement-${draft.localId}`, item_id: draft.localId, area_id: draft.location.kind === 'area' ? draft.location.id : null, zone_id: draft.location.kind === 'zone' ? draft.location.id : null, container_id: draft.location.kind === 'container' ? draft.location.id : null, relationship_type: draft.location.kind === 'container' ? 'in' : null, created_at: draft.createdAt, updated_at: draft.createdAt }
 }
 
-export async function queueItem(householdId: string, draft: ItemDraft): Promise<void> {
+export async function queueItem(workspaceId: string, draft: ItemDraft): Promise<void> {
   if (draft.schemaVersion !== 1) throw new Error('This item draft version is not supported.')
   const db = await database()
-  const item = optimisticItem(householdId, draft)
+  const item = optimisticItem(workspaceId, draft)
   const placement = optimisticPlacement(draft)
   await db.withExclusiveTransactionAsync(async (transaction) => {
-    await transaction.runAsync(`INSERT OR IGNORE INTO pending_operations (operation_id, operation_type, operation_version, household_id, payload, created_at, status, attempt_count) VALUES (?, 'item.create', 1, ?, ?, ?, 'pending', 0)`, draft.localId, householdId, JSON.stringify(draft), draft.createdAt)
-    await transaction.runAsync('INSERT OR REPLACE INTO inventory_cache (entity_type, entity_id, household_id, payload) VALUES (?, ?, ?, ?)', 'item', item.id, householdId, JSON.stringify(item))
-    if (placement) await transaction.runAsync('INSERT OR REPLACE INTO inventory_cache (entity_type, entity_id, household_id, payload) VALUES (?, ?, ?, ?)', 'item-placement', placement.id, householdId, JSON.stringify(placement))
-    if (draft.location) await transaction.runAsync('INSERT OR REPLACE INTO recent_item_locations (household_id, location_key, payload, used_at) VALUES (?, ?, ?, ?)', householdId, `${draft.location.kind}:${draft.location.id}`, JSON.stringify(draft.location), new Date().toISOString())
+    await transaction.runAsync(`INSERT OR IGNORE INTO pending_operations (operation_id, operation_type, operation_version, workspace_id, payload, created_at, status, attempt_count) VALUES (?, 'item.create', 1, ?, ?, ?, 'pending', 0)`, draft.localId, workspaceId, JSON.stringify(draft), draft.createdAt)
+    await transaction.runAsync('INSERT OR REPLACE INTO inventory_cache (entity_type, entity_id, workspace_id, payload) VALUES (?, ?, ?, ?)', 'item', item.id, workspaceId, JSON.stringify(item))
+    if (placement) await transaction.runAsync('INSERT OR REPLACE INTO inventory_cache (entity_type, entity_id, workspace_id, payload) VALUES (?, ?, ?, ?)', 'item-placement', placement.id, workspaceId, JSON.stringify(placement))
+    if (draft.location) await transaction.runAsync('INSERT OR REPLACE INTO recent_item_locations (workspace_id, location_key, payload, used_at) VALUES (?, ?, ?, ?)', workspaceId, `${draft.location.kind}:${draft.location.id}`, JSON.stringify(draft.location), new Date().toISOString())
   })
 }
 
-export async function pendingItemCount(householdId: string): Promise<number> {
+export async function pendingItemCount(workspaceId: string): Promise<number> {
   const db = await database()
-  const row = await db.getFirstAsync<{ count: number }>(`SELECT COUNT(*) AS count FROM pending_operations WHERE household_id = ? AND status != 'permanently_failed'`, householdId)
+  const row = await db.getFirstAsync<{ count: number }>(`SELECT COUNT(*) AS count FROM pending_operations WHERE workspace_id = ? AND status != 'permanently_failed'`, workspaceId)
   return row?.count ?? 0
 }
 
-export async function failedItemCount(householdId: string): Promise<number> {
+export async function failedItemCount(workspaceId: string): Promise<number> {
   const db = await database()
-  const row = await db.getFirstAsync<{ count: number }>(`SELECT COUNT(*) AS count FROM pending_operations WHERE household_id = ? AND status = 'permanently_failed'`, householdId)
+  const row = await db.getFirstAsync<{ count: number }>(`SELECT COUNT(*) AS count FROM pending_operations WHERE workspace_id = ? AND status = 'permanently_failed'`, workspaceId)
   return row?.count ?? 0
 }
 
@@ -57,24 +57,24 @@ export async function quarantinePendingItemsAfterCredentialRemoval(): Promise<vo
   )
 }
 
-export async function recentLocations(householdId: string): Promise<ItemLocationChoice[]> {
+export async function recentLocations(workspaceId: string): Promise<ItemLocationChoice[]> {
   const db = await database()
-  const rows = await db.getAllAsync<{ payload: string }>('SELECT payload FROM recent_item_locations WHERE household_id = ? ORDER BY used_at DESC LIMIT 4', householdId)
+  const rows = await db.getAllAsync<{ payload: string }>('SELECT payload FROM recent_item_locations WHERE workspace_id = ? ORDER BY used_at DESC LIMIT 4', workspaceId)
   return rows.map((row) => JSON.parse(row.payload) as ItemLocationChoice)
 }
 
 export function syncPendingItems(server: PairedServer): Promise<SyncResult> {
-  const existing = syncs.get(server.householdId)
+  const existing = syncs.get(server.workspaceId)
   if (existing) return existing
-  const sync = syncPendingItemsOnce(server).finally(() => syncs.delete(server.householdId))
-  syncs.set(server.householdId, sync)
+  const sync = syncPendingItemsOnce(server).finally(() => syncs.delete(server.workspaceId))
+  syncs.set(server.workspaceId, sync)
   return sync
 }
 
 async function syncPendingItemsOnce(server: PairedServer): Promise<SyncResult> {
   const startedAtRevocationEpoch = revocationEpoch
   const db = await database()
-  const rows = await db.getAllAsync<PendingRow>(`SELECT operation_id, operation_type, operation_version, payload, remote_entity_id, attempt_count FROM pending_operations WHERE household_id = ? AND status IN ('pending', 'retryable_failed') AND (next_attempt_at IS NULL OR next_attempt_at <= ?) ORDER BY created_at, operation_id`, server.householdId, new Date().toISOString())
+  const rows = await db.getAllAsync<PendingRow>(`SELECT operation_id, operation_type, operation_version, payload, remote_entity_id, attempt_count FROM pending_operations WHERE workspace_id = ? AND status IN ('pending', 'retryable_failed') AND (next_attempt_at IS NULL OR next_attempt_at <= ?) ORDER BY created_at, operation_id`, server.workspaceId, new Date().toISOString())
   const client = createRemoteClient(server.baseUrl, server.accessToken)
   const result: SyncResult = { failed: 0, itemIds: {}, needsAttention: 0, paused: false, synced: 0 }
   for (const row of rows) {
@@ -92,7 +92,7 @@ async function syncPendingItemsOnce(server: PairedServer): Promise<SyncResult> {
       let itemId = row.remote_entity_id
       if (!itemId) {
         const metadata = [draft.category ? `Category: ${draft.category}` : '', draft.condition ? `Condition: ${draft.condition}` : '', draft.tags?.length ? `Tags: ${draft.tags.join(', ')}` : '', draft.notes ?? ''].filter(Boolean).join('\n')
-        const item = await client.createItem(server.householdId, { client_operation_id: row.operation_id, name: draft.name, identifier_type: 'none', quantity: draft.quantity, unit: draft.unit, manufacturer: draft.manufacturer, notes: metadata || undefined, ...(draft.location ? { placement: { [`${draft.location.kind}_id`]: draft.location.id, ...(draft.location.kind === 'container' ? { relationship_type: 'in' as const } : {}) } } : {}) })
+        const item = await client.createItem(server.workspaceId, { client_operation_id: row.operation_id, name: draft.name, identifier_type: 'none', quantity: draft.quantity, unit: draft.unit, manufacturer: draft.manufacturer, notes: metadata || undefined, ...(draft.location ? { placement: { [`${draft.location.kind}_id`]: draft.location.id, ...(draft.location.kind === 'container' ? { relationship_type: 'in' as const } : {}) } } : {}) })
         itemId = item.id
         await db.runAsync('UPDATE pending_operations SET remote_entity_id = ? WHERE operation_id = ?', itemId, row.operation_id)
       }
@@ -104,7 +104,7 @@ async function syncPendingItemsOnce(server: PairedServer): Promise<SyncResult> {
       await db.withExclusiveTransactionAsync(async (transaction) => {
         await transaction.runAsync('DELETE FROM pending_operations WHERE operation_id = ?', row.operation_id)
         await transaction.runAsync('DELETE FROM pending_items WHERE local_id = ?', row.operation_id)
-        await transaction.runAsync('DELETE FROM inventory_cache WHERE household_id = ? AND entity_id IN (?, ?)', server.householdId, row.operation_id, `local-placement-${row.operation_id}`)
+        await transaction.runAsync('DELETE FROM inventory_cache WHERE workspace_id = ? AND entity_id IN (?, ?)', server.workspaceId, row.operation_id, `local-placement-${row.operation_id}`)
       })
       if (draft.photoUri) await FileSystem.deleteAsync(draft.photoUri, { idempotent: true })
       result.synced += 1

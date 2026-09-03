@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 
 import { message } from '../../shared/utils/errors'
 
-export function HouseholdSetup({
+export function WorkspaceSetup({
   user,
   onCreate,
   onSignOut,

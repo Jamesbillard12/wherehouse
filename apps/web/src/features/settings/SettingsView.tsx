@@ -8,7 +8,7 @@ import {
   runRemoteBackup,
   type BackupStatus,
   type Device,
-  type Household,
+  type Workspace,
   type MeResponse,
   type PairingSession,
 } from "@wherehouse/api-client";
@@ -36,7 +36,7 @@ import type { SettingsSection } from "../../shared/utils/navigation";
 
 const sections: { id: SettingsSection; label: string; icon: typeof House }[] = [
   { id: "account", label: "Account", icon: CircleUserRound },
-  { id: "households", label: "Households", icon: House },
+  { id: "workspaces", label: "Households", icon: House },
   { id: "backups", label: "Backup & Restore", icon: Cloud },
   { id: "preferences", label: "Preferences", icon: Palette },
   { id: "privacy", label: "Data & Privacy", icon: Shield },
@@ -44,20 +44,20 @@ const sections: { id: SettingsSection; label: string; icon: typeof House }[] = [
 ];
 
 export function SettingsView({
-  household,
-  households,
+  workspace,
+  workspaces,
   isOwner,
-  onCreateHousehold,
+  onCreateWorkspace,
   onNavigate,
   onSelect,
   section,
   token,
   user,
 }: {
-  household: Household;
-  households: Household[];
+  workspace: Workspace;
+  workspaces: Workspace[];
   isOwner: boolean;
-  onCreateHousehold: (name: string) => Promise<void>;
+  onCreateWorkspace: (name: string) => Promise<void>;
   onNavigate: (section: SettingsSection) => void;
   onSelect: (id: string) => void;
   section: SettingsSection;
@@ -87,12 +87,12 @@ export function SettingsView({
         <section className="settings-content">
           {section === "account" ? (
             <Account user={user} />
-          ) : section === "households" ? (
-            <Households
-              household={household}
-              households={households}
+          ) : section === "workspaces" ? (
+            <Workspaces
+              workspace={workspace}
+              workspaces={workspaces}
               isOwner={isOwner}
-              onCreate={onCreateHousehold}
+              onCreate={onCreateWorkspace}
               onSelect={onSelect}
               token={token}
               user={user}
@@ -303,17 +303,17 @@ function Account({ user }: { user: MeResponse }) {
   );
 }
 
-function Households({
-  household,
-  households,
+function Workspaces({
+  workspace,
+  workspaces,
   isOwner,
   onCreate,
   onSelect,
   token,
   user,
 }: {
-  household: Household;
-  households: Household[];
+  workspace: Workspace;
+  workspaces: Workspace[];
   isOwner: boolean;
   onCreate: (name: string) => Promise<void>;
   onSelect: (id: string) => void;
@@ -325,7 +325,7 @@ function Households({
   const [pairingDeviceBaseline, setPairingDeviceBaseline] = useState(0);
   const [qrCode, setQrCode] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [newHouseholdName, setNewHouseholdName] = useState("");
+  const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [creating, setCreating] = useState(false);
   const [deviceToRevoke, setDeviceToRevoke] = useState<Device | null>(null);
   const [revoking, setRevoking] = useState(false);
@@ -333,11 +333,11 @@ function Households({
     setPairing(null);
     setQrCode("");
     if (isOwner)
-      void listDevices(token, household.id)
+      void listDevices(token, workspace.id)
         .then(setDevices)
         .catch((reason) => setError(message(reason)));
     else setDevices([]);
-  }, [household.id, isOwner, token]);
+  }, [workspace.id, isOwner, token]);
   useEffect(() => {
     if (pairing)
       void QRCode.toDataURL(pairing.pairing_uri, {
@@ -349,7 +349,7 @@ function Households({
     if (!isOwner) return;
     let cancelled = false;
     async function refreshDevices() {
-      const next = await listDevices(token, household.id);
+      const next = await listDevices(token, workspace.id);
       if (cancelled) return;
       setDevices(next);
       if (
@@ -371,17 +371,17 @@ function Households({
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [household.id, isOwner, pairing?.id, pairingDeviceBaseline, token]);
+  }, [workspace.id, isOwner, pairing?.id, pairingDeviceBaseline, token]);
   async function pair() {
     try {
-      const current = await listDevices(token, household.id);
+      const current = await listDevices(token, workspace.id);
       setDevices(current);
       setPairingDeviceBaseline(
         current.filter((device) => device.is_active).length,
       );
       setPairing(
-        await createPairingSession(token, household.id, {
-          instance_name: `${household.name} WhereHouse`,
+        await createPairingSession(token, workspace.id, {
+          instance_name: `${workspace.name} WhereHouse`,
           instance_type: location.hostname === "localhost" ? "local" : "cloud",
         }),
       );
@@ -394,7 +394,7 @@ function Households({
     setRevoking(true);
     try {
       await revokeDevice(token, deviceToRevoke.id);
-      setDevices(await listDevices(token, household.id));
+      setDevices(await listDevices(token, workspace.id));
       setDeviceToRevoke(null);
     } catch (reason) {
       setError(message(reason));
@@ -404,27 +404,27 @@ function Households({
   }
   async function create(event: React.FormEvent) {
     event.preventDefault();
-    if (!newHouseholdName.trim()) return;
+    if (!newWorkspaceName.trim()) return;
     setCreating(true);
     setError(null);
     try {
-      await onCreate(newHouseholdName.trim());
-      setNewHouseholdName("");
+      await onCreate(newWorkspaceName.trim());
+      setNewWorkspaceName("");
     } catch (reason) {
       setError(message(reason));
     } finally {
       setCreating(false);
     }
   }
-  const role = user.households.find(
-    (entry) => entry.household_id === household.id,
-  )?.relationship_type;
+  const role = user.workspaces.find(
+    (entry) => entry.workspace_id === workspace.id,
+  )?.role;
   return (
     <>
       <p className="eyebrow">Household scoped</p>
       <h2>Households</h2>
       <form
-        className="settings-card add-household-form"
+        className="settings-card add-workspace-form"
         onSubmit={(event) => void create(event)}
       >
         <h3>Add Household</h3>
@@ -436,24 +436,24 @@ function Households({
           Household name
           <input
             disabled={creating}
-            onChange={(event) => setNewHouseholdName(event.target.value)}
+            onChange={(event) => setNewWorkspaceName(event.target.value)}
             placeholder="Workshop, cabin, storage unit…"
             required
-            value={newHouseholdName}
+            value={newWorkspaceName}
           />
         </label>
         <Button
           className="primary-button compact"
-          disabled={creating || !newHouseholdName.trim()}
+          disabled={creating || !newWorkspaceName.trim()}
           type="submit"
         >
           {creating ? "Creating…" : "Add household"}
         </Button>
       </form>
-      <div className="household-list">
-        {households.map((entry) => (
+      <div className="workspace-list">
+        {workspaces.map((entry) => (
           <Button
-            className={entry.id === household.id ? "active" : ""}
+            className={entry.id === workspace.id ? "active" : ""}
             key={entry.id}
             onClick={() => onSelect(entry.id)}
           >
@@ -461,17 +461,17 @@ function Households({
             <span>
               <strong>{entry.name}</strong>
               <small>
-                {user.households.find(
-                  (access) => access.household_id === entry.id,
-                )?.relationship_type ?? "member"}
-                {entry.id === household.id ? " · Active" : ""}
+                {user.workspaces.find(
+                  (access) => access.workspace_id === entry.id,
+                )?.role ?? "member"}
+                {entry.id === workspace.id ? " · Active" : ""}
               </small>
             </span>
           </Button>
         ))}
       </div>
       <div className="settings-card" id="connected-devices">
-        <h3>{household.name}</h3>
+        <h3>{workspace.name}</h3>
         <p className="muted">Your relationship: {role}</p>
         <h3>Connected Devices</h3>
         {isOwner ? (

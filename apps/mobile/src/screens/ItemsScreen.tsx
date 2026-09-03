@@ -9,11 +9,11 @@ import { containerLocationChoice, placementLocationChoice } from '../utils/itemL
 
 type SearchResult = ({ kind: 'item' } & ItemSearchResult) | ({ kind: 'container' } & ContainerSearchResult)
 
-export function ItemsScreen({ error, householdId, inventory, onEdit, onOpenContainer, onRefresh, search, syncing }: { error: string | null; householdId: string; inventory: CachedInventory; onEdit: (item: Item) => void; onOpenContainer: (container: StorageContainer) => void; onRefresh: () => void; search: (query: string) => Promise<SearchResult[]>; syncing: boolean }) {
+export function ItemsScreen({ error, workspaceId, inventory, onEdit, onOpenContainer, onRefresh, search, syncing }: { error: string | null; workspaceId: string; inventory: CachedInventory; onEdit: (item: Item) => void; onOpenContainer: (container: StorageContainer) => void; onRefresh: () => void; search: (query: string) => Promise<SearchResult[]>; syncing: boolean }) {
   const [query, setQuery] = useState('')
   const [remoteResults, setRemoteResults] = useState<SearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
-  useEffect(() => { setQuery(''); setRemoteResults(null) }, [householdId])
+  useEffect(() => { setQuery(''); setRemoteResults(null) }, [workspaceId])
   const localResults = useMemo<SearchResult[]>(() => { const term = query.trim().toLocaleLowerCase(); const items = inventory.items.filter((item) => !item.is_archived && `${item.name} ${item.code} ${item.manufacturer ?? ''} ${item.model ?? ''}`.toLocaleLowerCase().includes(term)).map((item) => ({ kind: 'item' as const, item, resolved_path: placementLocationChoice(inventory.itemPlacements.find((entry) => entry.item_id === item.id), inventory)?.detail ?? null })); const containers = inventory.containers.filter((container) => !container.is_archived && `${container.name} ${container.code} ${container.description ?? ''}`.toLocaleLowerCase().includes(term)).map((container) => ({ kind: 'container' as const, container, resolved_path: containerLocationChoice(container, inventory).detail ?? container.name })); return [...items, ...containers] }, [inventory, query])
   useEffect(() => { const term = query.trim(); if (!term) { setRemoteResults(null); setSearching(false); return }; let cancelled = false; setSearching(true); const timer = setTimeout(() => void search(term).then((results) => { if (!cancelled) setRemoteResults(results) }).catch(() => { if (!cancelled) setRemoteResults(null) }).finally(() => { if (!cancelled) setSearching(false) }), 250); return () => { cancelled = true; clearTimeout(timer) } }, [query, search])
   const results = query.trim() ? remoteResults ?? localResults : localResults

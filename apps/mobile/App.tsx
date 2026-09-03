@@ -1,6 +1,6 @@
 import { useCameraPermissions } from 'expo-camera'
 import { StatusBar } from 'expo-status-bar'
-import { ApiError, createRemoteClient, listHouseholds, parseIdentifierPayload, subscribeToHousehold, type Household, type IdentifierResolution, type Item, type StorageContainer } from '@wherehouse/api-client'
+import { ApiError, createRemoteClient, listWorkspaces, parseIdentifierPayload, subscribeToWorkspace, type Workspace, type IdentifierResolution, type Item, type StorageContainer } from '@wherehouse/api-client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
@@ -86,8 +86,8 @@ export default function App() {
     if (!pairedServer) return Promise.resolve([])
     const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
     return Promise.all([
-      client.searchItems(pairedServer.householdId, query),
-      client.searchContainers(pairedServer.householdId, query),
+      client.searchItems(pairedServer.workspaceId, query),
+      client.searchContainers(pairedServer.workspaceId, query),
     ]).then(([items, containers]) => [
       ...items.map((result) => ({ kind: 'item' as const, ...result })),
       ...containers.map((result) => ({ kind: 'container' as const, ...result })),
@@ -148,7 +148,7 @@ export default function App() {
     setSyncing(true)
     void (async () => {
       try {
-        const cached = await loadCachedInventory(pairedServer.householdId)
+        const cached = await loadCachedInventory(pairedServer.workspaceId)
         if (!cancelled) setInventory(cached)
         await syncPendingItems(pairedServer)
         const next = await syncInventory(pairedServer)
@@ -161,9 +161,9 @@ export default function App() {
       } finally {
         if (cancelled) return
         setSyncing(false)
-        void pendingItemCount(pairedServer.householdId).then(setPendingCount)
-        void failedItemCount(pairedServer.householdId).then(setFailedCount)
-        void recentLocations(pairedServer.householdId).then(setRecentItemLocations)
+        void pendingItemCount(pairedServer.workspaceId).then(setPendingCount)
+        void failedItemCount(pairedServer.workspaceId).then(setFailedCount)
+        void recentLocations(pairedServer.workspaceId).then(setRecentItemLocations)
       }
     })()
     return () => { cancelled = true }
@@ -172,15 +172,15 @@ export default function App() {
   useEffect(() => {
     if (!pairedServer) return
     let cancelled = false
-    void listHouseholds(pairedServer.accessToken, pairedServer.baseUrl).then(async (households) => {
-      const active = households.find((household) => household.id === pairedServer.householdId)
+    void listWorkspaces(pairedServer.accessToken, pairedServer.baseUrl).then(async (workspaces) => {
+      const active = workspaces.find((workspace) => workspace.id === pairedServer.workspaceId)
       if (!active || active.name === pairedServer.instanceName || cancelled) return
       const next = { ...pairedServer, instanceName: active.name }
       await savePairedServer(next)
       if (!cancelled) setPairedServer(next)
     }).catch(() => undefined)
     return () => { cancelled = true }
-  }, [pairedServer?.accessToken, pairedServer?.householdId])
+  }, [pairedServer?.accessToken, pairedServer?.workspaceId])
 
   useEffect(() => {
     setEditingItemImageUri(undefined)
@@ -206,8 +206,8 @@ export default function App() {
       running = true
       try {
         await syncPendingItems(pairedServer)
-        setPendingCount(await pendingItemCount(pairedServer.householdId))
-        setFailedCount(await failedItemCount(pairedServer.householdId))
+        setPendingCount(await pendingItemCount(pairedServer.workspaceId))
+        setFailedCount(await failedItemCount(pairedServer.workspaceId))
       } catch (reason) {
         handleConnectionError(reason, 'Pending item sync failed.')
       } finally {
@@ -228,8 +228,8 @@ export default function App() {
       try {
         await syncPendingItems(pairedServer)
         setInventory(await syncInventory(pairedServer))
-        setPendingCount(await pendingItemCount(pairedServer.householdId))
-        setFailedCount(await failedItemCount(pairedServer.householdId))
+        setPendingCount(await pendingItemCount(pairedServer.workspaceId))
+        setFailedCount(await failedItemCount(pairedServer.workspaceId))
         setError(null)
       } catch (reason) {
         handleConnectionError(reason, 'Realtime sync failed.')
@@ -239,9 +239,9 @@ export default function App() {
       }
     }
     const current = pairedServer
-    return subscribeToHousehold({
+    return subscribeToWorkspace({
       baseUrl: current.baseUrl,
-      householdId: current.householdId,
+      workspaceId: current.workspaceId,
       token: current.accessToken,
       onEvent: () => void reconcile(),
       onReady: () => void reconcile(),
@@ -292,9 +292,9 @@ export default function App() {
     setBusy(false)
   }
 
-  async function switchHousehold(household: Household) {
-    if (!pairedServer || pairedServer.householdId === household.id) return
-    const next = { ...pairedServer, householdId: household.id, instanceName: household.name }
+  async function switchWorkspace(workspace: Workspace) {
+    if (!pairedServer || pairedServer.workspaceId === workspace.id) return
+    const next = { ...pairedServer, workspaceId: workspace.id, instanceName: workspace.name }
     setSelectedLocation(null)
     setAddItemLocation(undefined)
     setEditItemLocation(undefined)
@@ -324,8 +324,8 @@ export default function App() {
     try {
       await syncPendingItems(pairedServer)
       setInventory(await syncInventory(pairedServer))
-      setPendingCount(await pendingItemCount(pairedServer.householdId))
-      setFailedCount(await failedItemCount(pairedServer.householdId))
+      setPendingCount(await pendingItemCount(pairedServer.workspaceId))
+      setFailedCount(await failedItemCount(pairedServer.workspaceId))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Sync failed.')
     } finally {
@@ -335,11 +335,11 @@ export default function App() {
 
   async function saveItem(draft: ItemDraft): Promise<'queued' | 'synced'> {
     if (!pairedServer) throw new Error('Pair this phone before adding items.')
-    await queueItem(pairedServer.householdId, draft)
-    setInventory(await loadCachedInventory(pairedServer.householdId))
-    setPendingCount(await pendingItemCount(pairedServer.householdId))
-    setFailedCount(await failedItemCount(pairedServer.householdId))
-    setRecentItemLocations(await recentLocations(pairedServer.householdId))
+    await queueItem(pairedServer.workspaceId, draft)
+    setInventory(await loadCachedInventory(pairedServer.workspaceId))
+    setPendingCount(await pendingItemCount(pairedServer.workspaceId))
+    setFailedCount(await failedItemCount(pairedServer.workspaceId))
+    setRecentItemLocations(await recentLocations(pairedServer.workspaceId))
     setAddItemLocation(draft.location)
     if (linkNewItemToNfc) {
       let result = await syncPendingItems(pairedServer)
@@ -350,14 +350,14 @@ export default function App() {
       }
       if (!itemId) throw new Error('The item was saved on this phone, but it must sync before the NFC tag can be linked. Try again when connected.')
       await writeItemNfc(itemId)
-      setPendingCount(await pendingItemCount(pairedServer.householdId))
-      setFailedCount(await failedItemCount(pairedServer.householdId))
+      setPendingCount(await pendingItemCount(pairedServer.workspaceId))
+      setFailedCount(await failedItemCount(pairedServer.workspaceId))
       setInventory(await syncInventory(pairedServer))
       return 'synced'
     }
     void syncPendingItems(pairedServer)
       .then(async () => {
-        setPendingCount(await pendingItemCount(pairedServer.householdId))
+        setPendingCount(await pendingItemCount(pairedServer.workspaceId))
         setInventory(await syncInventory(pairedServer))
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : 'Item will retry when connected.'))
@@ -559,8 +559,8 @@ export default function App() {
           {busy ? (
             <ActivityIndicator style={styles.activity} color="#166534" size="large" />
           ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} failedCount={failedCount} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={openLocations} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanSession()} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
-            : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} householdId={pairedServer.householdId} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onOpenContainer={(container) => { setSelectedLocation(containerLocationChoice(container, inventory)); setActiveTab('containers') }} onRefresh={() => void refreshInventory()} search={searchInventory} syncing={syncing} />
-            : pairedServer && activeTab === 'more' ? <SettingsScreen onForget={() => void forget()} onSwitch={switchHousehold} server={pairedServer} />
+            : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} workspaceId={pairedServer.workspaceId} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onOpenContainer={(container) => { setSelectedLocation(containerLocationChoice(container, inventory)); setActiveTab('containers') }} onRefresh={() => void refreshInventory()} search={searchInventory} syncing={syncing} />
+            : pairedServer && activeTab === 'more' ? <SettingsScreen onForget={() => void forget()} onSwitch={switchWorkspace} server={pairedServer} />
             : pairedServer ? <LocationsScreen error={error} inventory={inventory} onAddItem={(location) => { setAddItemLocation(location); setActiveTab('add-item') }} onChangeLocation={openLocations} onOpenItem={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} onSelect={setSelectedLocation} onWriteNfc={async (containerId) => { const container = inventory.containers.find((entry) => entry.id === containerId); if (container) await writeContainerNfc(container) }} selected={selectedLocation} syncing={syncing} />
               : <PairingScreen error={error ?? (revokedConnection ? 'This device no longer has access to its household. Pair it again to reconnect.' : null)} onChange={setPairingUri} onPair={() => void pair()} onScan={() => void openScanner('pairing')} value={pairingUri} />}
         </ScrollView>

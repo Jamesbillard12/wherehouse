@@ -7,6 +7,12 @@ and post-MVP implementations are distinct; do not turn future adapters into curr
 
 ## Architecture rules
 
+- Scope new domain behavior to `Workspace`, pass workspace context explicitly to backend services, and
+  use `WorkspaceMembership` for access. Household terminology belongs only in household-facing UI or
+  documented v1 compatibility aliases; do not add new `household_id` relationships without a documented
+  compatibility reason. Web/mobile features use the centralized active-workspace identity, and relevant
+  tests must prove workspace isolation. Do not implement type-specific organization behavior until
+  explicitly requested, and update architecture documentation alongside changes to this boundary.
 - Keep domain/application behavior independent of React, React Native, HTTP/FastAPI, MCP/assistant
   SDKs, AI providers and spatial frameworks. Transports authenticate/parse/invoke/map.
 - Put reusable rules, transactions, idempotency and events in focused application capabilities behind

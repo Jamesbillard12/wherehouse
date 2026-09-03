@@ -38,10 +38,10 @@ class UserSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class AppInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "app_instances"
-    __table_args__ = (UniqueConstraint("household_id", name="uq_app_instance_household"),)
+    __table_args__ = (UniqueConstraint("workspace_id", name="uq_app_instance_workspace"),)
 
-    household_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False
+    workspace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     base_url: Mapped[str] = mapped_column(String(2048), nullable=False)
@@ -52,10 +52,10 @@ class AppInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class Device(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "devices"
-    __table_args__ = (Index("ix_devices_household_active", "household_id", "is_active"),)
+    __table_args__ = (Index("ix_devices_workspace_active", "workspace_id", "is_active"),)
 
-    household_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False
+    workspace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
     user_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -73,8 +73,8 @@ class Device(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class PairingSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "pairing_sessions"
 
-    household_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("households.id", ondelete="CASCADE"), nullable=False
+    workspace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
     created_by_user_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False

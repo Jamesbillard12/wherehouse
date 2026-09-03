@@ -7,13 +7,30 @@ export type PairedServer = {
   accessToken: string
   baseUrl: string
   deviceId: string
-  householdId: string
+  workspaceId: string
   instanceId: string
   instanceName: string
-  pairedHouseholdId?: string
+  pairedWorkspaceId?: string
   userId: string
   status?: 'active' | 'revoked'
   revokedAt?: string
+}
+
+type LegacyPairedServer = PairedServer & {
+  householdId?: string
+  pairedHouseholdId?: string
+}
+
+function normalizePairedServer(value: string): PairedServer {
+  const stored = JSON.parse(value) as LegacyPairedServer
+  const workspaceId = stored.workspaceId ?? stored.householdId
+  if (!workspaceId) throw new Error('Stored household connection is missing its identity.')
+  return {
+    ...stored,
+    workspaceId,
+    pairedWorkspaceId:
+      stored.pairedWorkspaceId ?? stored.pairedHouseholdId ?? workspaceId,
+  }
 }
 
 export function isPairingUri(value: string): boolean {
@@ -53,10 +70,10 @@ export async function pairDevice(
     accessToken: result.access_token,
     baseUrl: result.base_url,
     deviceId: result.device_id,
-    householdId: result.household_id,
+    workspaceId: result.workspace_id,
     instanceId: result.instance_id,
     instanceName: result.instance_name,
-    pairedHouseholdId: result.household_id,
+    pairedWorkspaceId: result.workspace_id,
     userId: result.user_id,
   }
   await SecureStore.setItemAsync(PAIRING_KEY, JSON.stringify(paired))
@@ -66,13 +83,13 @@ export async function pairDevice(
 export async function loadPairedServer(): Promise<PairedServer | null> {
   const value = await SecureStore.getItemAsync(PAIRING_KEY)
   if (!value) return null
-  const server = JSON.parse(value) as PairedServer
+  const server = normalizePairedServer(value)
   return server.status === 'revoked' ? null : server
 }
 
 export async function loadStoredPairing(): Promise<PairedServer | null> {
   const value = await SecureStore.getItemAsync(PAIRING_KEY)
-  return value ? (JSON.parse(value) as PairedServer) : null
+  return value ? normalizePairedServer(value) : null
 }
 
 export async function savePairedServer(server: PairedServer): Promise<void> {

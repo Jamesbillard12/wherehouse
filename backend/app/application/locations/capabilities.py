@@ -6,7 +6,7 @@ from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.context import ActorContext
-from app.models import Area, Container, ContainerPlacement, HouseholdUser, Zone
+from app.models import Area, Container, ContainerPlacement, WorkspaceMembership, Zone
 from app.models.core import ContainerRelationship
 
 
@@ -41,19 +41,19 @@ class ContainerSearchMatch:
 async def search_containers(
     session: AsyncSession,
     actor: ActorContext,
-    household_id: UUID,
+    workspace_id: UUID,
     command: SearchContainers,
 ) -> list[ContainerSearchMatch]:
-    if actor.household_id is not None and actor.household_id != household_id:
-        raise LocationAccessDenied("Household access denied")
+    if actor.workspace_id is not None and actor.workspace_id != workspace_id:
+        raise LocationAccessDenied("Workspace access denied")
     membership = await session.scalar(
-        select(HouseholdUser).where(
-            HouseholdUser.household_id == household_id,
-            HouseholdUser.user_id == actor.user_id,
+        select(WorkspaceMembership).where(
+            WorkspaceMembership.workspace_id == workspace_id,
+            WorkspaceMembership.user_id == actor.user_id,
         )
     )
     if membership is None:
-        raise LocationAccessDenied("Household access denied")
+        raise LocationAccessDenied("Workspace access denied")
     query = " ".join(command.query.split()).casefold()
     if not query:
         return []
@@ -67,7 +67,7 @@ async def search_containers(
         .join(Area, Area.id == Container.area_id)
         .outerjoin(Zone, Zone.id == Container.zone_id)
         .where(
-            Area.household_id == household_id,
+            Area.workspace_id == workspace_id,
             Container.is_archived.is_(False),
             or_(
                 name.ilike(contains, escape="\\"),
@@ -93,7 +93,7 @@ async def search_containers(
     if not containers:
         return []
 
-    areas = list(await session.scalars(select(Area).where(Area.household_id == household_id)))
+    areas = list(await session.scalars(select(Area).where(Area.workspace_id == workspace_id)))
     area_by_id = {area.id: area for area in areas}
     area_ids = list(area_by_id)
     zones = list(await session.scalars(select(Zone).where(Zone.area_id.in_(area_ids))))
@@ -133,7 +133,7 @@ async def search_containers(
 
 
 class EventPublisher(Protocol):
-    async def publish(self, household_id: UUID, **event: object) -> None: ...
+    async def publish(self, workspace_id: UUID, **event: object) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -160,18 +160,18 @@ async def place_container(
     parent_area = await session.get(Area, parent.area_id)
     if area is None or parent_area is None:
         raise LocationNotFound("Container area not found")
-    if actor.household_id is not None and actor.household_id != area.household_id:
-        raise LocationAccessDenied("Household access denied")
+    if actor.workspace_id is not None and actor.workspace_id != area.workspace_id:
+        raise LocationAccessDenied("Workspace access denied")
     membership = await session.scalar(
-        select(HouseholdUser).where(
-            HouseholdUser.household_id == area.household_id,
-            HouseholdUser.user_id == actor.user_id,
+        select(WorkspaceMembership).where(
+            WorkspaceMembership.workspace_id == area.workspace_id,
+            WorkspaceMembership.user_id == actor.user_id,
         )
     )
     if membership is None:
-        raise LocationAccessDenied("Household access denied")
-    if parent_area.household_id != area.household_id or parent.area_id != container.area_id:
-        raise InvalidContainerPlacement("Nested containers must belong to the same household and area")
+        raise LocationAccessDenied("Workspace access denied")
+    if parent_area.workspace_id != area.workspace_id or parent.area_id != container.area_id:
+        raise InvalidContainerPlacement("Nested containers must belong to the same workspace and area")
     if parent.zone_id != container.zone_id:
         raise InvalidContainerPlacement("Nested containers must belong to the same zone")
 
@@ -211,7 +211,7 @@ async def place_container(
         await session.rollback()
         raise
     await events.publish(
-        area.household_id,
+        area.workspace_id,
         entity="container-placement",
         action="updated",
         entity_id=placement.id,

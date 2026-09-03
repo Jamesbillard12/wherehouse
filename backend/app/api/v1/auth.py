@@ -10,7 +10,7 @@ from app.api.dependencies import (
     BearerDep,
     PrincipalDep,
     SessionDep,
-    require_household_access,
+    require_workspace_access,
 )
 from app.application.context import ActorContext
 from app.application.devices.capabilities import (
@@ -26,16 +26,15 @@ from app.core.security import hash_password, new_token, token_hash, verify_passw
 from app.models import (
     AppInstance,
     Device,
-    HouseholdUser,
     PairingSession,
     User,
     UserSession,
+    WorkspaceMembership,
 )
 from app.schemas.auth import (
     AccessToken,
     AuthUser,
     DeviceRead,
-    HouseholdAccess,
     LoginRequest,
     MeResponse,
     PairingConsume,
@@ -43,6 +42,7 @@ from app.schemas.auth import (
     PairingSessionCreate,
     PairingSessionCreated,
     RegisterRequest,
+    WorkspaceAccess,
 )
 
 router = APIRouter()
@@ -100,16 +100,20 @@ async def logout(credentials: BearerDep, principal: PrincipalDep, session: Sessi
 
 @router.get("/auth/me", response_model=MeResponse)
 async def me(principal: PrincipalDep, session: SessionDep) -> MeResponse:
-    query = select(HouseholdUser).where(HouseholdUser.user_id == principal.user.id)
+    query = select(WorkspaceMembership).where(WorkspaceMembership.user_id == principal.user.id)
+    if principal.device_workspace_id is not None:
+        query = query.where(
+            WorkspaceMembership.workspace_id == principal.device_workspace_id
+        )
     memberships = list(await session.scalars(query))
     return MeResponse(
         user=AuthUser.model_validate(principal.user, from_attributes=True),
         authenticated_by=principal.method,
         device_id=principal.device_id,
-        households=[
-            HouseholdAccess(
-                household_id=membership.household_id,
-                relationship_type=membership.relationship_type,
+        workspaces=[
+            WorkspaceAccess(
+                workspace_id=membership.workspace_id,
+                role=membership.role,
             )
             for membership in memberships
         ],
@@ -117,23 +121,29 @@ async def me(principal: PrincipalDep, session: SessionDep) -> MeResponse:
 
 
 @router.post(
-    "/households/{household_id}/pairing-sessions",
+    "/households/{workspace_id}/pairing-sessions",
+    response_model=PairingSessionCreated,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
+@router.post(
+    "/workspaces/{workspace_id}/pairing-sessions",
     response_model=PairingSessionCreated,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_pairing_session(
-    household_id: UUID,
+    workspace_id: UUID,
     payload: PairingSessionCreate,
     principal: PrincipalDep,
     session: SessionDep,
 ) -> PairingSessionCreated:
-    await require_household_access(household_id, principal, session, owner=True)
+    await require_workspace_access(workspace_id, principal, session, owner=True)
     instance = await session.scalar(
-        select(AppInstance).where(AppInstance.household_id == household_id)
+        select(AppInstance).where(AppInstance.workspace_id == workspace_id)
     )
     if instance is None:
         instance = AppInstance(
-            household_id=household_id,
+            workspace_id=workspace_id,
             name=payload.instance_name,
             base_url=settings.public_base_url.rstrip("/"),
             instance_type=payload.instance_type,
@@ -147,7 +157,7 @@ async def create_pairing_session(
     raw_token = new_token("pair")
     expires_at = datetime.now(UTC) + timedelta(minutes=settings.pairing_session_ttl_minutes)
     pairing = PairingSession(
-        household_id=household_id,
+        workspace_id=workspace_id,
         created_by_user_id=principal.user.id,
         token_hash=token_hash(raw_token),
         expires_at=expires_at,
@@ -178,14 +188,14 @@ async def consume_pairing(payload: PairingConsume, session: SessionDep) -> Pairi
         raise HTTPException(status_code=400, detail="Pairing token is invalid or expired")
 
     instance = await session.scalar(
-        select(AppInstance).where(AppInstance.household_id == pairing.household_id)
+        select(AppInstance).where(AppInstance.workspace_id == pairing.workspace_id)
     )
     if instance is None:
         raise HTTPException(status_code=409, detail="Application instance is not configured")
 
     credential = new_token("dev")
     device = Device(
-        household_id=pairing.household_id,
+        workspace_id=pairing.workspace_id,
         user_id=pairing.created_by_user_id,
         name=payload.device_name.strip(),
         device_type=payload.device_type,
@@ -205,21 +215,26 @@ async def consume_pairing(payload: PairingConsume, session: SessionDep) -> Pairi
         access_token=credential,
         device_id=device.id,
         user_id=device.user_id,
-        household_id=device.household_id,
+        workspace_id=device.workspace_id,
         instance_id=instance.id,
         instance_name=instance.name,
         base_url=instance.base_url,
     )
 
 
-@router.get("/households/{household_id}/devices", response_model=list[DeviceRead])
+@router.get(
+    "/households/{workspace_id}/devices",
+    response_model=list[DeviceRead],
+    include_in_schema=False,
+)
+@router.get("/workspaces/{workspace_id}/devices", response_model=list[DeviceRead])
 async def list_devices(
-    household_id: UUID, principal: PrincipalDep, session: SessionDep
+    workspace_id: UUID, principal: PrincipalDep, session: SessionDep
 ) -> list[Device]:
-    await require_household_access(household_id, principal, session, owner=True)
+    await require_workspace_access(workspace_id, principal, session, owner=True)
     return list(
         await session.scalars(
-            select(Device).where(Device.household_id == household_id).order_by(Device.name)
+            select(Device).where(Device.workspace_id == workspace_id).order_by(Device.name)
         )
     )
 
@@ -232,7 +247,7 @@ async def revoke_device(device_id: UUID, principal: PrincipalDep, session: Sessi
         user_id=principal.user.id,
         client=principal.method,
         device_id=principal.device_id,
-        household_id=principal.device_household_id,
+        workspace_id=principal.device_workspace_id,
     )
     try:
         await revoke_device_capability(session, actor, RevokeDevice(device_id), realtime_hub)

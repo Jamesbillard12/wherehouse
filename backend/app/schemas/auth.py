@@ -1,10 +1,10 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.models.auth import DeviceType, InstanceType
-from app.models.core import HouseholdRelationship
+from app.models.core import WorkspaceRole
 
 
 class ORMModel(BaseModel):
@@ -34,16 +34,34 @@ class AuthUser(BaseModel):
     display_name: str
 
 
-class HouseholdAccess(BaseModel):
-    household_id: UUID
-    relationship_type: HouseholdRelationship
+class WorkspaceAccess(BaseModel):
+    workspace_id: UUID
+    role: WorkspaceRole
+
+    @computed_field
+    @property
+    def household_id(self) -> UUID:
+        """Deprecated v1 compatibility alias."""
+        return self.workspace_id
+
+    @computed_field
+    @property
+    def relationship_type(self) -> WorkspaceRole:
+        """Deprecated v1 compatibility alias."""
+        return self.role
 
 
 class MeResponse(BaseModel):
     user: AuthUser
     authenticated_by: str
     device_id: UUID | None = None
-    households: list[HouseholdAccess]
+    workspaces: list[WorkspaceAccess]
+
+    @computed_field
+    @property
+    def households(self) -> list[WorkspaceAccess]:
+        """Deprecated v1 compatibility collection."""
+        return self.workspaces
 
 
 class PairingSessionCreate(BaseModel):
@@ -67,15 +85,21 @@ class PairingConsume(BaseModel):
 class PairingResult(AccessToken):
     device_id: UUID
     user_id: UUID
-    household_id: UUID
+    workspace_id: UUID
     instance_id: UUID
     instance_name: str
     base_url: str
 
+    @computed_field
+    @property
+    def household_id(self) -> UUID:
+        """Deprecated v1 compatibility alias."""
+        return self.workspace_id
+
 
 class DeviceRead(ORMModel):
     id: UUID
-    household_id: UUID
+    workspace_id: UUID
     user_id: UUID
     name: str
     device_type: DeviceType
@@ -83,3 +107,9 @@ class DeviceRead(ORMModel):
     is_active: bool
     created_at: datetime
     revoked_at: datetime | None
+
+    @computed_field
+    @property
+    def household_id(self) -> UUID:
+        """Deprecated v1 compatibility alias."""
+        return self.workspace_id

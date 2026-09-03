@@ -11,7 +11,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.context import ActorContext
-from app.models import Area, Container, ContainerPlacement, HouseholdUser, Item, ItemPlacement, Zone
+from app.models import (
+    Area,
+    Container,
+    ContainerPlacement,
+    Item,
+    ItemPlacement,
+    WorkspaceMembership,
+    Zone,
+)
 from app.models.core import ContainerRelationship, ItemIdentifierType
 from app.services.container_codes import next_item_code
 
@@ -25,7 +33,7 @@ class EntityNotFound(MoveItemError):
         super().__init__(f"{entity} not found")
 
 
-class HouseholdAccessDenied(MoveItemError):
+class WorkspaceAccessDenied(MoveItemError):
     pass
 
 
@@ -63,11 +71,11 @@ def _escape_like(value: str) -> str:
 async def search_items(
     session: AsyncSession,
     actor: ActorContext,
-    household_id: UUID,
+    workspace_id: UUID,
     command: SearchItems,
 ) -> list[ItemSearchMatch]:
-    """Return deterministic, active, household-scoped matches with canonical locations."""
-    await _require_access(session, actor, household_id)
+    """Return deterministic, active, workspace-scoped matches with canonical locations."""
+    await _require_access(session, actor, workspace_id)
     query = normalize_search_query(command.query)
     if not query:
         return []
@@ -94,7 +102,7 @@ async def search_items(
         (item_name.ilike(contains, escape="\\"), 2),
         else_=3,
     )
-    household_area_ids = select(Area.id).where(Area.household_id == household_id)
+    workspace_area_ids = select(Area.id).where(Area.workspace_id == workspace_id)
     statement = (
         select(Item, ItemPlacement)
         .outerjoin(ItemPlacement, ItemPlacement.item_id == Item.id)
@@ -102,7 +110,7 @@ async def search_items(
             Container,
             and_(
                 Container.id == ItemPlacement.container_id,
-                Container.area_id.in_(household_area_ids),
+                Container.area_id.in_(workspace_area_ids),
                 Container.is_archived.is_(False),
             ),
         )
@@ -110,23 +118,23 @@ async def search_items(
             Area,
             and_(
                 Area.id == func.coalesce(ItemPlacement.area_id, Container.area_id),
-                Area.household_id == household_id,
+                Area.workspace_id == workspace_id,
             ),
         )
         .outerjoin(
             Zone,
             and_(
                 Zone.id == func.coalesce(ItemPlacement.zone_id, Container.zone_id),
-                Zone.area_id.in_(household_area_ids),
+                Zone.area_id.in_(workspace_area_ids),
             ),
         )
-        .where(Item.household_id == household_id, Item.is_archived.is_(False), metadata_match)
+        .where(Item.workspace_id == workspace_id, Item.is_archived.is_(False), metadata_match)
         .order_by(rank, func.lower(Item.name), cast(Item.id, String))
         .limit(min(max(command.limit, 1), 100))
     )
     rows = list((await session.execute(statement)).all())
     placements = [placement for _, placement in rows if placement is not None]
-    paths = await resolve_item_locations(session, actor, household_id, placements) if placements else {}
+    paths = await resolve_item_locations(session, actor, workspace_id, placements) if placements else {}
     return [ItemSearchMatch(item=item, resolved_path=paths.get(placement.id) if placement else None) for item, placement in rows]
 
 
@@ -195,16 +203,16 @@ def _creation_payload_hash(command: CreateItem) -> str:
 async def create_item(
     session: AsyncSession,
     actor: ActorContext,
-    household_id: UUID,
+    workspace_id: UUID,
     command: CreateItem,
     events: "EventPublisher",
 ) -> Item:
-    await _require_access(session, actor, household_id)
+    await _require_access(session, actor, workspace_id)
     payload_hash = _creation_payload_hash(command)
     if command.client_operation_id is not None:
         existing = await session.scalar(
             select(Item).where(
-                Item.household_id == household_id,
+                Item.workspace_id == workspace_id,
                 Item.creation_operation_id == command.client_operation_id,
             )
         )
@@ -214,15 +222,15 @@ async def create_item(
             return existing
 
     if command.placement is not None:
-        destination_household_id = await _destination_household(session, command.placement)
-        if destination_household_id != household_id:
-            raise InvalidMove("Item and destination must belong to the same household")
+        destination_workspace_id = await _destination_workspace(session, command.placement)
+        if destination_workspace_id != workspace_id:
+            raise InvalidMove("Item and destination must belong to the same workspace")
 
     values = asdict(command)
     values.pop("client_operation_id")
     placement_values = values.pop("placement")
     item = Item(
-        household_id=household_id,
+        workspace_id=workspace_id,
         code=await next_item_code(session),
         creation_operation_id=command.client_operation_id,
         creation_payload_hash=payload_hash if command.client_operation_id else None,
@@ -241,7 +249,7 @@ async def create_item(
             raise
         existing = await session.scalar(
             select(Item).where(
-                Item.household_id == household_id,
+                Item.workspace_id == workspace_id,
                 Item.creation_operation_id == command.client_operation_id,
             )
         )
@@ -256,7 +264,7 @@ async def create_item(
         await session.rollback()
         raise
     await events.publish(
-        household_id,
+        workspace_id,
         entity="item",
         action="created",
         entity_id=item.id,
@@ -274,7 +282,7 @@ async def delete_item(
     item = await session.get(Item, item_id)
     if item is None or item.is_archived:
         raise EntityNotFound("Item")
-    await _require_access(session, actor, item.household_id)
+    await _require_access(session, actor, item.workspace_id)
 
     item.is_archived = True
     try:
@@ -284,7 +292,7 @@ async def delete_item(
         raise
 
     await events.publish(
-        item.household_id,
+        item.workspace_id,
         entity="item",
         action="deleted",
         entity_id=item.id,
@@ -302,11 +310,11 @@ async def update_item(
     item = await session.get(Item, item_id)
     if item is None or item.is_archived:
         raise EntityNotFound("Item")
-    await _require_access(session, actor, item.household_id)
+    await _require_access(session, actor, item.workspace_id)
     if command.placement is not None:
-        destination_household_id = await _destination_household(session, command.placement)
-        if destination_household_id != item.household_id:
-            raise InvalidMove("Item and destination must belong to the same household")
+        destination_workspace_id = await _destination_workspace(session, command.placement)
+        if destination_workspace_id != item.workspace_id:
+            raise InvalidMove("Item and destination must belong to the same workspace")
 
     values = asdict(command)
     placement_values = values.pop("placement")
@@ -328,7 +336,7 @@ async def update_item(
         await session.rollback()
         raise
     await events.publish(
-        item.household_id,
+        item.workspace_id,
         entity="item",
         action="updated",
         entity_id=item.id,
@@ -340,7 +348,7 @@ async def update_item(
 class EventPublisher(Protocol):
     async def publish(
         self,
-        household_id: UUID,
+        workspace_id: UUID,
         *,
         entity: str,
         action: str,
@@ -366,25 +374,25 @@ class MoveItem:
         )
 
 
-async def _require_access(session: AsyncSession, actor: ActorContext, household_id: UUID) -> None:
-    if actor.household_id is not None and actor.household_id != household_id:
-        raise HouseholdAccessDenied("Household access denied")
+async def _require_access(session: AsyncSession, actor: ActorContext, workspace_id: UUID) -> None:
+    if actor.workspace_id is not None and actor.workspace_id != workspace_id:
+        raise WorkspaceAccessDenied("Workspace access denied")
     membership = await session.scalar(
-        select(HouseholdUser).where(
-            HouseholdUser.household_id == household_id,
-            HouseholdUser.user_id == actor.user_id,
+        select(WorkspaceMembership).where(
+            WorkspaceMembership.workspace_id == workspace_id,
+            WorkspaceMembership.user_id == actor.user_id,
         )
     )
     if membership is None:
-        raise HouseholdAccessDenied("Household access denied")
+        raise WorkspaceAccessDenied("Workspace access denied")
 
 
-async def _destination_household(session: AsyncSession, command: MoveItem | ItemDestination) -> UUID:
+async def _destination_workspace(session: AsyncSession, command: MoveItem | ItemDestination) -> UUID:
     if command.area_id is not None:
         area = await session.get(Area, command.area_id)
         if area is None:
             raise EntityNotFound("Area")
-        return area.household_id
+        return area.workspace_id
     if command.zone_id is not None:
         zone = await session.get(Zone, command.zone_id)
         if zone is None:
@@ -392,14 +400,14 @@ async def _destination_household(session: AsyncSession, command: MoveItem | Item
         area = await session.get(Area, zone.area_id)
         if area is None:
             raise EntityNotFound("Zone area")
-        return area.household_id
+        return area.workspace_id
     container = await session.get(Container, command.container_id)
     if container is None:
         raise EntityNotFound("Container")
     area = await session.get(Area, container.area_id)
     if area is None:
         raise EntityNotFound("Container area")
-    return area.household_id
+    return area.workspace_id
 
 
 async def resolve_item_location(
@@ -408,18 +416,18 @@ async def resolve_item_location(
     item = await session.get(Item, placement.item_id)
     if item is None or item.is_archived:
         raise EntityNotFound("Item")
-    await _require_access(session, actor, item.household_id)
+    await _require_access(session, actor, item.workspace_id)
 
     if placement.area_id is not None:
         area = await session.get(Area, placement.area_id)
-        if area is None or area.household_id != item.household_id:
+        if area is None or area.workspace_id != item.workspace_id:
             raise InvalidMove("Item placement has an invalid area")
         return area.name
 
     if placement.zone_id is not None:
         zone = await session.get(Zone, placement.zone_id)
         area = await session.get(Area, zone.area_id) if zone else None
-        if zone is None or area is None or area.household_id != item.household_id:
+        if zone is None or area is None or area.workspace_id != item.workspace_id:
             raise InvalidMove("Item placement has an invalid zone")
         return f"{area.name} > {zone.name}"
 
@@ -427,8 +435,8 @@ async def resolve_item_location(
     if container is None or container.is_archived:
         raise InvalidMove("Item placement has an invalid container")
     area = await session.get(Area, container.area_id)
-    if area is None or area.household_id != item.household_id:
-        raise InvalidMove("Item placement crosses a household boundary")
+    if area is None or area.workspace_id != item.workspace_id:
+        raise InvalidMove("Item placement crosses a workspace boundary")
     zone = await session.get(Zone, container.zone_id) if container.zone_id else None
     if zone is not None and zone.area_id != area.id:
         raise InvalidMove("Container zone does not belong to its area")
@@ -461,12 +469,12 @@ async def resolve_item_location(
 async def resolve_item_locations(
     session: AsyncSession,
     actor: ActorContext,
-    household_id: UUID,
+    workspace_id: UUID,
     placements: list[ItemPlacement],
 ) -> dict[UUID, str]:
-    """Resolve a household's item paths with bounded queries for list consumers."""
-    await _require_access(session, actor, household_id)
-    areas = list(await session.scalars(select(Area).where(Area.household_id == household_id)))
+    """Resolve a workspace's item paths with bounded queries for list consumers."""
+    await _require_access(session, actor, workspace_id)
+    areas = list(await session.scalars(select(Area).where(Area.workspace_id == workspace_id)))
     area_by_id = {area.id: area for area in areas}
     area_ids = list(area_by_id)
     zones = list(await session.scalars(select(Zone).where(Zone.area_id.in_(area_ids))))
@@ -496,7 +504,7 @@ async def resolve_item_locations(
             raise InvalidMove("Item placement has an invalid container")
         area = area_by_id.get(container.area_id)
         if area is None:
-            raise InvalidMove("Item placement crosses a household boundary")
+            raise InvalidMove("Item placement crosses a workspace boundary")
         zone = zone_by_id.get(container.zone_id) if container.zone_id else None
         if zone is not None and zone.area_id != area.id:
             raise InvalidMove("Container zone does not belong to its area")
@@ -545,11 +553,11 @@ async def move_item(
     item = await session.get(Item, command.item_id)
     if item is None:
         raise EntityNotFound("Item")
-    await _require_access(session, actor, item.household_id)
+    await _require_access(session, actor, item.workspace_id)
 
-    destination_household_id = await _destination_household(session, command)
-    if destination_household_id != item.household_id:
-        raise InvalidMove("Item and destination must belong to the same household")
+    destination_workspace_id = await _destination_workspace(session, command)
+    if destination_workspace_id != item.workspace_id:
+        raise InvalidMove("Item and destination must belong to the same workspace")
 
     placement = await session.scalar(
         select(ItemPlacement).where(ItemPlacement.item_id == command.item_id)
@@ -576,7 +584,7 @@ async def move_item(
         raise
 
     await events.publish(
-        item.household_id,
+        item.workspace_id,
         entity="item-placement",
         action="updated",
         entity_id=placement.id,

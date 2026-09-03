@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.context import ActorContext
-from app.models import Area, Container, HouseholdUser, Item, PhysicalIdentifier
+from app.models import Area, Container, Item, PhysicalIdentifier, WorkspaceMembership
 from app.models.core import IdentifierMedium, IdentifierStatus, IdentifierTargetType
 
 
@@ -47,26 +47,26 @@ async def _target(session: AsyncSession, target_type: IdentifierTargetType, targ
     if target is None or target.is_archived:
         raise IdentifierNotFound(f"{target_type.value.title()} not found")
     if isinstance(target, Item):
-        return target, target.household_id
+        return target, target.workspace_id
     area = await session.get(Area, target.area_id)
     if area is None:
         raise IdentifierNotFound("Container area not found")
-    return target, area.household_id
+    return target, area.workspace_id
 
 
-async def _require_access(session: AsyncSession, actor: ActorContext, household_id: UUID) -> None:
-    if actor.household_id is not None and actor.household_id != household_id:
-        raise IdentifierAccessDenied("Household access denied")
-    membership = await session.scalar(select(HouseholdUser).where(
-        HouseholdUser.household_id == household_id, HouseholdUser.user_id == actor.user_id,
+async def _require_access(session: AsyncSession, actor: ActorContext, workspace_id: UUID) -> None:
+    if actor.workspace_id is not None and actor.workspace_id != workspace_id:
+        raise IdentifierAccessDenied("Workspace access denied")
+    membership = await session.scalar(select(WorkspaceMembership).where(
+        WorkspaceMembership.workspace_id == workspace_id, WorkspaceMembership.user_id == actor.user_id,
     ))
     if membership is None:
-        raise IdentifierAccessDenied("Household access denied")
+        raise IdentifierAccessDenied("Workspace access denied")
 
 
 async def create_identifier(session: AsyncSession, actor: ActorContext, command: RegisterIdentifier):
-    target, household_id = await _target(session, command.target_type, command.target_id)
-    await _require_access(session, actor, household_id)
+    target, workspace_id = await _target(session, command.target_type, command.target_id)
+    await _require_access(session, actor, workspace_id)
     existing = await session.scalar(select(PhysicalIdentifier).where(
         PhysicalIdentifier.target_type == command.target_type,
         PhysicalIdentifier.target_id == command.target_id,
@@ -76,7 +76,7 @@ async def create_identifier(session: AsyncSession, actor: ActorContext, command:
     if existing is not None:
         return existing, target
     identifier = PhysicalIdentifier(
-        household_id=household_id, public_id=f"idn_{secrets.token_urlsafe(18)}",
+        workspace_id=workspace_id, public_id=f"idn_{secrets.token_urlsafe(18)}",
         target_type=command.target_type, target_id=command.target_id, medium=command.medium,
         status=IdentifierStatus.ACTIVE if command.medium is IdentifierMedium.QR else IdentifierStatus.PENDING,
     )
@@ -105,9 +105,9 @@ async def resolve_identifier(session: AsyncSession, actor: ActorContext, public_
     ))
     if identifier is None:
         raise IdentifierNotFound("Identifier not found")
-    await _require_access(session, actor, identifier.household_id)
-    target, target_household_id = await _target(session, identifier.target_type, identifier.target_id)
-    if target_household_id != identifier.household_id:
+    await _require_access(session, actor, identifier.workspace_id)
+    target, target_workspace_id = await _target(session, identifier.target_type, identifier.target_id)
+    if target_workspace_id != identifier.workspace_id:
         raise IdentifierNotFound("Identifier target not found")
     return identifier, target
 
@@ -116,7 +116,7 @@ async def activate_identifier(session: AsyncSession, actor: ActorContext, identi
     identifier = await session.get(PhysicalIdentifier, identifier_id)
     if identifier is None:
         raise IdentifierNotFound("Identifier not found")
-    await _require_access(session, actor, identifier.household_id)
+    await _require_access(session, actor, identifier.workspace_id)
     if identifier.status is IdentifierStatus.REVOKED:
         raise InvalidIdentifierTransition("Revoked identifiers cannot be activated")
     if identifier.status is IdentifierStatus.ACTIVE:
@@ -131,7 +131,7 @@ async def revoke_identifier(session: AsyncSession, actor: ActorContext, identifi
     identifier = await session.get(PhysicalIdentifier, identifier_id)
     if identifier is None:
         raise IdentifierNotFound("Identifier not found")
-    await _require_access(session, actor, identifier.household_id)
+    await _require_access(session, actor, identifier.workspace_id)
     if identifier.status is IdentifierStatus.REVOKED:
         return identifier
     identifier.status = IdentifierStatus.REVOKED

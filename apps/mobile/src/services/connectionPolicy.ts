@@ -7,5 +7,5 @@ export function isRevocationForConnection(
   event: DeviceRevokedEvent,
 ): boolean {
   return event.device_id === server.deviceId
-    && (!server.pairedHouseholdId || event.household_id === server.pairedHouseholdId)
+    && (!server.pairedWorkspaceId || event.workspace_id === server.pairedWorkspaceId)
 }

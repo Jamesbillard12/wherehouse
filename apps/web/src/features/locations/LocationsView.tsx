@@ -23,7 +23,7 @@ import {
   type Area,
   type ContainerPlacement,
   type ContainerType,
-  type Household,
+  type Workspace,
   type Item,
   type ItemPlacement,
   type StorageContainer,
@@ -67,7 +67,7 @@ import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 import { PageHeader } from '../../components/wherehouse/PageHeader'
 
 export { AreaIcon } from './locationOptions'
-export function LocationsView({ createRequest, household, onRevealConsumed, refreshKey = 0, revealAreaId, revealContainerId, revealItem, revealItemId, revealScanKey, revealZoneId, token }: { createRequest?: { key: number; type: 'area' | 'zone' | 'container' }; household: Household; onRevealConsumed?: () => void; refreshKey?: number; revealAreaId?: string; revealContainerId?: string; revealItem?: Item; revealItemId?: string; revealScanKey?: string; revealZoneId?: string; token: string }) {
+export function LocationsView({ createRequest, workspace, onRevealConsumed, refreshKey = 0, revealAreaId, revealContainerId, revealItem, revealItemId, revealScanKey, revealZoneId, token }: { createRequest?: { key: number; type: 'area' | 'zone' | 'container' }; workspace: Workspace; onRevealConsumed?: () => void; refreshKey?: number; revealAreaId?: string; revealContainerId?: string; revealItem?: Item; revealItemId?: string; revealScanKey?: string; revealZoneId?: string; token: string }) {
   const [areas, setAreas] = useState<Area[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [containers, setContainers] = useState<StorageContainer[]>([])
@@ -99,10 +99,10 @@ export function LocationsView({ createRequest, household, onRevealConsumed, refr
   const handledCreateRequest = useRef(0)
 
   async function loadAreas(preferredId?: string) {
-    const nextAreas = await listAreas(token, household.id)
+    const nextAreas = await listAreas(token, workspace.id)
     setAreas(nextAreas)
     setSelectedAreaId((current) => {
-      const candidate = preferredId || current || localStorage.getItem(areaKey(household.id)) || ''
+      const candidate = preferredId || current || localStorage.getItem(areaKey(workspace.id)) || ''
       return nextAreas.some((area) => area.id === candidate) ? candidate : (nextAreas[0]?.id ?? '')
     })
   }
@@ -118,8 +118,8 @@ export function LocationsView({ createRequest, household, onRevealConsumed, refr
       listZones(token, areaId),
       listContainers(token, areaId),
       listContainerPlacements(token, areaId),
-      listItems(token, household.id),
-      listItemPlacements(token, household.id),
+      listItems(token, workspace.id),
+      listItemPlacements(token, workspace.id),
     ])
     setZones(nextZones)
     setContainers(nextContainers)
@@ -131,25 +131,25 @@ export function LocationsView({ createRequest, household, onRevealConsumed, refr
 
   useEffect(() => {
     setLoading(true)
-  }, [household.id, token])
+  }, [workspace.id, token])
 
   useEffect(() => {
     setError(null)
     void loadAreas()
       .catch((reason) => setError(message(reason)))
       .finally(() => setLoading(false))
-  }, [household.id, refreshKey, token])
+  }, [workspace.id, refreshKey, token])
 
   useEffect(() => {
     setOpenContainerId(null)
     setSelectedZoneFilter('')
-    if (selectedAreaId) localStorage.setItem(areaKey(household.id), selectedAreaId)
-  }, [household.id, selectedAreaId])
+    if (selectedAreaId) localStorage.setItem(areaKey(workspace.id), selectedAreaId)
+  }, [workspace.id, selectedAreaId])
 
   useEffect(() => {
     setError(null)
     void loadAreaDetails(selectedAreaId).catch((reason) => setError(message(reason)))
-  }, [household.id, refreshKey, selectedAreaId, token])
+  }, [workspace.id, refreshKey, selectedAreaId, token])
 
   useEffect(() => {
     if (formMode !== 'container' && formMode !== 'edit-container') return
@@ -230,7 +230,7 @@ export function LocationsView({ createRequest, household, onRevealConsumed, refr
     setError(null)
     const data = new FormData(event.currentTarget)
     try {
-      const area = await createArea(token, household.id, {
+      const area = await createArea(token, workspace.id, {
         name: String(data.get('name')).trim(),
         icon: String(data.get('icon')),
         description: String(data.get('description')).trim() || undefined,
@@ -477,7 +477,7 @@ export function LocationsView({ createRequest, household, onRevealConsumed, refr
     setError(null)
     const data = new FormData(event.currentTarget)
     try {
-      let item = await createItem(token, household.id, {
+      let item = await createItem(token, workspace.id, {
         name: String(data.get('name')).trim(),
         identifier_type: String(data.get('identifierType')) as Item['identifier_type'],
         description: String(data.get('description')).trim() || undefined,
@@ -608,7 +608,7 @@ export function LocationsView({ createRequest, household, onRevealConsumed, refr
                 saving={saving}
               />
             ) : (
-              <div className="location-empty"><div className="empty-illustration"><Container aria-hidden="true" /></div><strong>{openContainer ? `${openContainer.name} is empty` : `No containers in ${selectedArea?.name}`}</strong><p>{openContainer ? 'Add a nested container or place items here.' : 'Add a shelf, cabinet, bin, or any other place that can hold household items.'}</p>{openContainer ? <div className="empty-actions"><Button className="secondary-action" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add nested container</Button><Button className="primary-button compact" onClick={() => setShowNestedItemForm(true)}><Plus aria-hidden="true" /> Add item</Button></div> : <Button className="primary-button compact" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add first container</Button>}</div>
+              <div className="location-empty"><div className="empty-illustration"><Container aria-hidden="true" /></div><strong>{openContainer ? `${openContainer.name} is empty` : `No containers in ${selectedArea?.name}`}</strong><p>{openContainer ? 'Add a nested container or place items here.' : 'Add a shelf, cabinet, bin, or any other place that can hold workspace items.'}</p>{openContainer ? <div className="empty-actions"><Button className="secondary-action" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add nested container</Button><Button className="primary-button compact" onClick={() => setShowNestedItemForm(true)}><Plus aria-hidden="true" /> Add item</Button></div> : <Button className="primary-button compact" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add first container</Button>}</div>
             )}
           </section>
         </div>
