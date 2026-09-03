@@ -26,18 +26,15 @@ docker save --output "$stage/container-images/wherehouse-runtime.tar" \
   "wherehouse-web:$version" wherehouse-web:local postgres:17-bookworm
 
 overlay="$stage/layer/wherehouse-appliance.rootfs-overlay"
-mkdir -p "$overlay/opt/wherehouse" "$overlay/etc/systemd/system" "$overlay/etc/systemd/network"
+mkdir -p "$overlay/opt/wherehouse" "$overlay/etc/systemd/system"
 git -C "$repository" archive --format=tar HEAD | tar -xf - -C "$overlay/opt/wherehouse"
 rm -rf "$overlay/opt/wherehouse/deploy/raspberry-pi/image"
 cp "$repository/deploy/raspberry-pi/systemd/"*.service "$overlay/etc/systemd/system/"
-cat > "$overlay/etc/systemd/network/05-wherehouse-wired.network" <<'EOF'
-[Match]
-Type=ether
 
-[Network]
-DHCP=yes
-MulticastDNS=yes
-EOF
+# Do not add a broad Type=ether systemd-networkd rule here. rpi-image-gen's
+# Raspberry Pi base already configures eth0 for DHCP. A Type=ether rule also
+# matches Docker veth interfaces and causes networkd to interfere with Docker's
+# bridge endpoints, breaking container-to-container networking.
 
 # Optional developer/admin SSH access. The public key is only staged when the
 # host explicitly mounted /run/wherehouse-ssh-key.pub. The customize hook
