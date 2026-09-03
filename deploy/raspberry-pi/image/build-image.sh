@@ -40,7 +40,8 @@ case "$host_os/$host_arch" in
   *) echo "Unsupported build host $host_os/$host_arch; use Apple Silicon macOS or Linux ARM64." >&2; exit 1 ;;
 esac
 
-for required in Dockerfile docker-entrypoint.sh boards.sh "config/$config" layer/wherehouse-appliance.yaml; do
+for required in Dockerfile docker-entrypoint.sh boards.sh "config/$config" \
+  layer/wherehouse-appliance.yaml bdebstrap/customize99-wherehouse; do
   if [ ! -f "$script_dir/$required" ]; then
     echo "Required image-builder file is missing: deploy/raspberry-pi/image/$required" >&2
     exit 1

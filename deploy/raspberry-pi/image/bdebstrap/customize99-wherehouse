@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+rootfs=${1:?root filesystem path is required}
+chroot "$rootfs" /bin/sh -eu <<'EOF'
+chmod 0755 /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops
+chmod 0755 /opt/wherehouse/deploy/raspberry-pi/wherehouse-backup
+systemctl enable docker.service
+systemctl enable avahi-daemon.service
+systemctl enable wherehouse.service
+systemctl enable wherehouse-avahi.service
+systemctl disable ssh.service 2>/dev/null || true
+mkdir -p -m 0700 /var/lib/wherehouse
+EOF

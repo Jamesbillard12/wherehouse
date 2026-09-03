@@ -92,6 +92,52 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertIn("python3-yaml", dockerfile)
         self.assertNotIn("&& ./install_deps.sh", dockerfile)
 
+    def test_web_image_includes_workspace_api_client(self):
+        dockerfile = (ROOT / "deploy/docker/Dockerfile.web").read_text()
+        self.assertIn(
+            "COPY packages/api-client/package.json ./packages/api-client/package.json",
+            dockerfile,
+        )
+        self.assertIn("COPY packages/api-client ./packages/api-client", dockerfile)
+        self.assertIn("COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./", dockerfile)
+        self.assertIn("--frozen-lockfile", dockerfile)
+
+    def test_appliance_layer_uses_supported_metadata_fields(self):
+        layer = (
+            ROOT
+            / "deploy/raspberry-pi/image/layer/wherehouse-appliance.yaml"
+        ).read_text()
+        self.assertIn("# X-Env-Layer-Desc:", layer)
+        self.assertNotIn("# X-Env-Layer-Description:", layer)
+
+    def test_generator_worktree_is_not_on_macos_bind_mount(self):
+        entrypoint = (
+            ROOT / "deploy/raspberry-pi/image/docker-entrypoint.sh"
+        ).read_text()
+        self.assertIn('cd "$generator"', entrypoint)
+        self.assertIn("./rpi-image-gen build", entrypoint)
+
+    def test_appliance_uses_trixie_compose_package(self):
+        layer = (
+            ROOT
+            / "deploy/raspberry-pi/image/layer/wherehouse-appliance.yaml"
+        ).read_text()
+        self.assertIn("    - docker-compose\n", layer)
+        self.assertNotIn("docker-compose-plugin", layer)
+
+    def test_appliance_initialization_runs_after_rootfs_overlay(self):
+        layer = (
+            ROOT
+            / "deploy/raspberry-pi/image/layer/wherehouse-appliance.yaml"
+        ).read_text()
+        hook = (
+            ROOT
+            / "deploy/raspberry-pi/image/bdebstrap/customize99-wherehouse"
+        ).read_text()
+        self.assertNotIn("customize-hooks:", layer)
+        self.assertIn("/opt/wherehouse/deploy/raspberry-pi/wherehouse-ops", hook)
+        self.assertIn("systemctl enable wherehouse.service", hook)
+
     def test_metadata_and_compressed_artifact_checksum(self):
         with tempfile.TemporaryDirectory() as directory:
             artifact = Path(directory) / "wherehouse-pi4-0.1.0.img.xz"

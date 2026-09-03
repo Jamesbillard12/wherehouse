@@ -10,9 +10,10 @@ config=$(board_config "$device") || { echo "Unsupported board: $device" >&2; exi
 output=${WHEREHOUSE_PI_OUTPUT_DIR:-/output}
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT INT TERM
-mkdir -p "$stage/config" "$stage/layer" "$stage/container-images" "$output"
+mkdir -p "$stage/config" "$stage/layer" "$stage/bdebstrap" "$stage/container-images" "$output"
 cp -R "$repository/deploy/raspberry-pi/image/config/." "$stage/config/"
 cp -R "$repository/deploy/raspberry-pi/image/layer/." "$stage/layer/"
+cp -R "$repository/deploy/raspberry-pi/image/bdebstrap/." "$stage/bdebstrap/"
 build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 git config --global --add safe.directory "$repository"
@@ -40,8 +41,11 @@ if [ -d /image-cache/cache ]; then
   mkdir -p "$generator/work/cache"
   cp -a /image-cache/cache/. "$generator/work/cache/"
 fi
-"$generator/rpi-image-gen" build -S "$stage" -c "$stage/config/$config" -- \
-  IGconf_artefact_version="$version"
+(
+  cd "$generator"
+  ./rpi-image-gen build -S "$stage" -c "$stage/config/$config" -- \
+    IGconf_artefact_version="$version"
+)
 rm -rf /image-cache/cache
 mkdir -p /image-cache/cache
 if [ -d "$generator/work/cache" ]; then cp -a "$generator/work/cache/." /image-cache/cache/; fi
