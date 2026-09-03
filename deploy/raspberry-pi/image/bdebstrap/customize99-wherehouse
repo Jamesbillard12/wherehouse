@@ -12,4 +12,27 @@ systemctl enable wherehouse.service
 systemctl enable wherehouse-avahi.service
 systemctl enable ssh.service
 mkdir -p -m 0700 /var/lib/wherehouse
+
+if [ -f /etc/wherehouse-build/ssh-authorized-key ]; then
+  if ! id wherehouse >/dev/null 2>&1; then
+    useradd --create-home --shell /bin/bash wherehouse
+  fi
+  passwd -l wherehouse >/dev/null 2>&1 || true
+  usermod -aG sudo,docker wherehouse
+  install -d -m 0700 -o wherehouse -g wherehouse /home/wherehouse/.ssh
+  install -m 0600 -o wherehouse -g wherehouse \
+    /etc/wherehouse-build/ssh-authorized-key /home/wherehouse/.ssh/authorized_keys
+  cat > /etc/sudoers.d/90-wherehouse-admin <<'SUDOEOF'
+wherehouse ALL=(ALL:ALL) NOPASSWD: ALL
+SUDOEOF
+  chmod 0440 /etc/sudoers.d/90-wherehouse-admin
+  install -d -m 0755 /etc/ssh/sshd_config.d
+  cat > /etc/ssh/sshd_config.d/90-wherehouse-admin.conf <<'SSHEOF'
+Match User wherehouse
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    PubkeyAuthentication yes
+SSHEOF
+  rm -rf /etc/wherehouse-build
+fi
 EOF
