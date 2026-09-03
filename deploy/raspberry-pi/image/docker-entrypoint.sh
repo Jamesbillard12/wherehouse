@@ -74,35 +74,65 @@ test -n "$image"
 # leaving the machine at an initramfs shell. Replace the generated aliases with
 # the actual partition PARTUUIDs before releasing the image so boot does not
 # depend on runtime udev symlink creation.
-loopdev=$(losetup --find --show --partscan "$image")
+#
+# Docker Desktop's privileged Linux VM does not reliably expose partition child
+# devices such as /dev/loop0p1 after losetup --partscan. Instead, read the MBR
+# geometry from the image and create loop devices directly at each partition's
+# byte offset. This works without kernel partition-node discovery.
+partition_geometry() {
+  python3 - "$image" "$1" <<'PY'
+import json
+import subprocess
+import sys
+
+image = sys.argv[1]
+number = int(sys.argv[2])
+data = json.loads(subprocess.check_output(["sfdisk", "--json", image], text=True))
+table = data["partitiontable"]
+partitions = table["partitions"]
+if number < 1 or number > len(partitions):
+    raise SystemExit(f"partition {number} is missing from {image}")
+partition = partitions[number - 1]
+sector_size = int(table.get("sectorsize", 512))
+print(partition["start"], partition["size"], sector_size)
+PY
+}
+
+set -- $(partition_geometry 1)
+boot_start=$1
+boot_size=$2
+boot_sector_size=$3
+set -- $(partition_geometry 2)
+root_start=$1
+root_size=$2
+root_sector_size=$3
+
+boot_partuuid=$(sfdisk --part-uuid "$image" 1)
+root_partuuid=$(sfdisk --part-uuid "$image" 2)
+test -n "$boot_partuuid"
+test -n "$root_partuuid"
+
+boot_loop=$(losetup --find --show \
+  --offset $((boot_start * boot_sector_size)) \
+  --sizelimit $((boot_size * boot_sector_size)) \
+  "$image")
+root_loop=$(losetup --find --show \
+  --offset $((root_start * root_sector_size)) \
+  --sizelimit $((root_size * root_sector_size)) \
+  "$image")
 boot_mount=$(mktemp -d)
 root_mount=$(mktemp -d)
 cleanup_image_mounts() {
   umount "$root_mount" 2>/dev/null || true
   umount "$boot_mount" 2>/dev/null || true
-  losetup -d "$loopdev" 2>/dev/null || true
+  losetup -d "$root_loop" 2>/dev/null || true
+  losetup -d "$boot_loop" 2>/dev/null || true
   rmdir "$root_mount" "$boot_mount" 2>/dev/null || true
 }
 trap 'cleanup_image_mounts; rm -rf "$stage"' EXIT INT TERM
-boot_partition="${loopdev}p1"
-root_partition="${loopdev}p2"
-for partition in "$boot_partition" "$root_partition"; do
-  tries=0
-  while [ ! -b "$partition" ] && [ "$tries" -lt 20 ]; do
-    sleep 0.1
-    tries=$((tries + 1))
-  done
-  if [ ! -b "$partition" ]; then
-    echo "Image partition device did not appear: $partition" >&2
-    exit 1
-  fi
-done
-boot_partuuid=$(blkid -s PARTUUID -o value "$boot_partition")
-root_partuuid=$(blkid -s PARTUUID -o value "$root_partition")
-test -n "$boot_partuuid"
-test -n "$root_partuuid"
-mount "$boot_partition" "$boot_mount"
-mount "$root_partition" "$root_mount"
+
+mount "$boot_loop" "$boot_mount"
+mount "$root_loop" "$root_mount"
 cmdline="$boot_mount/cmdline.txt"
 fstab="$root_mount/etc/fstab"
 test -f "$cmdline"
