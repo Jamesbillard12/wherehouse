@@ -32,9 +32,13 @@ git -C "$repository" archive --format=tar HEAD | tar -xf - -C "$overlay/opt/wher
 # overlay makes rpi-image-gen recursively discover a duplicate layer.
 rm -rf "$overlay/opt/wherehouse/deploy/raspberry-pi/image"
 cp "$repository/deploy/raspberry-pi/systemd/"*.service "$overlay/etc/systemd/system/"
-cat > "$overlay/etc/systemd/network/20-wired.network" <<'EOF'
+# Match wired Ethernet by link type rather than interface name. Raspberry Pi OS
+# may expose the onboard NIC as eth0, end0, or another predictable name. The
+# low sort order also ensures this deterministic appliance DHCP policy wins over
+# less-specific upstream .network files.
+cat > "$overlay/etc/systemd/network/05-wherehouse-wired.network" <<'EOF'
 [Match]
-Name=eth*
+Type=ether
 
 [Network]
 DHCP=yes
