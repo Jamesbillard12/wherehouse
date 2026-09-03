@@ -4,12 +4,14 @@
 # X-Env-Layer-Category: application
 # X-Env-Layer-Requires: systemd-min
 # METAEND
+---
 mmdebstrap:
   packages:
     - avahi-daemon
     - ca-certificates
     - curl
     - docker.io
+    - docker-cli
     - docker-compose
     - openssh-server
     - sudo
