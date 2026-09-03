@@ -127,8 +127,18 @@ input:not([data-slot="input"]):focus, select:focus { border-color: var(--action)
 .setup-readiness.ready { border-color: var(--forest); background: #edf7ef; color: #214e30; }
 .setup-readiness span { display: block; }
 
-.setup-layout { min-height: 100vh; background: var(--paper); }
+.setup-layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--paper);
+}
 .simple-nav, .topbar { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 1.25rem clamp(1.5rem, 5vw, 4rem); }
-.setup-card { width: min(660px, calc(100% - 3rem)); margin: clamp(4rem, 10vw, 8rem) auto; }
+.setup-card {
+  width: min(660px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 4rem) 0;
+  align-self: center;
+}
 .step-number { display: block; margin-bottom: 2.5rem; color: #c6cabb; font: 700 4rem/1 'Manrope', sans-serif; }
 .setup-card h1 { margin: 0; font: 800 clamp(2.8rem, 7vw, 5rem)/0.95 'Manrope', sans-serif; letter-spacing: -0.06em; }
