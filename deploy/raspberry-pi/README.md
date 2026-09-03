@@ -33,7 +33,10 @@ v2.6.0 `depends` manifest is installed explicitly in the same Docker layer as `a
 
 Outputs are `dist/pi/wherehouse-pi5-0.1.0.img.xz` (or Pi 4), its `.sha256`, and `.json`, plus the
 separately checksummed application-update runtime tar. The JSON records product/app/build/generator,
-device, architecture, base OS, and hardware metadata. No finished image is manually edited.
+device, architecture, base OS, and hardware metadata. After `rpi-image-gen` creates the disk image, the
+builder resolves the actual boot and root partition PARTUUIDs and rewrites the generated kernel
+command line and `/etc/fstab` to use those stable identifiers. Release images therefore do not depend
+on `/dev/disk/by-slot/*` udev aliases being present in initramfs.
 
 Verify the compressed artifact on macOS, then choose it in Raspberry Pi Imager through
 **Choose OS → Use custom**:
@@ -44,14 +47,15 @@ shasum -a 256 -c wherehouse-pi5-0.1.0.img.xz.sha256
 ```
 
 The Docker container requires `--privileged` because `rpi-image-gen` builds filesystems using mount
-namespaces. It mounts the Docker Desktop socket so backend/web/PostgreSQL images are built/saved as
-Linux ARM64 rather than copying macOS binaries. The generated `.img.xz` remains a normal
-`image-rpios` disk image accepted by Raspberry Pi Imager. Image generation and boot remain not run in
-this repository's evidence because Docker was unavailable in the implementation workspace.
+namespaces and the final boot-identifier verification attaches the generated disk image through a loop
+device. It mounts the Docker Desktop socket so backend/web/PostgreSQL images are built/saved as Linux
+ARM64 rather than copying macOS binaries. The generated `.img.xz` remains a normal `image-rpios` disk
+image accepted by Raspberry Pi Imager.
 
 During a normal run the wrapper prints version, board, detected host, `linux/arm64`, and the pinned
-generator revision. Failures propagate without creating a success message. The final line names the
-verified host artifact.
+generator revision. Failures propagate without creating a success message. The builder refuses to
+release an image if the kernel command line or fstab still contains `/dev/disk/by-slot/`. The final line
+names the verified host artifact.
 
 ### Build troubleshooting
 
@@ -61,12 +65,15 @@ verified host artifact.
 - builder dependency failure: rebuild without Docker cache and retain the failing package name:
   `docker builder prune` is not required and should not be the first response.
 - mount/namespace/loop failure: confirm Docker Desktop permits privileged containers. The image build
-  intentionally runs under `docker run --privileged`, not during `docker build`.
+  intentionally runs under `docker run --privileged`, and final PARTUUID verification also needs loop
+  devices and temporary filesystem mounts.
+- `Generated image still depends on /dev/disk/by-slot aliases`: do not flash the image. Inspect the
+  upstream image layout or post-build rewrite before releasing it.
 - missing expected artifact: inspect the preceding `rpi-image-gen` failure; the wrapper refuses to
   report success unless the image, checksum, and metadata all exist.
 
-Pi 5 is the initial required build target. Pi 4 has an isolated configuration but remains physically
-unvalidated. A future Pi Zero 2 W can be added in `boards.sh` plus one config file without changing
+Pi 5 is the initial required build target. Pi 4 has an isolated configuration and is under physical
+validation. A future Pi Zero 2 W can be added in `boards.sh` plus one config file without changing
 generic builder orchestration. Original ARMv6 Pi Zero W support is out of scope.
 
 ## First boot and lifecycle
@@ -76,10 +83,11 @@ secret with OS entropy, persists them mode `0600`, loads embedded containers onc
 and starts the canonical Compose dependency chain. It never creates a user or workspace. Reboots
 validate and reuse the same state.
 
-The appliance explicitly configures wired interfaces matching `eth*` for DHCP with
-`systemd-networkd`. Ethernet is therefore the supported zero-configuration first-boot path. Avahi
-publishes `<hostname>.local`, which defaults to `wherehouse.local`. If `.local` is unavailable on a
-VLAN or unsupported client, use the DHCP address assigned by the router.
+The appliance explicitly configures wired Ethernet links for DHCP with `systemd-networkd`. Matching
+by Ethernet link type avoids depending on whether a Raspberry Pi exposes the interface as `eth0`,
+`end0`, or another predictable name. Ethernet is therefore the supported zero-configuration first-boot
+path. Avahi publishes `<hostname>.local`, which defaults to `wherehouse.local`. If `.local` is
+unavailable on a VLAN or unsupported client, use the DHCP address assigned by the router.
 
 ```sh
 sudo systemctl status systemd-networkd
