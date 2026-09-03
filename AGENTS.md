@@ -59,3 +59,8 @@ business logic, persistence, transport and UI. Test rules at application/domain 
 route/component level, and critical workflows end to end. Run relevant Pytest/Ruff and TypeScript
 tests/type checks; update architecture docs/ADR for durable decisions. Start from updated `main` on a
 descriptive branch unless instructed otherwise; do not merge.
+
+Raspberry Pi image tooling must keep upstream tools and revisions pinned, install builder dependencies
+reproducibly inside Linux ARM64 Docker, require no Linux image packages on a Mac host, keep board
+selection/configuration separate from generic orchestration, and update deployment evidence without
+claiming image or hardware validation that was not actually run.

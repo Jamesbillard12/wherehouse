@@ -11,9 +11,11 @@ monolith, ARM64 containers, systemd lifecycle, Avahi discovery, and a small host
 PostgreSQL stays authoritative and application behavior stays in capabilities/APIs. Persistent
 instance secrets and identity are generated once on first boot.
 
-The supported developer builder is a pinned, privileged Linux ARM64 Docker environment that runs
+The supported developer builder is a pinned, privileged Debian Bookworm Linux ARM64 Docker environment that runs
 natively through Docker Desktop on Apple Silicon or on Linux ARM64. It bootstraps `rpi-image-gen` and
 all architecture-specific application artifacts inside Linux rather than copying host dependencies.
+The upstream v2.6.0 tag is verified against its expected commit. Its dependency manifest is installed
+explicitly in one APT layer; upstream dependency installation is not invoked in a later layer.
 
 System status is an instance-level, transport-neutral read capability. It may expose nonsensitive
 readiness, versions, device model, hostname, counts, and coarse storage health, but never credentials

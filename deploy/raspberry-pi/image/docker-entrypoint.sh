@@ -1,13 +1,13 @@
 #!/bin/sh
 set -eu
 
-version=${1:?version is required}
-device=${2:?device is required}
-case "$device" in pi4|pi5) ;; *) echo "Unsupported device: $device" >&2; exit 2;; esac
-
 repository=/workspace
 generator=/opt/rpi-image-gen
-output="$repository/dist/pi"
+version=${1:?version is required}
+device=${2:?device is required}
+. "$repository/deploy/raspberry-pi/image/boards.sh"
+config=$(board_config "$device") || { echo "Unsupported board: $device" >&2; exit 2; }
+output=${WHEREHOUSE_PI_OUTPUT_DIR:-/output}
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT INT TERM
 mkdir -p "$stage/config" "$stage/layer" "$stage/container-images" "$output"
@@ -40,7 +40,7 @@ if [ -d /image-cache/cache ]; then
   mkdir -p "$generator/work/cache"
   cp -a /image-cache/cache/. "$generator/work/cache/"
 fi
-"$generator/rpi-image-gen" build -S "$stage" -c "$stage/config/wherehouse-$device.yaml" -- \
+"$generator/rpi-image-gen" build -S "$stage" -c "$stage/config/$config" -- \
   IGconf_artefact_version="$version"
 rm -rf /image-cache/cache
 mkdir -p /image-cache/cache
