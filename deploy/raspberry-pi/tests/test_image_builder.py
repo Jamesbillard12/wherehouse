@@ -90,6 +90,8 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertIn("FROM --platform=linux/arm64 debian:bookworm-slim", dockerfile)
         self.assertIn("apt-get update", dockerfile)
         self.assertIn("python3-yaml", dockerfile)
+        self.assertIn("mount", dockerfile)
+        self.assertIn("util-linux", dockerfile)
         self.assertNotIn("&& ./install_deps.sh", dockerfile)
 
     def test_web_image_includes_workspace_api_client(self):
@@ -159,6 +161,17 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertNotIn("Name=eth*", entrypoint)
         self.assertIn("DHCP=yes", entrypoint)
         self.assertIn("MulticastDNS=yes", entrypoint)
+
+    def test_release_image_rewrites_fragile_by_slot_boot_references(self):
+        entrypoint = (
+            ROOT / "deploy/raspberry-pi/image/docker-entrypoint.sh"
+        ).read_text()
+        self.assertIn("losetup --find --show --partscan", entrypoint)
+        self.assertIn("blkid -s PARTUUID", entrypoint)
+        self.assertIn("root=PARTUUID=$root_partuuid", entrypoint)
+        self.assertIn("PARTUUID=$boot_partuuid", entrypoint)
+        self.assertIn("Generated image still depends on /dev/disk/by-slot aliases", entrypoint)
+        self.assertLess(entrypoint.index("cleanup_image_mounts"), entrypoint.index("xz -T0 -9"))
 
     def test_image_builder_source_is_not_embedded_in_appliance_overlay(self):
         entrypoint = (
