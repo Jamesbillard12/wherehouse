@@ -1,12 +1,13 @@
 import { apiRequest, type ApiOptions } from './client'
 import { uploadItemImage } from './resources/items'
-import type { Area, BackupStatus, ContainerPlacement, ContainerSearchResult, IdentifierMedium, IdentifierResolution, IdentifierTargetType, Item, ItemPlacement, ItemSearchResult, PhysicalIdentifier, StorageContainer, Zone } from './types'
+import type { Area, BackupStatus, ContainerPlacement, ContainerSearchResult, IdentifierMedium, IdentifierResolution, IdentifierTargetType, Item, ItemPlacement, ItemSearchResult, PhysicalIdentifier, StorageContainer, SystemStatus, Zone } from './types'
 
 export function createRemoteClient(baseUrl: string, token: string) {
   const authenticatedRequest = <T>(path: string, options: ApiOptions = {}) =>
     apiRequest<T>(path, { ...options, baseUrl, token })
 
   return {
+    getSystemStatus: () => authenticatedRequest<SystemStatus>('/system/status'),
     getBackupStatus: () => authenticatedRequest<BackupStatus>('/backups/status'),
     createIdentifier: (targetType: IdentifierTargetType, targetId: string, medium: IdentifierMedium) => authenticatedRequest<PhysicalIdentifier>('/identifiers', { method: 'POST', body: { target_type: targetType, target_id: targetId, medium } }),
     activateIdentifier: (identifierId: string) => authenticatedRequest<PhysicalIdentifier>(`/identifiers/${identifierId}/activate`, { method: 'POST' }),

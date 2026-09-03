@@ -22,7 +22,7 @@ The core rule is: **clients talk to a versioned API and do not care where that A
 - Mobile offline database: SQLite
 - Python tooling: uv, Ruff, Pytest
 - TypeScript tooling: pnpm, Vitest
-- Local deployment: Docker Compose + Caddy
+- Local deployment: Docker Compose + Caddy; Raspberry Pi appliance packaging with systemd/Avahi
 - Cloud web hosting: Netlify-compatible static build
 - Cloud API: containerized FastAPI service
 - Object storage: local filesystem or S3-compatible provider
@@ -41,6 +41,11 @@ Raspberry Pi runs:
 - local object storage
 
 Recommended target: Raspberry Pi 4 with 4 GB minimum, preferably Pi 5 with SSD storage.
+
+The preferred self-hosted distribution is a model-specific Raspberry Pi OS Lite 64-bit image built
+with `rpi-image-gen`. It embeds the same Compose services and ARM64 images, generates unique instance
+state on first boot, publishes `wherehouse.local`, and reports nonsensitive instance/storage health
+through a transport-neutral capability. See [ADR 0011](adr/0011-raspberry-pi-appliance.md).
 
 ### Cloud
 

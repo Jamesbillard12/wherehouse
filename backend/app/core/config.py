@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     dropbox_credential_file: str = "./.data/dropbox-backup-credentials.json"
     dropbox_redirect_uri: str = "http://localhost:8000/api/v1/backups/providers/dropbox/callback"
     dropbox_backup_folder: str = "/WhereHouse/Backups"
+    instance_id: str | None = None
+    wherehouse_version: str | None = None
+    appliance_image_version: str | None = None
+    appliance_build_date: str | None = None
+    appliance_hostname: str = "wherehouse.local"
+    appliance_data_dir: str = "/data"
+    storage_warning_free_bytes: int = 2 * 1024 * 1024 * 1024
+    storage_critical_free_bytes: int = 512 * 1024 * 1024
 
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

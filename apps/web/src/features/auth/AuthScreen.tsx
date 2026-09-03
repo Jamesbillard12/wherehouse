@@ -1,4 +1,4 @@
-import { login, register } from '@wherehouse/api-client'
+import { login, register, type SystemStatus } from '@wherehouse/api-client'
 import { type FormEvent, useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -9,10 +9,14 @@ export function AuthScreen({
   busy,
   initialError,
   onAuthenticated,
+  system,
+  systemError,
 }: {
   busy: boolean
   initialError: string | null
   onAuthenticated: (token: string) => void
+  system: SystemStatus | null
+  systemError: string | null
 }) {
   const [mode, setMode] = useState<'register' | 'login'>('register')
   const [submitting, setSubmitting] = useState(false)
@@ -68,6 +72,13 @@ export function AuthScreen({
               ? 'You’ll create your household next.'
               : 'Use the account connected to your household.'}
           </p>
+          {!system?.initialized ? (
+            <div className={`setup-readiness ${system?.ready ? 'ready' : ''}`} role="status">
+              <strong>{system?.ready ? 'Server ready' : 'Checking server readiness…'}</strong>
+              <span>{systemError ?? system?.storage.message ?? 'WhereHouse is preparing storage and its database.'}</span>
+              {system ? <span>Open locally at http://{system.hostname}</span> : null}
+            </div>
+          ) : null}
           <form onSubmit={submit}>
             {mode === 'register' ? (
               <label>

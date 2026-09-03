@@ -32,8 +32,8 @@ validation complete.
   versioned stable operation IDs, idempotent replay, reconnect/realtime reconciliation, and no
   retry-created duplicates.
 - Data safety and operation: a tested backup and restore containing the database and intended media,
-  plus a documented clean install, migration, restart, reboot, and upgrade path for the supported
-  Raspberry Pi deployment.
+  plus a versioned Raspberry Pi 4/5 appliance image with browser first-run setup, local discovery,
+  persistent identity, storage health, clean restart/reboot, and backup-gated application updates.
 
 The current Area/Zone/Container model is acceptable for MVP. A unified arbitrary-depth location
 model is not a release prerequisite; stable IDs and a data-preserving migration path are.
@@ -77,12 +77,12 @@ attribution persistence should land before any third-party, AI, MCP, assistant, 
 
 MVP requires no AI provider, MCP server, assistant adapter, generative UI runtime, 3D/AR or automatic
 spatial reasoning, advanced recommendations, Kubernetes/microservices/broker, provider-specific
-backup design, every cloud backup provider, Homebrew package, or prebuilt Pi image. Architectural
+backup design, every cloud backup provider, or Homebrew package. Architectural
 readiness for several of these remains part of MVP.
 
 ## Primary acceptance workflow
 
-1. Cleanly install/start WhereHouse; register and create a household.
+1. Flash the supported Pi image, boot and discover it locally; register and create a household.
 2. Create `Garage`, `North Wall`, a shelving unit, and a nested bin.
 3. Generate and print the bin's QR label; pair a phone and scan it.
 4. From mobile, add a photographed item with quantity into the bin; optionally register NFC.

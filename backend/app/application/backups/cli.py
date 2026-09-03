@@ -16,6 +16,7 @@ from app.application.backups.artifact import create_artifact, verify_artifact
 from app.application.backups.errors import BackupError
 from app.application.backups.media import SelectedMediaRepository
 from app.application.backups.service import BackupService, read_manifest
+from app.application.system.status import ensure_operation_space
 from app.core.config import get_settings
 from app.db.session import AsyncSessionFactory
 from app.infrastructure.backups import DropboxBackupProvider, LocalBackupProvider, PostgresBackup
@@ -189,6 +190,7 @@ def main(argv: list[str] | None = None) -> int:
         provider_name = args.provider or settings.backup_provider
         service = BackupService(provider_from_settings(provider_name))
         if args.command == "create":
+            ensure_operation_space(Path(settings.backup_staging_dir), 512 * 1024 * 1024)
             keys = asyncio.run(canonical_media_keys())
             workspace_metadata = asyncio.run(workspace_identities())
             media = SelectedMediaRepository(get_image_storage(), keys)

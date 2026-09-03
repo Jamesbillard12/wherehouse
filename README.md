@@ -7,7 +7,8 @@ Raspberry Pi self-hosting, and cloud deployment. Core workflows already cover au
 pairing, households/settings, inventory and location management, photos, QR/NFC identifiers, mobile
 caching/queued writes, and realtime invalidation. MVP hardening is underway; backup/restore,
 operational reliability, complete offline correctness, physical-device validation, and release-level
-testing remain gates. WhereHouse is not production-ready.
+testing remain gates. Reproducible Pi appliance packaging is implemented but has not been physically
+boot-validated. WhereHouse is not production-ready.
 
 Advanced AI, MCP, assistants, generative UI, automation, 3D and AR are intentionally post-MVP.
 During MVP, capability, actor, confirmation, idempotency, identifier, contract and storage boundaries
@@ -19,6 +20,9 @@ React/Vite/TypeScript web; React Native/Expo/TypeScript mobile; FastAPI/Pydantic
 backend; PostgreSQL server data and SQLite mobile cache; pnpm/Vitest and uv/Pytest/Ruff; Docker
 Compose/Caddy local deployment; local or S3-compatible primary media storage; portable local/Dropbox
 backup providers.
+
+The preferred self-hosted target is a versioned Raspberry Pi 4/5 image. Build and operational details
+live in [the Raspberry Pi appliance guide](deploy/raspberry-pi/README.md).
 
 ## Repository layout
 

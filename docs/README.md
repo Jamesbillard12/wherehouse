@@ -3,7 +3,7 @@
 This is the canonical documentation index. WhereHouse is in **MVP hardening**: Phase 0 is complete;
 inventory and sync remain in hardening; search, identifiers, and account/household/device work are
 ready for validation; backup/restore implementation is in progress with real round trips outstanding;
-Pi operations are partial; release validation is not started. See the evidence and uncertainty in
+Pi packaging is implemented but images and hardware are unvalidated; release validation is not started. See the evidence and uncertainty in
 the [execution plan](product/mvp-execution-plan.md).
 
 ## Product and MVP
@@ -24,6 +24,8 @@ the [execution plan](product/mvp-execution-plan.md).
   switching, pairing, targeted realtime revocation, re-pairing, and queued-work recovery evidence.
 - [Phase 6 backup and restore validation](product/backup-restore-validation.md) — automated evidence
   plus local/external-volume, Dropbox, clean-restore, corruption, and retention drills.
+- [Phase 7 Raspberry Pi validation](product/raspberry-pi-validation.md) — fresh images, Pi 4/5,
+  lifecycle, storage, backup/restore, upgrade, and failure drills.
 - [Build now vs. later](product/build-now-vs-later.md) — scope guard.
 - [Product roadmap](product/roadmap.md) — post-MVP household, intelligence/interface and spatial work.
 

@@ -85,11 +85,19 @@ none of the following physical rows is complete from automated evidence alone.
 
 ## Deployment and operation
 
+Use [the dedicated Raspberry Pi validation checklist](raspberry-pi-validation.md). Packaging and
+automated tests are implementation evidence only; keep these rows unchecked until real evidence.
+
 - [ ] Clean supported installation; database setup; migrations; storage permissions
 - [ ] Start/status/restart; machine reboot and automatic recovery
 - [ ] Upgrade/migration exercise and rollback/recovery guidance
 - [ ] Disk-space failure/monitoring behavior; external-storage guidance
 - [ ] Clean supported Raspberry Pi install and realistic-volume smoke test
+- [ ] Pi 4 and Pi 5 artifacts, checksum/metadata, flash, boot, and browser first run
+- [ ] Stable instance identity/secrets through reboot; no credentials embedded in release image
+- [ ] mDNS discovery and device-IP fallback
+- [ ] SD, USB SSD, mounted storage, missing/unwritable/full-disk behavior
+- [ ] Backup-gated update and failed-health/schema recovery exercise
 
 ## Backup and restore
 

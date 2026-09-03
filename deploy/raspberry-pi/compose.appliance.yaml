@@ -1,0 +1,46 @@
+services:
+  postgres:
+    restart: unless-stopped
+    ports: []
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ${WHEREHOUSE_DATA_DIR}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+
+  migrate:
+    environment: &appliance-environment
+      WHEREHOUSE_ENV: appliance
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      INSTANCE_ID: ${INSTANCE_ID}
+      APPLIANCE_IMAGE_VERSION: ${APPLIANCE_IMAGE_VERSION}
+      WHEREHOUSE_VERSION: ${APPLIANCE_IMAGE_VERSION}
+      APPLIANCE_BUILD_DATE: ${APPLIANCE_BUILD_DATE}
+      APPLIANCE_HOSTNAME: ${WHEREHOUSE_HOSTNAME}.local
+      APPLIANCE_DATA_DIR: /data
+      IMAGE_STORAGE_BACKEND: local
+      UPLOAD_DIR: /data/uploads
+      PUBLIC_BASE_URL: http://${WHEREHOUSE_HOSTNAME}.local
+      BACKUP_LOCAL_DIR: /data/backups
+      BACKUP_STAGING_DIR: /data/backup-staging
+      BACKUP_LOCAL_CONFIG_FILE: /data/config/local-backup-destination.json
+      DROPBOX_CREDENTIAL_FILE: /data/config/dropbox-backup-credentials.json
+      APP_SECRET: ${APP_SECRET}
+    volumes:
+      - ${WHEREHOUSE_DATA_DIR}:/data
+
+  api:
+    restart: unless-stopped
+    environment: *appliance-environment
+    volumes:
+      - ${WHEREHOUSE_DATA_DIR}:/data
+
+  web:
+    restart: unless-stopped
+    ports:
+      - "80:80"
+
+volumes: {}

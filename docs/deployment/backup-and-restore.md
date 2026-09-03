@@ -8,6 +8,9 @@ Stop or quiesce API writes during `create` and keep the API stopped during resto
 dump is transactionally consistent; quiescing also keeps database media references stable while
 canonical media is collected.
 
+On the Pi appliance, `wherehouse-backup create [local|dropbox]` performs this quiescing around the
+same CLI. Appliance updates invoke it before changing images or running migrations.
+
 `BACKUP_STAGING_DIR` is a local working destination for finalized, verified artifacts and defaults to
 `./backup-staging`. Provider storage follows verification. The local artifact remains if upload/copy
 fails, and successful staging artifacts remain until the operator removes them under normal storage

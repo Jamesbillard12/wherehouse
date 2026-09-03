@@ -1,4 +1,4 @@
-import { type MeResponse } from '@wherehouse/api-client'
+import { type MeResponse, type SystemStatus } from '@wherehouse/api-client'
 import { type FormEvent, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -9,10 +9,12 @@ export function WorkspaceSetup({
   user,
   onCreate,
   onSignOut,
+  system,
 }: {
   user: MeResponse
   onCreate: (name: string) => Promise<void>
   onSignOut: () => Promise<void>
+  system: SystemStatus | null
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,6 +42,13 @@ export function WorkspaceSetup({
         <p className="eyebrow">Hello, {user.user.display_name}</p>
         <h1>Name your household.</h1>
         <p className="muted">This is the home base for every area, container, item, and paired device.</p>
+        {system ? (
+          <div className="setup-readiness ready">
+            <strong>Instance and storage ready</strong>
+            <span>{system.storage.message} {system.storage.free_bytes === null ? '' : `${Math.floor(system.storage.free_bytes / 1_073_741_824)} GB free.`}</span>
+            <span>Local address: http://{system.hostname}</span>
+          </div>
+        ) : null}
         <form onSubmit={submit}>
           <label>
             Household name

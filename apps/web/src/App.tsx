@@ -1,4 +1,4 @@
-import { createWorkspace, getMe, listWorkspaces, logout, type Workspace, type MeResponse } from '@wherehouse/api-client'
+import { createWorkspace, getMe, getSystemStatus, listWorkspaces, logout, type Workspace, type MeResponse, type SystemStatus } from '@wherehouse/api-client'
 import { useEffect, useState } from 'react'
 
 import { AuthScreen } from './features/auth/AuthScreen'
@@ -14,6 +14,8 @@ export function App() {
   const [selectedId, setSelectedId] = useState(loadActiveWorkspaceId)
   const [loading, setLoading] = useState(Boolean(token))
   const [error, setError] = useState<string | null>(null)
+  const [system, setSystem] = useState<SystemStatus | null>(null)
+  const [systemError, setSystemError] = useState<string | null>(null)
 
   function clearSession() {
     sessionStorage.removeItem(SESSION_KEY)
@@ -40,7 +42,10 @@ export function App() {
     }
   }
 
-  useEffect(() => { if (token) void loadAccount(token) }, [])
+  useEffect(() => {
+    void getSystemStatus().then(setSystem).catch(() => setSystemError('The server is still starting or needs attention.'))
+    if (token) void loadAccount(token)
+  }, [])
 
   function acceptToken(accessToken: string) {
     sessionStorage.setItem(SESSION_KEY, accessToken)
@@ -70,8 +75,8 @@ export function App() {
       </main>
     )
   }
-  if (!token || !me) return <AuthScreen busy={loading} initialError={error} onAuthenticated={acceptToken} />
-  if (!workspaces.length) return <WorkspaceSetup user={me} onCreate={addWorkspace} onSignOut={signOut} />
+  if (!token || !me) return <AuthScreen busy={loading} initialError={error} onAuthenticated={acceptToken} system={system} systemError={systemError} />
+  if (!workspaces.length) return <WorkspaceSetup system={system} user={me} onCreate={addWorkspace} onSignOut={signOut} />
 
   const selected = workspaces.find((workspace) => workspace.id === selectedId) ?? workspaces[0]
   const membership = me.workspaces.find((access) => access.workspace_id === selected.id)

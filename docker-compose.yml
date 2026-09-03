@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:17-alpine
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: wherehouse
       POSTGRES_USER: wherehouse
@@ -16,6 +16,7 @@ services:
       retries: 10
 
   migrate:
+    image: wherehouse-api:local
     build:
       context: ./backend
     command: ["uv", "run", "alembic", "upgrade", "head"]
@@ -32,6 +33,7 @@ services:
         condition: service_healthy
 
   api:
+    image: wherehouse-api:local
     build:
       context: ./backend
     environment:
@@ -51,6 +53,7 @@ services:
         condition: service_completed_successfully
 
   web:
+    image: wherehouse-web:local
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.web

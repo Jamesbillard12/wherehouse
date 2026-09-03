@@ -3,6 +3,7 @@ import {
   createPairingSession,
   getBackupStatus,
   getMe,
+  getSystemStatus,
   listDevices,
   listWorkspaces,
   revokeDevice,
@@ -12,6 +13,7 @@ import {
   type Workspace,
   type MeResponse,
   type PairingSession,
+  type SystemStatus,
 } from "@wherehouse/api-client";
 import {
   ChevronLeft,
@@ -67,20 +69,23 @@ export function SettingsScreen({
   const [selected, setSelected] = useState<Workspace | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [pairing, setPairing] = useState<PairingSession | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [deviceToRevoke, setDeviceToRevoke] = useState<Device | null>(null);
   const [confirmForget, setConfirmForget] = useState(false);
   async function refresh() {
-    const [account, workspaceList, backups] = await Promise.all([
+    const [account, workspaceList, backups, system] = await Promise.all([
       getMe(server.accessToken, server.baseUrl),
       listWorkspaces(server.accessToken, server.baseUrl),
       getBackupStatus(server.accessToken, server.baseUrl),
+      getSystemStatus(server.baseUrl),
     ]);
     setMe(account);
     setWorkspaces(workspaceList);
     setBackupStatus(backups);
+    setSystemStatus(system);
   }
   useEffect(() => {
     void refresh().catch((reason) =>
@@ -340,7 +345,7 @@ export function SettingsScreen({
           cached and queued work.
         </InfoCard>
       ) : (
-        <AboutCard />
+        <AboutCard server={server} system={systemStatus} />
       )}
       <ConfirmModal
         confirmLabel="Forget connection"
@@ -532,7 +537,7 @@ function InfoCard({
   );
 }
 
-function AboutCard() {
+function AboutCard({ server, system }: { server: PairedServer; system: SystemStatus | null }) {
   return (
     <View style={styles.settingsCard}>
       <Image
@@ -545,6 +550,13 @@ function AboutCard() {
       <Text style={styles.settingsMeta}>
         Local-first household inventory and spatial organization.
       </Text>
+      <Text style={styles.settingsMeta}>Connected to {server.baseUrl}</Text>
+      {system ? (
+        <Text style={styles.settingsMeta}>
+          Server {system.application_version} · image {system.image_version ?? "not packaged"}{"\n"}
+          {system.hostname} · {system.storage.message}
+        </Text>
+      ) : null}
     </View>
   );
 }
