@@ -48,8 +48,8 @@ class EventRecorder:
     def __init__(self) -> None:
         self.events = []
 
-    async def publish(self, household_id, **event) -> None:
-        self.events.append((household_id, event))
+    async def publish(self, workspace_id, **event) -> None:
+        self.events.append((workspace_id, event))
 
 
 def command(**changes) -> CreateItem:
@@ -64,14 +64,14 @@ def command(**changes) -> CreateItem:
 
 
 async def test_create_item_persists_operation_and_publishes_once() -> None:
-    household_id = uuid4()
+    workspace_id = uuid4()
     session = FakeSession([SimpleNamespace(), None, 42])
     events = EventRecorder()
 
     item = await create_item(
         session,
         ActorContext(user_id=uuid4(), client="mobile"),
-        household_id,
+        workspace_id,
         command(),
         events,
     )
@@ -84,13 +84,13 @@ async def test_create_item_persists_operation_and_publishes_once() -> None:
 
 
 async def test_create_item_replay_returns_existing_without_write_or_event() -> None:
-    household_id = uuid4()
+    workspace_id = uuid4()
     first_command = command()
     first_session = FakeSession([SimpleNamespace(), None, 1])
     first_item = await create_item(
         first_session,
         ActorContext(user_id=uuid4(), client="mobile"),
-        household_id,
+        workspace_id,
         first_command,
         EventRecorder(),
     )
@@ -100,7 +100,7 @@ async def test_create_item_replay_returns_existing_without_write_or_event() -> N
     replayed = await create_item(
         replay_session,
         ActorContext(user_id=uuid4(), client="mobile"),
-        household_id,
+        workspace_id,
         first_command,
         replay_events,
     )
@@ -112,17 +112,17 @@ async def test_create_item_replay_returns_existing_without_write_or_event() -> N
 
 
 async def test_create_item_and_initial_placement_commit_atomically() -> None:
-    household_id = uuid4()
+    workspace_id = uuid4()
     area_id = uuid4()
     session = FakeSession(
         [SimpleNamespace(), None, 42],
-        {(Area, area_id): SimpleNamespace(id=area_id, household_id=household_id)},
+        {(Area, area_id): SimpleNamespace(id=area_id, workspace_id=workspace_id)},
     )
 
     item = await create_item(
         session,
         ActorContext(user_id=uuid4(), client="web"),
-        household_id,
+        workspace_id,
         command(placement=ItemDestination(area_id=area_id)),
         EventRecorder(),
     )
@@ -134,12 +134,12 @@ async def test_create_item_and_initial_placement_commit_atomically() -> None:
 
 
 async def test_create_item_rejects_reused_operation_with_different_payload() -> None:
-    household_id = uuid4()
+    workspace_id = uuid4()
     first_session = FakeSession([SimpleNamespace(), None, 1])
     first_item = await create_item(
         first_session,
         ActorContext(user_id=uuid4(), client="mobile"),
-        household_id,
+        workspace_id,
         command(),
         EventRecorder(),
     )
@@ -149,7 +149,7 @@ async def test_create_item_rejects_reused_operation_with_different_payload() -> 
         await create_item(
             replay_session,
             ActorContext(user_id=uuid4(), client="mobile"),
-            household_id,
+            workspace_id,
             command(name="Sleeping bag"),
             EventRecorder(),
         )

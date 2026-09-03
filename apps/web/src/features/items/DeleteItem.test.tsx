@@ -14,7 +14,7 @@ import { ItemDetailsModal } from './ItemsView'
 
 const item = {
   id: 'item-1',
-  household_id: 'household-1',
+  workspace_id: 'workspace-1',
   name: 'Cordless drill',
   code: 'ITEM-1',
   identifier_type: 'qr',

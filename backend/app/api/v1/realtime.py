@@ -2,9 +2,9 @@ import asyncio
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, ValidationError
+from pydantic import AliasChoices, BaseModel, Field, ValidationError
 
-from app.api.dependencies import SessionDep, authenticate_token, require_household_access
+from app.api.dependencies import SessionDep, authenticate_token, require_workspace_access
 from app.services.realtime import realtime_hub
 
 router = APIRouter()
@@ -13,13 +13,15 @@ router = APIRouter()
 class RealtimeAuthentication(BaseModel):
     type: str
     token: str
-    household_id: UUID
+    workspace_id: UUID = Field(
+        validation_alias=AliasChoices("workspace_id", "household_id")
+    )
 
 
 @router.websocket("/realtime")
 async def realtime(websocket: WebSocket, session: SessionDep) -> None:
     await websocket.accept()
-    household_id: UUID | None = None
+    workspace_id: UUID | None = None
     try:
         raw = await asyncio.wait_for(websocket.receive_json(), timeout=10)
         authentication = RealtimeAuthentication.model_validate(raw)
@@ -27,10 +29,10 @@ async def realtime(websocket: WebSocket, session: SessionDep) -> None:
             await websocket.close(code=4401, reason="Authentication required")
             return
         principal = await authenticate_token(authentication.token, session)
-        await require_household_access(authentication.household_id, principal, session)
-        household_id = authentication.household_id
-        await realtime_hub.connect(household_id, websocket, device_id=principal.device_id)
-        await websocket.send_json({"type": "realtime.ready", "household_id": str(household_id)})
+        await require_workspace_access(authentication.workspace_id, principal, session)
+        workspace_id = authentication.workspace_id
+        await realtime_hub.connect(workspace_id, websocket, device_id=principal.device_id)
+        await websocket.send_json({"type": "realtime.ready", "workspace_id": str(workspace_id)})
         while True:
             message = await websocket.receive_json()
             if message.get("type") == "ping":
@@ -42,5 +44,5 @@ async def realtime(websocket: WebSocket, session: SessionDep) -> None:
     except WebSocketDisconnect:
         pass
     finally:
-        if household_id is not None:
-            await realtime_hub.disconnect(household_id, websocket)
+        if workspace_id is not None:
+            await realtime_hub.disconnect(workspace_id, websocket)

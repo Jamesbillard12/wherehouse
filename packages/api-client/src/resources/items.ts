@@ -1,17 +1,17 @@
 import { ApiError, apiRequest } from '../client'
 import { API_VERSION, type ContainerPlacement, type Item, type ItemPlacement, type ItemSearchResult } from '../types'
 
-export function listItems(token: string, householdId: string): Promise<Item[]> {
-  return apiRequest(`/households/${householdId}/items`, { token })
+export function listItems(token: string, workspaceId: string): Promise<Item[]> {
+  return apiRequest(`/workspaces/${workspaceId}/items`, { token })
 }
 
-export function searchItems(token: string, householdId: string, query: string): Promise<ItemSearchResult[]> {
-  return apiRequest(`/households/${householdId}/items/search?q=${encodeURIComponent(query)}`, { token })
+export function searchItems(token: string, workspaceId: string, query: string): Promise<ItemSearchResult[]> {
+  return apiRequest(`/workspaces/${workspaceId}/items/search?q=${encodeURIComponent(query)}`, { token })
 }
 
 export function createItem(
   token: string,
-  householdId: string,
+  workspaceId: string,
   payload: {
     client_operation_id?: string
     name: string
@@ -31,7 +31,7 @@ export function createItem(
     }
   },
 ): Promise<Item> {
-  return apiRequest(`/households/${householdId}/items`, { method: 'POST', token, body: payload })
+  return apiRequest(`/workspaces/${workspaceId}/items`, { method: 'POST', token, body: payload })
 }
 
 export function updateItem(
@@ -62,8 +62,8 @@ export function deleteItem(token: string, itemId: string): Promise<void> {
   return apiRequest(`/items/${itemId}`, { method: 'DELETE', token })
 }
 
-export function listItemPlacements(token: string, householdId: string): Promise<ItemPlacement[]> {
-  return apiRequest(`/households/${householdId}/item-placements`, { token })
+export function listItemPlacements(token: string, workspaceId: string): Promise<ItemPlacement[]> {
+  return apiRequest(`/workspaces/${workspaceId}/item-placements`, { token })
 }
 
 export async function uploadItemImage(

@@ -1,7 +1,7 @@
 import {
   createArea, createContainer, createItem, createZone, listAreas, listContainerPlacements,
   listContainers, listZones, uploadItemImage, type Area, type ContainerPlacement,
-  type Household, type StorageContainer, type Zone,
+  type Workspace, type StorageContainer, type Zone,
 } from '@wherehouse/api-client'
 import { useEffect, useState, type FormEvent } from 'react'
 
@@ -14,7 +14,7 @@ import { PhysicalIdentifierPicker } from '../items/PhysicalIdentifierPicker'
 import { AreaIconPicker, CONTAINER_TYPES } from '../locations/locationOptions'
 import { useFeatureActions } from './FeatureActions'
 
-export function GlobalFeatureHost({ household, onChanged, token }: { household: Household; onChanged: () => void; token: string }) {
+export function GlobalFeatureHost({ workspace, onChanged, token }: { workspace: Workspace; onChanged: () => void; token: string }) {
   const { actions, request } = useFeatureActions()
   const [areas, setAreas] = useState<Area[]>([])
   const [zones, setZones] = useState<Zone[]>([])
@@ -27,7 +27,7 @@ export function GlobalFeatureHost({ household, onChanged, token }: { household: 
   useEffect(() => {
     if (!request || request.kind === 'item-details') return
     let cancelled = false
-    void listAreas(token, household.id).then(async (nextAreas) => {
+    void listAreas(token, workspace.id).then(async (nextAreas) => {
       if (cancelled) return
       setAreas(nextAreas)
       const requestedArea = 'defaults' in request ? request.defaults?.areaId : undefined
@@ -44,7 +44,7 @@ export function GlobalFeatureHost({ household, onChanged, token }: { household: 
       }
     }).catch((reason) => !cancelled && setError(message(reason)))
     return () => { cancelled = true }
-  }, [household.id, request, token])
+  }, [workspace.id, request, token])
 
   async function submitItem(event: FormEvent<HTMLFormElement>, image: File | null) {
     event.preventDefault(); setSaving(true); setError(null)
@@ -52,7 +52,7 @@ export function GlobalFeatureHost({ household, onChanged, token }: { household: 
     try {
       const target = String(data.get('placement'))
       const [targetType, targetId] = target.split(':')
-      let item = await createItem(token, household.id, {
+      let item = await createItem(token, workspace.id, {
         name: String(data.get('name')).trim(), quantity: Number(data.get('quantity')),
         identifier_type: String(data.get('identifierType')) as 'qr' | 'nfc' | 'both' | 'none',
         unit: String(data.get('unit')).trim() || undefined, manufacturer: String(data.get('manufacturer')).trim() || undefined,
@@ -68,7 +68,7 @@ export function GlobalFeatureHost({ household, onChanged, token }: { household: 
     event.preventDefault(); if (!request || request.kind === 'create-item' || request.kind === 'item-details') return
     setSaving(true); setError(null); const data = new FormData(event.currentTarget)
     try {
-      if (request.kind === 'create-area') await createArea(token, household.id, { name: String(data.get('name')).trim(), icon: String(data.get('icon')), description: String(data.get('description')).trim() || undefined })
+      if (request.kind === 'create-area') await createArea(token, workspace.id, { name: String(data.get('name')).trim(), icon: String(data.get('icon')), description: String(data.get('description')).trim() || undefined })
       if (request.kind === 'create-zone') await createZone(token, String(data.get('areaId')), { name: String(data.get('name')).trim(), description: String(data.get('description')).trim() || undefined })
       if (request.kind === 'create-container') await createContainer(token, { area_id: String(data.get('areaId')), zone_id: String(data.get('zoneId')) || undefined, name: String(data.get('name')).trim(), container_type: String(data.get('containerType')) as typeof CONTAINER_TYPES[number]['value'], identifier_type: String(data.get('identifierType')) as 'qr' | 'nfc' | 'both' | 'none', description: String(data.get('description')).trim() || undefined, is_movable: true })
       actions.close(); onChanged()

@@ -12,7 +12,7 @@ import {
   updateItem,
   type Area,
   type ContainerPlacement,
-  type Household,
+  type Workspace,
   type Item,
   type ItemPlacement,
   type StorageContainer,
@@ -238,7 +238,7 @@ export function AddItemDialog({ areas, containerPlacements, containers, eyebrow 
   )
 }
 
-export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange, onCreated, onOpenLocation, onRevealConsumed, refreshKey = 0, revealItem, revealItemId, revealScanKey, token }: { createRequestKey?: number; household: Household; onCreateOpenChange?: (open: boolean) => void; onCreated?: (item: Item) => void; onOpenLocation: (target: { areaId: string; containerId?: string; zoneId?: string }) => void; onRevealConsumed?: () => void; refreshKey?: number; revealItem?: Item; revealItemId?: string; revealScanKey?: string; token: string }) {
+export function ItemsView({ createRequestKey = 0, workspace, onCreateOpenChange, onCreated, onOpenLocation, onRevealConsumed, refreshKey = 0, revealItem, revealItemId, revealScanKey, token }: { createRequestKey?: number; workspace: Workspace; onCreateOpenChange?: (open: boolean) => void; onCreated?: (item: Item) => void; onOpenLocation: (target: { areaId: string; containerId?: string; zoneId?: string }) => void; onRevealConsumed?: () => void; refreshKey?: number; revealItem?: Item; revealItemId?: string; revealScanKey?: string; token: string }) {
   const [items, setItems] = useState<Item[]>([])
   const [placements, setPlacements] = useState<ItemPlacement[]>([])
   const [areas, setAreas] = useState<Area[]>([])
@@ -263,9 +263,9 @@ export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange,
 
   async function loadInventory() {
     const [nextItems, nextPlacements, nextAreas] = await Promise.all([
-      listItems(token, household.id),
-      listItemPlacements(token, household.id),
-      listAreas(token, household.id),
+      listItems(token, workspace.id),
+      listItemPlacements(token, workspace.id),
+      listAreas(token, workspace.id),
     ])
     const details = await Promise.all(nextAreas.map(async (area) => {
       const [areaZones, areaContainers, areaPlacements] = await Promise.all([
@@ -288,7 +288,7 @@ export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange,
     setLoading(true)
     setError(null)
     void loadInventory().catch((reason) => setError(message(reason))).finally(() => setLoading(false))
-  }, [household.id, refreshKey, token])
+  }, [workspace.id, refreshKey, token])
 
   useEffect(() => {
     if (!revealItemId) return
@@ -305,7 +305,7 @@ export function ItemsView({ createRequestKey = 0, household, onCreateOpenChange,
     setError(null)
     const data = new FormData(event.currentTarget)
     try {
-      let item = await createItem(token, household.id, {
+      let item = await createItem(token, workspace.id, {
         name: String(data.get('name')).trim(),
         identifier_type: String(data.get('identifierType')) as Item['identifier_type'],
         description: String(data.get('description')).trim() || undefined,

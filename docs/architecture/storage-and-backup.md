@@ -1,5 +1,10 @@
 # Storage and backup architecture
 
+Backups remain deployment-wide, but the format is workspace-aware: each new manifest records every
+workspace UUID and type. Provider credentials and destination paths stay instance configuration rather
+than being duplicated per workspace. Clean restore preserves workspace IDs, types, memberships, and
+scoped resources together.
+
 Primary storage and backup destinations are different concerns. PostgreSQL is canonical application
 data; item/container images use the configured local-filesystem or S3-compatible `ImageStorage`.
 Backup destinations receive only finalized portable artifacts. Never place live PostgreSQL files,
@@ -46,7 +51,8 @@ media/<canonical image key>...
 ```
 
 The manifest records format/version, UUID backup ID, UTC creation time, WhereHouse package version,
-Alembic revision, full-instance scope, PostgreSQL custom dump metadata, media keys/content types,
+Alembic revision, full-instance scope, workspace UUID/type entries, PostgreSQL custom dump metadata,
+media keys/content types,
 exclusions, and encryption status. `checksums.json` SHA-256 hashes the manifest, database dump, and
 every declared media object. Verification rejects invalid/truncated ZIP data, missing, extra,
 duplicate or unsafe paths, malformed metadata, unsupported versions/algorithms, and checksum or

@@ -3,7 +3,7 @@ from app.services.image_storage import LocalImageStorage
 
 def test_local_image_storage_round_trip(tmp_path):
     storage = LocalImageStorage(str(tmp_path))
-    key = "households/one/items/two.webp"
+    key = "workspaces/one/items/two.webp"
 
     storage.put(key, b"image-data", "image/webp")
 

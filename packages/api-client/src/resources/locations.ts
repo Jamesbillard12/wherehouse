@@ -2,16 +2,16 @@ import { apiRequest } from '../client'
 import { API_VERSION } from '../types'
 import type { Area, ContainerPlacement, ContainerSearchResult, ContainerType, StorageContainer, Zone } from '../types'
 
-export function listAreas(token: string, householdId: string): Promise<Area[]> {
-  return apiRequest(`/households/${householdId}/areas`, { token })
+export function listAreas(token: string, workspaceId: string): Promise<Area[]> {
+  return apiRequest(`/workspaces/${workspaceId}/areas`, { token })
 }
 
 export function createArea(
   token: string,
-  householdId: string,
+  workspaceId: string,
   payload: { name: string; icon: string; description?: string },
 ): Promise<Area> {
-  return apiRequest(`/households/${householdId}/areas`, { method: 'POST', token, body: payload })
+  return apiRequest(`/workspaces/${workspaceId}/areas`, { method: 'POST', token, body: payload })
 }
 
 export function updateArea(
@@ -54,8 +54,8 @@ export function listContainers(token: string, areaId: string): Promise<StorageCo
   return apiRequest(`/areas/${areaId}/containers`, { token })
 }
 
-export function searchContainers(token: string, householdId: string, query: string): Promise<ContainerSearchResult[]> {
-  return apiRequest(`/households/${householdId}/containers/search?q=${encodeURIComponent(query)}`, { token })
+export function searchContainers(token: string, workspaceId: string, query: string): Promise<ContainerSearchResult[]> {
+  return apiRequest(`/workspaces/${workspaceId}/containers/search?q=${encodeURIComponent(query)}`, { token })
 }
 
 export function createContainer(

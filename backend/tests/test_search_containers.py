@@ -27,29 +27,29 @@ class SearchSession:
         return next(self.scalar_results)
 
 
-def actor(household_id=None):
-    return ActorContext(user_id=uuid4(), client="test", household_id=household_id)
+def actor(workspace_id=None):
+    return ActorContext(user_id=uuid4(), client="test", workspace_id=workspace_id)
 
 
 async def test_container_search_returns_canonical_nested_path() -> None:
-    household_id = uuid4()
-    area = Area(id=uuid4(), household_id=household_id, name="Garage", icon="warehouse")
+    workspace_id = uuid4()
+    area = Area(id=uuid4(), workspace_id=workspace_id, name="Garage", icon="warehouse")
     zone = Zone(id=uuid4(), area_id=area.id, name="North Wall")
     shelf = Container(id=uuid4(), area_id=area.id, zone_id=zone.id, name="Shelf", code="SHF-001", container_type="shelf", is_archived=False)
     box = Container(id=uuid4(), area_id=area.id, zone_id=zone.id, name="Yellow Bin", code="BIN-001", container_type="bin", is_archived=False)
     placement = ContainerPlacement(container_id=box.id, parent_container_id=shelf.id, relationship_type="on")
     session = SearchSession(SimpleNamespace(), [[box], [area], [zone], [shelf, box], [placement]])
 
-    results = await search_containers(session, actor(), household_id, SearchContainers("yellow"))
+    results = await search_containers(session, actor(), workspace_id, SearchContainers("yellow"))
 
     assert results[0].container is box
     assert results[0].resolved_path == "Garage > North Wall > Shelf > Yellow Bin"
     sql = str(session.statement)
-    assert "areas.household_id" in sql
+    assert "areas.workspace_id" in sql
     assert "containers.is_archived IS false" in sql
 
 
-async def test_container_search_enforces_household_context() -> None:
+async def test_container_search_enforces_workspace_context() -> None:
     session = SearchSession(SimpleNamespace())
     with pytest.raises(LocationAccessDenied):
         await search_containers(session, actor(uuid4()), uuid4(), SearchContainers("bin"))

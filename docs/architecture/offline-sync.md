@@ -1,5 +1,10 @@
 # Local-first architecture guidance
 
+Mobile cache rows, sync metadata, recent locations, and queued operations are keyed by `workspace_id`.
+The inventory-cache primary key includes workspace identity, entity type, and entity ID. Replay always
+uses the paired connection's workspace, so Workspace A mutations cannot be sent to Workspace B. Existing
+mobile databases rename legacy `household_id` columns and rebuild the cache key without discarding rows.
+
 ## Non-negotiable behavior
 
 Core inventory creation, lookup, location management, QR resolution, and cached mobile workflows
@@ -51,10 +56,10 @@ visible configured provider and data boundary.
 ## Offline and future sync
 
 The supported MVP offline mutation set is deliberately one operation: `item.create` version 1. Its
-SQLite envelope contains a stable operation ID, operation type/version, household, versioned payload,
+SQLite envelope contains a stable operation ID, operation type/version, workspace, versioned payload,
 creation time, replay status, attempt count, retry time, error, and eventual remote item ID. The ID is
 created with the local draft, survives restart, and is reused as `client_operation_id` on every replay.
-The backend's household-scoped uniqueness constraint and payload hash make the same ID and payload an
+The backend's workspace-scoped uniqueness constraint and payload hash make the same ID and payload an
 equivalent success and reject reuse with different data.
 
 Queue insertion, the optimistic item/location cache rows, and recent-location update share one SQLite
@@ -63,8 +68,8 @@ network/timeouts, 408/425/429, and 5xx use bounded exponential backoff, authenti
 pauses replay without deleting work, and other 4xx responses remain visible as needing attention.
 After success the client records the canonical ID before optional image upload, removes the operation
 and temporary cache rows atomically, then refetches canonical state. A timeout after server creation is
-safe because replay uses the same operation ID. Pending rows are explicitly household-scoped and are
-never replayed under the selected household of another queue.
+safe because replay uses the same operation ID. Pending rows are explicitly workspace-scoped and are
+never replayed under the selected workspace of another queue.
 
 Device revocation stops replay and marks all still-pending operations on that installation as
 needing attention. The rows and optimistic local data are retained, but a later re-pair does not

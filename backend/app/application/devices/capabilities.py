@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.context import ActorContext
-from app.models import Device, HouseholdRelationship, HouseholdUser
+from app.models import Device, WorkspaceMembership, WorkspaceRole
 
 
 class DeviceNotFound(Exception):
@@ -19,7 +19,7 @@ class DeviceAccessDenied(Exception):
 
 
 class DeviceRevocationEvents(Protocol):
-    async def revoke_device(self, household_id: UUID, device_id: UUID, revoked_at: datetime) -> None: ...
+    async def revoke_device(self, workspace_id: UUID, device_id: UUID, revoked_at: datetime) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -38,13 +38,13 @@ async def revoke_device(
     if device is None:
         raise DeviceNotFound("Device not found")
     membership = await session.scalar(
-        select(HouseholdUser).where(
-            HouseholdUser.household_id == device.household_id,
-            HouseholdUser.user_id == actor.user_id,
+        select(WorkspaceMembership).where(
+            WorkspaceMembership.workspace_id == device.workspace_id,
+            WorkspaceMembership.user_id == actor.user_id,
         )
     )
-    if membership is None or membership.relationship_type is not HouseholdRelationship.OWNER:
-        raise DeviceAccessDenied("Household access denied")
+    if membership is None or membership.role is not WorkspaceRole.OWNER:
+        raise DeviceAccessDenied("Workspace access denied")
     if not device.is_active or device.revoked_at is not None:
         return device
 
@@ -56,5 +56,5 @@ async def revoke_device(
     except Exception:
         await session.rollback()
         raise
-    await events.revoke_device(device.household_id, device.id, revoked_at)
+    await events.revoke_device(device.workspace_id, device.id, revoked_at)
     return device

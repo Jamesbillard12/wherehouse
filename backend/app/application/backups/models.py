@@ -23,3 +23,4 @@ class VerifiedBackup:
     schema_revision: str
     media_count: int
     encrypted: bool
+    workspaces: tuple[tuple[str, str], ...]

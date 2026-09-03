@@ -1,15 +1,15 @@
 import {
-  createHousehold,
+  createWorkspace,
   createPairingSession,
   getBackupStatus,
   getMe,
   listDevices,
-  listHouseholds,
+  listWorkspaces,
   revokeDevice,
   type BackupDestinationStatus,
   type BackupStatus,
   type Device,
-  type Household,
+  type Workspace,
   type MeResponse,
   type PairingSession,
 } from "@wherehouse/api-client";
@@ -38,15 +38,15 @@ import { remoteBackupPresentation } from "./backupStatus";
 type Section =
   | "more"
   | "account"
-  | "households"
-  | "household"
+  | "workspaces"
+  | "workspace"
   | "preferences"
   | "privacy"
   | "about";
 
 const entries = [
   { id: "account" as const, label: "Account", icon: CircleUserRound },
-  { id: "households" as const, label: "Households", icon: House },
+  { id: "workspaces" as const, label: "Households", icon: House },
   { id: "preferences" as const, label: "Preferences", icon: Palette },
   { id: "privacy" as const, label: "Data & Privacy", icon: Shield },
   { id: "about" as const, label: "About", icon: Info },
@@ -59,12 +59,12 @@ export function SettingsScreen({
 }: {
   server: PairedServer;
   onForget: () => void;
-  onSwitch: (household: Household) => Promise<void>;
+  onSwitch: (workspace: Workspace) => Promise<void>;
 }) {
   const [section, setSection] = useState<Section>("more");
   const [me, setMe] = useState<MeResponse | null>(null);
-  const [households, setHouseholds] = useState<Household[]>([]);
-  const [selected, setSelected] = useState<Household | null>(null);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [selected, setSelected] = useState<Workspace | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
   const [pairing, setPairing] = useState<PairingSession | null>(null);
@@ -73,13 +73,13 @@ export function SettingsScreen({
   const [deviceToRevoke, setDeviceToRevoke] = useState<Device | null>(null);
   const [confirmForget, setConfirmForget] = useState(false);
   async function refresh() {
-    const [account, householdList, backups] = await Promise.all([
+    const [account, workspaceList, backups] = await Promise.all([
       getMe(server.accessToken, server.baseUrl),
-      listHouseholds(server.accessToken, server.baseUrl),
+      listWorkspaces(server.accessToken, server.baseUrl),
       getBackupStatus(server.accessToken, server.baseUrl),
     ]);
     setMe(account);
-    setHouseholds(householdList);
+    setWorkspaces(workspaceList);
     setBackupStatus(backups);
   }
   useEffect(() => {
@@ -91,10 +91,10 @@ export function SettingsScreen({
   }, [server.accessToken, server.baseUrl]);
   useEffect(() => {
     if (
-      section !== "household" ||
+      section !== "workspace" ||
       !selected ||
-      me?.households.find((entry) => entry.household_id === selected.id)
-        ?.relationship_type !== "owner"
+      me?.workspaces.find((entry) => entry.workspace_id === selected.id)
+        ?.role !== "owner"
     )
       return;
     let cancelled = false;
@@ -129,31 +129,31 @@ export function SettingsScreen({
       clearInterval(interval);
     };
   }, [me, section, selected, server.accessToken, server.baseUrl]);
-  async function chooseHousehold(household: Household) {
-    if (household.id !== server.householdId) {
-      await onSwitch(household);
+  async function chooseWorkspace(workspace: Workspace) {
+    if (workspace.id !== server.workspaceId) {
+      await onSwitch(workspace);
       return;
     }
-    setSelected(household);
+    setSelected(workspace);
     setPairing(null);
-    setSection("household");
+    setSection("workspace");
     const owner =
-      me?.households.find((entry) => entry.household_id === household.id)
-        ?.relationship_type === "owner";
+      me?.workspaces.find((entry) => entry.workspace_id === workspace.id)
+        ?.role === "owner";
     setDevices(
       owner
-        ? await listDevices(server.accessToken, household.id, server.baseUrl)
+        ? await listDevices(server.accessToken, workspace.id, server.baseUrl)
         : [],
     );
   }
-  async function pairDevice(household: Household) {
+  async function pairDevice(workspace: Workspace) {
     try {
       setPairing(
         await createPairingSession(
           server.accessToken,
-          household.id,
+          workspace.id,
           {
-            instance_name: `${household.name} WhereHouse`,
+            instance_name: `${workspace.name} WhereHouse`,
             instance_type: server.baseUrl.includes("localhost")
               ? "local"
               : "cloud",
@@ -186,26 +186,26 @@ export function SettingsScreen({
       );
     }
   }
-  async function addHousehold() {
+  async function addWorkspace() {
     if (!name.trim()) return;
-    const household = await createHousehold(
+    const workspace = await createWorkspace(
       server.accessToken,
       name.trim(),
       server.baseUrl,
     );
     setName("");
     await refresh();
-    await onSwitch(household);
-    setSelected(household);
-    setSection("household");
+    await onSwitch(workspace);
+    setSelected(workspace);
+    setSection("workspace");
   }
   const title =
     section === "more"
       ? "More"
       : section === "privacy"
         ? "Data & Privacy"
-        : section === "household"
-          ? (selected?.name ?? "Household")
+        : section === "workspace"
+          ? (selected?.name ?? "Workspace")
           : section[0].toUpperCase() + section.slice(1);
   return (
     <View style={styles.settingsRoot}>
@@ -213,7 +213,7 @@ export function SettingsScreen({
         <Pressable
           accessibilityLabel="Back"
           onPress={() =>
-            setSection(section === "household" ? "households" : "more")
+            setSection(section === "workspace" ? "workspaces" : "more")
           }
           style={styles.settingsBack}
         >
@@ -265,14 +265,14 @@ export function SettingsScreen({
             </Text>
           </Pressable>
         </View>
-      ) : section === "households" ? (
+      ) : section === "workspaces" ? (
         <>
           <View style={styles.settingsList}>
-            {households.map((household) => {
-              const active = household.id === server.householdId;
-              const role = me?.households.find(
-                (entry) => entry.household_id === household.id,
-              )?.relationship_type;
+            {workspaces.map((workspace) => {
+              const active = workspace.id === server.workspaceId;
+              const role = me?.workspaces.find(
+                (entry) => entry.workspace_id === workspace.id,
+              )?.role;
               return (
                 <Pressable
                   accessibilityHint={
@@ -280,14 +280,14 @@ export function SettingsScreen({
                       ? "Opens household settings"
                       : "Switches to this household"
                   }
-                  accessibilityLabel={`${household.name}${active ? ", active" : ""}`}
-                  key={household.id}
-                  onPress={() => void chooseHousehold(household)}
+                  accessibilityLabel={`${workspace.name}${active ? ", active" : ""}`}
+                  key={workspace.id}
+                  onPress={() => void chooseWorkspace(workspace)}
                   style={styles.settingsRow}
                 >
                   <House color="#4f46e5" size={20} />
                   <View style={styles.settingsRowCopy}>
-                    <Text style={styles.settingsRowText}>{household.name}</Text>
+                    <Text style={styles.settingsRowText}>{workspace.name}</Text>
                     <Text style={styles.settingsMeta}>
                       {role}
                       {active ? " · Active" : " · Tap to switch"}
@@ -307,7 +307,7 @@ export function SettingsScreen({
               value={name}
             />
             <Pressable
-              onPress={() => void addHousehold()}
+              onPress={() => void addWorkspace()}
               style={styles.settingsPrimary}
             >
               <Plus color="#fff" size={18} />
@@ -315,11 +315,11 @@ export function SettingsScreen({
             </Pressable>
           </View>
         </>
-      ) : section === "household" && selected ? (
-        <HouseholdDetail
+      ) : section === "workspace" && selected ? (
+        <WorkspaceDetail
           devices={devices}
-          household={selected}
-          isActive={selected.id === server.householdId}
+          workspace={selected}
+          isActive={selected.id === server.workspaceId}
           me={me}
           onPair={() => pairDevice(selected)}
           onRevoke={setDeviceToRevoke}
@@ -410,9 +410,9 @@ export function RemoteBackupCard({
   );
 }
 
-function HouseholdDetail({
+function WorkspaceDetail({
   devices,
-  household,
+  workspace,
   isActive,
   me,
   onPair,
@@ -421,7 +421,7 @@ function HouseholdDetail({
   pairing,
 }: {
   devices: Device[];
-  household: Household;
+  workspace: Workspace;
   isActive: boolean;
   me: MeResponse | null;
   onPair: () => Promise<void>;
@@ -429,9 +429,9 @@ function HouseholdDetail({
   onSwitch: () => Promise<void>;
   pairing: PairingSession | null;
 }) {
-  const role = me?.households.find(
-    (entry) => entry.household_id === household.id,
-  )?.relationship_type;
+  const role = me?.workspaces.find(
+    (entry) => entry.workspace_id === workspace.id,
+  )?.role;
   return (
     <>
       <View style={styles.settingsCard}>

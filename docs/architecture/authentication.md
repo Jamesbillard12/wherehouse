@@ -1,5 +1,9 @@
 # Authentication, devices, and pairing
 
+Users are global identities and gain inventory access through `WorkspaceMembership`. User sessions may
+operate in any workspace where the user is a member. Device credentials are narrower: they remain bound
+to the workspace selected during pairing, and membership elsewhere does not grant that device access.
+
 WhereHouse uses opaque bearer credentials. Only SHA-256 hashes of session, pairing, and device
 tokens are stored by the server. User passwords are salted and hashed with scrypt.
 
@@ -14,30 +18,30 @@ Web session restoration validates the stored credential before rendering protect
 or expired sessions clear the browser credential and selected-household preference and return to a
 product-level sign-in recovery state.
 
-Creating a household automatically makes the authenticated user its owner. Core inventory routes
-require membership in the selected household. Owner access is required to pair or revoke devices.
+Creating a workspace (presented as a household today) automatically makes the authenticated user its
+owner. Core inventory routes require membership in the selected workspace. Owner access is required to
+pair or revoke devices.
 
 ## Companion pairing
 
-1. An authenticated owner calls `POST /api/v1/households/{id}/pairing-sessions`.
+1. An authenticated owner calls `POST /api/v1/workspaces/{id}/pairing-sessions`; the v1 household
+   route remains a deprecated compatibility alias.
 2. The response includes a `wherehouse://pair` URI suitable for a QR code. The token expires after
    ten minutes by default and can be consumed only once.
 3. The companion sends the token and its device identity to `POST /api/v1/pairing/consume`.
-4. The response contains the server URL, household/user/instance IDs, and a revocable device bearer
+4. The response contains the server URL, workspace/user/instance IDs, and a revocable device bearer
    credential.
 
 The companion must store the server URL, identifiers, and credential in Expo SecureStore. It must
 not store credentials in the SQLite replica. SQLite continues to hold cached domain records and
-pending offline operations. A device registration remains household-scoped for auditing and
-revocation, while its credential represents the paired user and may select any household where that
-user has a current membership. Every request still checks membership, and administrative operations
-still check owner status in the target household. Credentials remain valid while offline and are
-presented when queued operations synchronize.
+pending offline operations. A device registration and credential remain workspace-scoped for
+auditing, authorization, and revocation. The user's membership in another workspace does not extend the
+credential. Credentials remain valid while offline and are presented when queued operations synchronize.
 
 Device revocation is an idempotent application capability. It verifies owner membership, commits the
 inactive/revoked state, and only then asks the realtime hub to notify and close sockets authenticated
 by that device. REST requests and WebSocket reconnects always authenticate against current device
-state, so the old credential remains invalid after re-pairing. The event contains household ID,
+state, so the old credential remains invalid after re-pairing. The event contains workspace ID,
 device ID, and revocation time, never a credential.
 
 `PUBLIC_BASE_URL` must be the URL reachable by the companion. Self-hosted deployments may use a

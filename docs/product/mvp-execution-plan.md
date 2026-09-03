@@ -169,6 +169,8 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 ## Phase 8: Future-readiness architecture gate
 
 - **Purpose/current state:** review the architecture produced by MVP work, not build future systems.
+  The top-level domain is now a typed Workspace with household presentation terminology, in-place data
+  migration, workspace-scoped device/offline boundaries, and documented v1 household API aliases.
 - **Scope/work:** capability reuse, actor context, authorization evolution, idempotency, confirmation,
   capability-owned transactions/events, stable resources/IDs, identifier neutrality, backup ports,
   optional AI, versioned contracts, location migration path, authored UI, and OpenAPI client parity.

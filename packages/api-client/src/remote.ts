@@ -11,17 +11,17 @@ export function createRemoteClient(baseUrl: string, token: string) {
     createIdentifier: (targetType: IdentifierTargetType, targetId: string, medium: IdentifierMedium) => authenticatedRequest<PhysicalIdentifier>('/identifiers', { method: 'POST', body: { target_type: targetType, target_id: targetId, medium } }),
     activateIdentifier: (identifierId: string) => authenticatedRequest<PhysicalIdentifier>(`/identifiers/${identifierId}/activate`, { method: 'POST' }),
     resolveIdentifier: (publicId: string) => authenticatedRequest<IdentifierResolution>(`/identifiers/${encodeURIComponent(publicId)}/resolve`),
-    listAreas: (householdId: string) =>
-      authenticatedRequest<Area[]>(`/households/${householdId}/areas`),
+    listAreas: (workspaceId: string) =>
+      authenticatedRequest<Area[]>(`/workspaces/${workspaceId}/areas`),
     listZones: (areaId: string) => authenticatedRequest<Zone[]>(`/areas/${areaId}/zones`),
     listContainers: (areaId: string) =>
       authenticatedRequest<StorageContainer[]>(`/areas/${areaId}/containers`),
-    searchContainers: (householdId: string, query: string) => authenticatedRequest<ContainerSearchResult[]>(`/households/${householdId}/containers/search?q=${encodeURIComponent(query)}`),
+    searchContainers: (workspaceId: string, query: string) => authenticatedRequest<ContainerSearchResult[]>(`/workspaces/${workspaceId}/containers/search?q=${encodeURIComponent(query)}`),
     listContainerPlacements: (areaId: string) =>
       authenticatedRequest<ContainerPlacement[]>(`/areas/${areaId}/container-placements`),
     getContainerByCode: (code: string) =>
       authenticatedRequest<StorageContainer>(`/containers/by-code/${encodeURIComponent(code)}`),
-    createItem: (householdId: string, payload: {
+    createItem: (workspaceId: string, payload: {
       client_operation_id?: string
       name: string
       identifier_type: Item['identifier_type']
@@ -32,10 +32,10 @@ export function createRemoteClient(baseUrl: string, token: string) {
       model?: string
       serial_number?: string
       notes?: string
-    }) => authenticatedRequest<Item>(`/households/${householdId}/items`, { method: 'POST', body: payload }),
-    listItems: (householdId: string) => authenticatedRequest<Item[]>(`/households/${householdId}/items`),
-    searchItems: (householdId: string, query: string) => authenticatedRequest<ItemSearchResult[]>(`/households/${householdId}/items/search?q=${encodeURIComponent(query)}`),
-    listItemPlacements: (householdId: string) => authenticatedRequest<ItemPlacement[]>(`/households/${householdId}/item-placements`),
+    }) => authenticatedRequest<Item>(`/workspaces/${workspaceId}/items`, { method: 'POST', body: payload }),
+    listItems: (workspaceId: string) => authenticatedRequest<Item[]>(`/workspaces/${workspaceId}/items`),
+    searchItems: (workspaceId: string, query: string) => authenticatedRequest<ItemSearchResult[]>(`/workspaces/${workspaceId}/items/search?q=${encodeURIComponent(query)}`),
+    listItemPlacements: (workspaceId: string) => authenticatedRequest<ItemPlacement[]>(`/workspaces/${workspaceId}/item-placements`),
     updateItem: (itemId: string, payload: {
       name: string
       identifier_type: Item['identifier_type']

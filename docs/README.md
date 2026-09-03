@@ -35,6 +35,8 @@ the [execution plan](product/mvp-execution-plan.md).
   feature actions, forms/dialogs, state, sharing, testing, and UI anti-patterns.
 - [Domain model](architecture/domain-model.md), [authentication](architecture/authentication.md),
   [offline/sync](architecture/offline-sync.md), and [settings](architecture/settings.md)
+- [Workspace domain decision](architecture/adr/0010-workspace-domain.md) — internal organization seam,
+  household-facing terminology, migration, scoping, and v1 compatibility policy.
 - [Storage and backup](architecture/storage-and-backup.md)
 - [AI, MCP, assistants and integrations](architecture/external-integrations.md), [controlled
   generative UI](architecture/generative-ui.md), and [spatial direction](architecture/spatial-architecture.md)

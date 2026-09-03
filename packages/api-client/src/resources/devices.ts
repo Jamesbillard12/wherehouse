@@ -3,11 +3,11 @@ import { API_VERSION, type Device, type PairingConsume, type PairingResult, type
 
 export function createPairingSession(
   token: string,
-  householdId: string,
+  workspaceId: string,
   payload: { instance_name: string; instance_type: 'local' | 'cloud' },
   baseUrl?: string,
 ): Promise<PairingSession> {
-  return apiRequest(`/households/${householdId}/pairing-sessions`, {
+  return apiRequest(`/workspaces/${workspaceId}/pairing-sessions`, {
     baseUrl,
     method: 'POST',
     token,
@@ -15,8 +15,8 @@ export function createPairingSession(
   })
 }
 
-export function listDevices(token: string, householdId: string, baseUrl?: string): Promise<Device[]> {
-  return apiRequest(`/households/${householdId}/devices`, { baseUrl, token })
+export function listDevices(token: string, workspaceId: string, baseUrl?: string): Promise<Device[]> {
+  return apiRequest(`/workspaces/${workspaceId}/devices`, { baseUrl, token })
 }
 
 export function revokeDevice(token: string, deviceId: string, baseUrl?: string): Promise<void> {

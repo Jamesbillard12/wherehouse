@@ -4,18 +4,18 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy import select
 
-from app.api.dependencies import PrincipalDep, SessionDep, require_household_access
+from app.api.dependencies import PrincipalDep, SessionDep, require_workspace_access
 from app.application.context import ActorContext
 from app.application.items.capabilities import (
     CreateItem,
     EntityNotFound,
-    HouseholdAccessDenied,
     IdempotencyConflict,
     InvalidMove,
     ItemDestination,
     MoveItem,
     SearchItems,
     UpdateItem,
+    WorkspaceAccessDenied,
     move_item,
     resolve_item_locations,
     search_items,
@@ -50,12 +50,18 @@ ITEM_IMAGE_TYPES = {
 MAX_ITEM_IMAGE_BYTES = 8 * 1024 * 1024
 
 @router.post(
-    "/households/{household_id}/items",
+    "/households/{workspace_id}/items",
+    response_model=ItemRead,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
+@router.post(
+    "/workspaces/{workspace_id}/items",
     response_model=ItemRead,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_item(
-    household_id: UUID,
+    workspace_id: UUID,
     payload: ItemCreate,
     principal: PrincipalDep,
     session: SessionDep,
@@ -64,20 +70,20 @@ async def create_item(
         user_id=principal.user.id,
         client=principal.method,
         device_id=principal.device_id,
-        household_id=None,
+        workspace_id=None,
     )
     try:
         return await create_item_capability(
             session,
             actor,
-            household_id,
+            workspace_id,
             CreateItem(
                 **payload.model_dump(exclude={"placement"}),
                 placement=ItemDestination(**payload.placement.model_dump()) if payload.placement else None,
             ),
             realtime_hub,
         )
-    except HouseholdAccessDenied as error:
+    except WorkspaceAccessDenied as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
     except IdempotencyConflict as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
@@ -98,7 +104,7 @@ async def update_item(
         user_id=principal.user.id,
         client=principal.method,
         device_id=principal.device_id,
-        household_id=None,
+        workspace_id=None,
     )
     try:
         return await update_item_capability(
@@ -113,7 +119,7 @@ async def update_item(
         )
     except EntityNotFound as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
-    except HouseholdAccessDenied as error:
+    except WorkspaceAccessDenied as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
     except InvalidMove as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
@@ -129,41 +135,51 @@ async def delete_item(
         user_id=principal.user.id,
         client=principal.method,
         device_id=principal.device_id,
-        household_id=None,
+        workspace_id=None,
     )
     try:
         await delete_item_capability(session, actor, item_id, realtime_hub)
     except EntityNotFound as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
-    except HouseholdAccessDenied as error:
+    except WorkspaceAccessDenied as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/households/{household_id}/items", response_model=list[ItemRead])
+@router.get(
+    "/households/{workspace_id}/items",
+    response_model=list[ItemRead],
+    include_in_schema=False,
+)
+@router.get("/workspaces/{workspace_id}/items", response_model=list[ItemRead])
 async def list_items(
-    household_id: UUID, principal: PrincipalDep, session: SessionDep
+    workspace_id: UUID, principal: PrincipalDep, session: SessionDep
 ) -> list[Item]:
-    await require_household_access(household_id, principal, session)
+    await require_workspace_access(workspace_id, principal, session)
     result = await session.scalars(
         select(Item)
-        .where(Item.household_id == household_id, Item.is_archived.is_(False))
+        .where(Item.workspace_id == workspace_id, Item.is_archived.is_(False))
         .order_by(Item.name)
     )
     return list(result)
 
 
-@router.get("/households/{household_id}/items/search", response_model=list[ItemSearchResult])
-async def search_household_items(
-    household_id: UUID,
+@router.get(
+    "/households/{workspace_id}/items/search",
+    response_model=list[ItemSearchResult],
+    include_in_schema=False,
+)
+@router.get("/workspaces/{workspace_id}/items/search", response_model=list[ItemSearchResult])
+async def search_workspace_items(
+    workspace_id: UUID,
     q: str,
     principal: PrincipalDep,
     session: SessionDep,
 ) -> list[ItemSearchResult]:
-    actor = ActorContext(user_id=principal.user.id, client=principal.method, device_id=principal.device_id, household_id=household_id)
+    actor = ActorContext(user_id=principal.user.id, client=principal.method, device_id=principal.device_id, workspace_id=workspace_id)
     try:
-        matches = await search_items(session, actor, household_id, SearchItems(query=q))
-    except HouseholdAccessDenied as error:
+        matches = await search_items(session, actor, workspace_id, SearchItems(query=q))
+    except WorkspaceAccessDenied as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
@@ -178,7 +194,7 @@ async def upload_item_image(
     session: SessionDep,
 ) -> Item:
     item = await require(session, Item, item_id, "Item")
-    await require_household_access(item.household_id, principal, session)
+    await require_workspace_access(item.workspace_id, principal, session)
     content_type = request.headers.get("content-type", "").split(";", 1)[0].lower()
     extension = ITEM_IMAGE_TYPES.get(content_type)
     if extension is None:
@@ -194,12 +210,12 @@ async def upload_item_image(
         )
     storage = get_image_storage()
     previous_key = item.image_path
-    object_key = f"households/{item.household_id}/items/{item.id}{extension}"
+    object_key = f"workspaces/{item.workspace_id}/items/{item.id}{extension}"
     storage.put(object_key, body, content_type)
     item.image_path = object_key
     await session.commit()
     await session.refresh(item)
-    await realtime_hub.publish(item.household_id, entity="item", action="image.updated", entity_id=item.id, source=principal.method)
+    await realtime_hub.publish(item.workspace_id, entity="item", action="image.updated", entity_id=item.id, source=principal.method)
     if previous_key and previous_key != object_key:
         storage.delete(previous_key)
     return item
@@ -212,7 +228,7 @@ async def get_item_image(
     session: SessionDep,
 ) -> Response:
     item = await require(session, Item, item_id, "Item")
-    await require_household_access(item.household_id, principal, session)
+    await require_workspace_access(item.workspace_id, principal, session)
     if not item.image_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item image not found")
     stored = get_image_storage().get(item.image_path)
@@ -226,28 +242,33 @@ async def get_item_image(
 
 
 @router.get(
-    "/households/{household_id}/item-placements",
+    "/households/{workspace_id}/item-placements",
+    response_model=list[ItemPlacementRead],
+    include_in_schema=False,
+)
+@router.get(
+    "/workspaces/{workspace_id}/item-placements",
     response_model=list[ItemPlacementRead],
 )
 async def list_item_placements(
-    household_id: UUID, principal: PrincipalDep, session: SessionDep
+    workspace_id: UUID, principal: PrincipalDep, session: SessionDep
 ) -> list[ItemPlacementRead]:
-    await require_household_access(household_id, principal, session)
+    await require_workspace_access(workspace_id, principal, session)
     result = await session.scalars(
         select(ItemPlacement)
         .join(Item, Item.id == ItemPlacement.item_id)
-        .where(Item.household_id == household_id)
+        .where(Item.workspace_id == workspace_id)
         .order_by(ItemPlacement.created_at)
     )
     actor = ActorContext(
         user_id=principal.user.id,
         client=principal.method,
         device_id=principal.device_id,
-        household_id=household_id,
+        workspace_id=workspace_id,
     )
     placements = list(result)
     try:
-        paths = await resolve_item_locations(session, actor, household_id, placements)
+        paths = await resolve_item_locations(session, actor, workspace_id, placements)
         return [
             ItemPlacementRead.model_validate(placement).model_copy(
                 update={"resolved_path": paths[placement.id]}
@@ -269,7 +290,7 @@ async def place_item(
         user_id=principal.user.id,
         client=principal.method,
         device_id=principal.device_id,
-        household_id=None,
+        workspace_id=None,
     )
     try:
         return await move_item(
@@ -280,7 +301,7 @@ async def place_item(
         )
     except EntityNotFound as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
-    except HouseholdAccessDenied as error:
+    except WorkspaceAccessDenied as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
     except InvalidMove as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error

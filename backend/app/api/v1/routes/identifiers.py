@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from app.api.dependencies import PrincipalDep, SessionDep, require_household_access
+from app.api.dependencies import PrincipalDep, SessionDep, require_workspace_access
 from app.application.context import ActorContext
 from app.application.identifiers.capabilities import (
     IdentifierAccessDenied,
@@ -28,7 +28,7 @@ router = APIRouter()
 def actor_for(principal) -> ActorContext:
     return ActorContext(
         user_id=principal.user.id, client=principal.method, device_id=principal.device_id,
-        household_id=None,
+        workspace_id=None,
     )
 
 
@@ -44,7 +44,7 @@ def map_identifier_error(error: Exception) -> HTTPException:
 
 def identifier_read(identifier: PhysicalIdentifier) -> dict:
     return {
-        "id": identifier.id, "household_id": identifier.household_id,
+        "id": identifier.id, "workspace_id": identifier.workspace_id,
         "public_id": identifier.public_id, "target_type": identifier.target_type,
         "target_id": identifier.target_id, "medium": identifier.medium,
         "status": identifier.status, "payload_version": identifier.payload_version,
@@ -72,7 +72,7 @@ async def resolve(public_id: str, principal: PrincipalDep, session: SessionDep):
     except (IdentifierAccessDenied, IdentifierNotFound) as error:
         raise map_identifier_error(error) from error
     await realtime_hub.publish(
-        identifier.household_id,
+        identifier.workspace_id,
         entity=identifier.target_type.value,
         action="resolved",
         entity_id=identifier.target_id,
@@ -98,14 +98,14 @@ async def list_identifiers(target_type: str, target_id: UUID, principal: Princip
         if target is None:
             raise HTTPException(status_code=404, detail=f"{kind.title()} not found")
         if isinstance(target, Item):
-            household_id = target.household_id
+            workspace_id = target.workspace_id
         else:
             from app.models import Area
             area = await session.get(Area, target.area_id)
-            household_id = area.household_id
+            workspace_id = area.workspace_id
     else:
-        household_id = identifiers[0].household_id
-    await require_household_access(household_id, principal, session)
+        workspace_id = identifiers[0].workspace_id
+    await require_workspace_access(workspace_id, principal, session)
     return [identifier_read(value) for value in identifiers]
 
 

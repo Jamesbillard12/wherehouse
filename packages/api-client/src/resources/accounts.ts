@@ -1,5 +1,5 @@
 import { apiRequest } from '../client'
-import type { AccessToken, Household, MeResponse } from '../types'
+import type { AccessToken, Workspace, MeResponse } from '../types'
 
 export function register(payload: {
   email: string
@@ -21,11 +21,15 @@ export function getMe(token: string, baseUrl?: string): Promise<MeResponse> {
   return apiRequest('/auth/me', { baseUrl, token })
 }
 
-export function listHouseholds(token: string, baseUrl?: string): Promise<Household[]> {
-  return apiRequest('/households', { baseUrl, token })
+export function listWorkspaces(token: string, baseUrl?: string): Promise<Workspace[]> {
+  return apiRequest('/workspaces', { baseUrl, token })
 }
 
-export function createHousehold(token: string, name: string, baseUrl?: string): Promise<Household> {
-  return apiRequest('/households', { baseUrl, method: 'POST', token, body: { name } })
+export function createWorkspace(token: string, name: string, baseUrl?: string): Promise<Workspace> {
+  return apiRequest('/workspaces', { baseUrl, method: 'POST', token, body: { name } })
 }
 
+/** @deprecated Use listWorkspaces. */
+export const listHouseholds = listWorkspaces
+/** @deprecated Use createWorkspace. */
+export const createHousehold = createWorkspace

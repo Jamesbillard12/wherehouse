@@ -39,6 +39,7 @@ def create_artifact(
     media: MediaRepository,
     schema_revision: str,
     app_version: str,
+    workspaces: list[dict[str, str]] | None = None,
 ) -> Path:
     destination_dir.mkdir(parents=True, exist_ok=True)
     backup_id = str(uuid4())
@@ -73,6 +74,7 @@ def create_artifact(
             "application_version": app_version,
             "schema_revision": schema_revision,
             "scope": "full-instance",
+            "workspaces": workspaces or [],
             "database": {"path": DATABASE_NAME, "format": "postgresql-custom"},
             "media": media_entries,
             "excluded": ["user_sessions", "pairing_sessions", "devices", "runtime_secrets"],
@@ -146,6 +148,17 @@ def verify_artifact(artifact: Path) -> VerifiedBackup:
             if set(names) != declared | {CHECKSUMS_NAME}:
                 raise BackupIntegrityError("Backup contains undeclared files")
             created_at = datetime.fromisoformat(manifest["created_at"])
+            # Pre-workspace format-v1 artifacts remain verifiable; their exact schema
+            # revision still prevents an unsafe restore into the workspace schema.
+            workspaces = manifest.get("workspaces", [])
+            if not isinstance(workspaces, list) or any(
+                not isinstance(workspace, dict)
+                or not isinstance(workspace.get("id"), str)
+                or not isinstance(workspace.get("type"), str)
+                or not workspace["type"]
+                for workspace in workspaces
+            ):
+                raise BackupIntegrityError("Backup workspace metadata is malformed")
             return VerifiedBackup(
                 artifact=artifact,
                 backup_id=manifest["backup_id"],
@@ -153,6 +166,9 @@ def verify_artifact(artifact: Path) -> VerifiedBackup:
                 schema_revision=manifest["schema_revision"],
                 media_count=len(manifest.get("media", [])),
                 encrypted=bool(manifest.get("encryption", {}).get("enabled")),
+                workspaces=tuple(
+                    (workspace["id"], workspace["type"]) for workspace in workspaces
+                ),
             )
     except (zipfile.BadZipFile, json.JSONDecodeError, KeyError, ValueError, TypeError) as error:
         raise BackupIntegrityError(f"Malformed backup artifact: {error}") from error

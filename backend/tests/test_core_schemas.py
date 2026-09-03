@@ -3,25 +3,26 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from app.models import Area, Container, Item, Workspace, WorkspaceMembership
 from app.models.core import (
     ContainerRelationship,
     ContainerType,
-    HouseholdRelationship,
     ItemIdentifierType,
+    WorkspaceRole,
 )
 from app.schemas.core import (
     AreaUpdate,
     ContainerCreate,
-    HouseholdCreate,
-    HouseholdUserCreate,
     ItemCreate,
     ItemPlacementCreate,
+    WorkspaceCreate,
+    WorkspaceMembershipCreate,
 )
 
 
-def test_household_name_cannot_be_only_whitespace() -> None:
+def test_workspace_name_cannot_be_only_whitespace() -> None:
     with pytest.raises(ValidationError):
-        HouseholdCreate(name="   ")
+        WorkspaceCreate(name="   ")
 
 
 def test_area_update_accepts_name_or_icon() -> None:
@@ -30,9 +31,17 @@ def test_area_update_accepts_name_or_icon() -> None:
     assert AreaUpdate(description=None).model_fields_set == {"description"}
 
 
-def test_household_relationship_values_are_stable() -> None:
-    payload = HouseholdUserCreate(user_id=uuid4(), relationship_type="owner")
-    assert payload.relationship_type is HouseholdRelationship.OWNER
+def test_workspace_relationship_values_are_stable() -> None:
+    payload = WorkspaceMembershipCreate(user_id=uuid4(), relationship_type="owner")
+    assert payload.role is WorkspaceRole.OWNER
+
+
+def test_workspace_is_the_single_top_level_scope() -> None:
+    assert Workspace.__tablename__ == "workspaces"
+    assert WorkspaceMembership.__tablename__ == "workspace_memberships"
+    assert "workspace_id" in Area.__table__.columns
+    assert "workspace_id" in Item.__table__.columns
+    assert "workspace_id" not in Container.__table__.columns
 
 
 def test_container_type_values_are_stable() -> None:

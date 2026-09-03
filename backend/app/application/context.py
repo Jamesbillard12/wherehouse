@@ -9,6 +9,6 @@ class ActorContext:
     user_id: UUID
     client: str
     device_id: UUID | None = None
-    household_id: UUID | None = None
+    workspace_id: UUID | None = None
     permissions: frozenset[str] = field(default_factory=frozenset)
     confirmed: bool = False

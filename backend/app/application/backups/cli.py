@@ -21,7 +21,7 @@ from app.db.session import AsyncSessionFactory
 from app.infrastructure.backups import DropboxBackupProvider, LocalBackupProvider, PostgresBackup
 from app.infrastructure.backups.dropbox_credentials import DropboxCredentialStore
 from app.infrastructure.backups.local_config import LocalDestinationStore
-from app.models.core import Container, Item
+from app.models.core import Container, Item, Workspace
 from app.services.image_storage import get_image_storage
 
 logger = logging.getLogger("wherehouse.backup")
@@ -38,6 +38,15 @@ async def canonical_media_keys() -> list[str]:
             )
         ).all()
     return sorted({path for path in [*item_paths, *container_paths] if path})
+
+
+async def workspace_identities() -> list[dict[str, str]]:
+    async with AsyncSessionFactory() as session:
+        workspaces = list(await session.scalars(select(Workspace).order_by(Workspace.id)))
+    return [
+        {"id": str(workspace.id), "type": workspace.workspace_type.value}
+        for workspace in workspaces
+    ]
 
 
 def schema_revision() -> str:
@@ -181,6 +190,7 @@ def main(argv: list[str] | None = None) -> int:
         service = BackupService(provider_from_settings(provider_name))
         if args.command == "create":
             keys = asyncio.run(canonical_media_keys())
+            workspace_metadata = asyncio.run(workspace_identities())
             media = SelectedMediaRepository(get_image_storage(), keys)
             logger.info("backup started provider=%s", provider_name)
             artifact = create_artifact(
@@ -189,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
                 media,
                 schema_revision(),
                 version("wherehouse-api"),
+                workspace_metadata,
             )
             verified = verify_artifact(artifact)
             stored = service.store(artifact)

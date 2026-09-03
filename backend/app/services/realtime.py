@@ -7,7 +7,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 
 class RealtimeHub:
-    """Process-local household event fan-out for connected clients."""
+    """Process-local workspace event fan-out for connected clients."""
 
     def __init__(self) -> None:
         self._connections: dict[UUID, set[WebSocket]] = defaultdict(set)
@@ -16,22 +16,22 @@ class RealtimeHub:
         self._lock = asyncio.Lock()
 
     async def connect(
-        self, household_id: UUID, websocket: WebSocket, *, device_id: UUID | None = None
+        self, workspace_id: UUID, websocket: WebSocket, *, device_id: UUID | None = None
     ) -> None:
         async with self._lock:
-            self._connections[household_id].add(websocket)
+            self._connections[workspace_id].add(websocket)
             if device_id is not None:
                 self._device_connections[device_id].add(websocket)
                 self._connection_devices[websocket] = device_id
 
-    async def disconnect(self, household_id: UUID, websocket: WebSocket) -> None:
+    async def disconnect(self, workspace_id: UUID, websocket: WebSocket) -> None:
         async with self._lock:
-            connections = self._connections.get(household_id)
+            connections = self._connections.get(workspace_id)
             if connections is None:
                 return
             connections.discard(websocket)
             if not connections:
-                self._connections.pop(household_id, None)
+                self._connections.pop(workspace_id, None)
             device_id = self._connection_devices.pop(websocket, None)
             if device_id is not None:
                 device_connections = self._device_connections.get(device_id)
@@ -41,12 +41,13 @@ class RealtimeHub:
                         self._device_connections.pop(device_id, None)
 
     async def revoke_device(
-        self, household_id: UUID, device_id: UUID, revoked_at: datetime
+        self, workspace_id: UUID, device_id: UUID, revoked_at: datetime
     ) -> None:
         """Notify and close only sockets authenticated by the revoked device."""
         event = {
             "type": "device.revoked",
-            "household_id": str(household_id),
+            "workspace_id": str(workspace_id),
+            "household_id": str(workspace_id),
             "device_id": str(device_id),
             "occurred_at": revoked_at.isoformat(),
         }
@@ -60,12 +61,13 @@ class RealtimeHub:
                 pass
 
     async def publish(
-        self, household_id: UUID, *, entity: str, action: str, entity_id: UUID, source: str,
+        self, workspace_id: UUID, *, entity: str, action: str, entity_id: UUID, source: str,
         event_type: str = "inventory.changed", details: dict[str, str] | None = None,
     ) -> None:
         event = {
             "type": event_type,
-            "household_id": str(household_id),
+            "workspace_id": str(workspace_id),
+            "household_id": str(workspace_id),
             "entity": entity,
             "action": action,
             "entity_id": str(entity_id),
@@ -75,7 +77,7 @@ class RealtimeHub:
         if details:
             event.update(details)
         async with self._lock:
-            connections = tuple(self._connections.get(household_id, ()))
+            connections = tuple(self._connections.get(workspace_id, ()))
         stale: list[WebSocket] = []
         for websocket in connections:
             try:
@@ -83,7 +85,7 @@ class RealtimeHub:
             except (RuntimeError, WebSocketDisconnect):
                 stale.append(websocket)
         for websocket in stale:
-            await self.disconnect(household_id, websocket)
+            await self.disconnect(workspace_id, websocket)
 
 
 realtime_hub = RealtimeHub()

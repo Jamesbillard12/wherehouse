@@ -12,24 +12,38 @@ export type AuthUser = {
   display_name: string
 }
 
-export type HouseholdAccess = {
-  household_id: string
-  relationship_type: 'owner' | 'borrower'
+export type WorkspaceAccess = {
+  workspace_id: string
+  role: 'owner' | 'borrower'
+  /** @deprecated Use workspace_id. */
+  household_id?: string
+  /** @deprecated Use role. */
+  relationship_type?: 'owner' | 'borrower'
 }
 
 export type MeResponse = {
   user: AuthUser
   authenticated_by: 'user_session' | 'device'
   device_id: string | null
-  households: HouseholdAccess[]
+  workspaces: WorkspaceAccess[]
+  /** @deprecated Use workspaces. */
+  households: WorkspaceAccess[]
 }
 
-export type Household = {
+export type Workspace = {
   id: string
   name: string
+  workspace_type: 'household'
   created_at: string
   updated_at: string
 }
+
+/** @deprecated Household is the household-facing label for a household-type Workspace. */
+export type Household = Omit<Workspace, 'workspace_type'> & {
+  workspace_type?: 'household'
+}
+/** @deprecated Use WorkspaceAccess. */
+export type HouseholdAccess = WorkspaceAccess
 
 export type BackupDestinationStatus = {
   kind: 'local' | 'remote'
@@ -51,7 +65,9 @@ export type BackupStatus = {
 
 export type Device = {
   id: string
-  household_id: string
+  workspace_id: string
+  /** @deprecated Use workspace_id. */
+  household_id?: string
   user_id: string
   name: string
   device_type: 'phone' | 'tablet' | 'scanner' | 'browser' | 'other'
@@ -77,7 +93,9 @@ export type PairingConsume = {
 export type PairingResult = AccessToken & {
   base_url: string
   device_id: string
-  household_id: string
+  workspace_id: string
+  /** @deprecated Use workspace_id. */
+  household_id?: string
   instance_id: string
   instance_name: string
   user_id: string
@@ -85,7 +103,9 @@ export type PairingResult = AccessToken & {
 
 export type Area = {
   id: string
-  household_id: string
+  workspace_id: string
+  /** @deprecated Use workspace_id. */
+  household_id?: string
   name: string
   icon: string
   description: string | null
@@ -151,7 +171,9 @@ export type ContainerPlacement = {
 
 export type Item = {
   id: string
-  household_id: string
+  workspace_id: string
+  /** @deprecated Use workspace_id. */
+  household_id?: string
   name: string
   code: string
   identifier_type: 'none' | 'qr' | 'nfc' | 'both'
@@ -190,7 +212,9 @@ export type IdentifierMedium = 'qr' | 'nfc'
 
 export type PhysicalIdentifier = {
   id: string
-  household_id: string
+  workspace_id: string
+  /** @deprecated Use workspace_id. */
+  household_id?: string
   public_id: string
   target_type: IdentifierTargetType
   target_id: string

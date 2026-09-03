@@ -4,11 +4,23 @@ This document describes the current/MVP model. The proposed arbitrary-depth logi
 and optional spatial extensions are documented in [ADR-0002](adr/0002-hierarchical-locations.md) and
 [the spatial architecture](spatial-architecture.md). They are not implemented requirements today.
 
-## Household and users
+## Workspace and users
 
-### Household
+`Workspace` is the top-level inventory and authorization boundary. The current product creates only
+`household` workspaces and the UI says “Household”; internal services and persistence do not assume that
+label. Users join through `WorkspaceMembership` and may belong to multiple workspaces.
+
+```text
+User ↔ WorkspaceMembership ↔ Workspace
+                                ├─ Area → Zone / Container → placements
+                                ├─ Item
+                                └─ Device / PairingSession / AppInstance
+```
+
+### Workspace
 - id: UUID
 - name: string
+- workspaceType: household
 - createdAt
 - updatedAt
 
@@ -19,14 +31,14 @@ and optional spatial extensions are documented in [ADR-0002](adr/0002-hierarchic
 - createdAt
 - updatedAt
 
-### HouseholdUser
-Associates a user with a household.
+### WorkspaceMembership
+Associates a user with a workspace.
 
-Relationships:
+Roles:
 - owner
 - borrower
 
-A user may be an owner in one household and a borrower in another.
+A user may be an owner in one workspace and a borrower in another.
 
 ## Locations
 
@@ -35,7 +47,7 @@ Major physical location such as Garage, Attic, Trailer, Shed, Workshop, Storage 
 
 Fields:
 - id: UUID
-- householdId: UUID
+- workspaceId: UUID
 - name
 - description?
 
@@ -94,6 +106,7 @@ inventory data are never encoded on the physical medium. See
 An item record represents one or more interchangeable objects stored together.
 
 - id: UUID
+- workspaceId: UUID
 - name
 - description?
 - quantity
@@ -132,12 +145,12 @@ more fixed hierarchy levels while the first-class location proposal is evaluated
 
 ### Category
 - id: UUID
-- householdId: UUID
+- workspaceId: UUID
 - name
 
 ### Tag
 - id: UUID
-- householdId: UUID
+- workspaceId: UUID
 - name
 
 ### ItemTag
@@ -198,7 +211,7 @@ Transfers represent actual physical movement between locations.
 
 ### Transfer
 - id: UUID
-- householdId: UUID
+- workspaceId: UUID
 - createdByUserId: UUID
 - sourceAreaId?: UUID
 - destinationAreaId?: UUID
@@ -237,7 +250,7 @@ Items may retain a normal home while temporarily being located elsewhere.
 Represents a recurring activity such as Camping Trip, Ski Weekend, Soccer Practice, Beach Day, or Christmas Setup.
 
 - id: UUID
-- householdId: UUID
+- workspaceId: UUID
 - name
 - description?
 - defaultSourceAreaId?: UUID
@@ -276,7 +289,7 @@ Represents a real occurrence of an activity.
 
 - id: UUID
 - activityTemplateId?: UUID
-- householdId: UUID
+- workspaceId: UUID
 - name
 - startedAt?
 - completedAt?
@@ -304,7 +317,7 @@ Database UUIDs remain canonical. Printed/scanned identifiers are shorter opaque 
 Represents the server instance the companion app connects to.
 
 - id: UUID
-- householdId: UUID
+- workspaceId: UUID
 - name
 - baseUrl
 - instanceType: local | cloud
@@ -312,7 +325,7 @@ Represents the server instance the companion app connects to.
 
 ### Device
 - id: UUID
-- householdId: UUID
+- workspaceId: UUID
 - userId: UUID
 - name
 - type: phone | tablet | scanner | browser | other
@@ -323,7 +336,7 @@ Represents the server instance the companion app connects to.
 
 ### PairingSession
 - id: UUID
-- householdId: UUID
+- workspaceId: UUID
 - createdByUserId: UUID
 - tokenHash
 - expiresAt

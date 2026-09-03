@@ -3,28 +3,28 @@ import { ApiError } from '@wherehouse/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const accountRequest = vi.hoisted(() => vi.fn())
-const householdsRequest = vi.hoisted(() => vi.fn())
+const workspacesRequest = vi.hoisted(() => vi.fn())
 
 vi.mock('@wherehouse/api-client', async (importOriginal) => ({
   ...await importOriginal<typeof import('@wherehouse/api-client')>(),
   getMe: accountRequest,
-  listHouseholds: householdsRequest,
+  listWorkspaces: workspacesRequest,
 }))
 
 import { App } from './App'
-import { HOUSEHOLD_KEY, SESSION_KEY } from './shared/utils/storage'
+import { ACTIVE_WORKSPACE_KEY, SESSION_KEY } from './shared/utils/storage'
 
 describe('App bootstrap', () => {
   beforeEach(() => {
     sessionStorage.clear()
     accountRequest.mockReset()
-    householdsRequest.mockReset()
+    workspacesRequest.mockReset()
   })
 
   it('does not flash the login screen while restoring a stored session', () => {
     sessionStorage.setItem(SESSION_KEY, 'stored-token')
     accountRequest.mockReturnValue(new Promise(() => {}))
-    householdsRequest.mockReturnValue(new Promise(() => {}))
+    workspacesRequest.mockReturnValue(new Promise(() => {}))
 
     render(<App />)
 
@@ -35,14 +35,14 @@ describe('App bootstrap', () => {
 
   it('clears an expired stored session and shows a recovery message', async () => {
     sessionStorage.setItem(SESSION_KEY, 'expired-token')
-    localStorage.setItem(HOUSEHOLD_KEY, 'household-a')
+    localStorage.setItem(ACTIVE_WORKSPACE_KEY, 'workspace-a')
     accountRequest.mockRejectedValue(new ApiError('Invalid credentials', 401))
-    householdsRequest.mockResolvedValue([])
+    workspacesRequest.mockResolvedValue([])
 
     render(<App />)
 
     expect(await screen.findByText('Your session expired. Sign in again.')).toBeInTheDocument()
     await waitFor(() => expect(sessionStorage.getItem(SESSION_KEY)).toBeNull())
-    expect(localStorage.getItem(HOUSEHOLD_KEY)).toBeNull()
+    expect(localStorage.getItem(ACTIVE_WORKSPACE_KEY)).toBeNull()
   })
 })
