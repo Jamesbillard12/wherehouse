@@ -76,7 +76,15 @@ secret with OS entropy, persists them mode `0600`, loads embedded containers onc
 and starts the canonical Compose dependency chain. It never creates a user or workspace. Reboots
 validate and reuse the same state.
 
+The appliance explicitly configures wired interfaces matching `eth*` for DHCP with
+`systemd-networkd`. Ethernet is therefore the supported zero-configuration first-boot path. Avahi
+publishes `<hostname>.local`, which defaults to `wherehouse.local`. If `.local` is unavailable on a
+VLAN or unsupported client, use the DHCP address assigned by the router.
+
 ```sh
+sudo systemctl status systemd-networkd
+networkctl status
+ip -4 addr
 sudo systemctl status wherehouse
 sudo journalctl -u wherehouse -b
 curl http://localhost/api/v1/system/status
@@ -84,18 +92,23 @@ sudo systemctl restart wherehouse
 sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-backup create local
 ```
 
-Avahi publishes `<hostname>.local`, which defaults to `wherehouse.local`. When `.local` is unavailable
-on a VLAN or unsupported client, use the Pi's DHCP address. SSH is disabled by default.
+`openssh-server` is installed and the SSH service is enabled so a provisioned account can be used for
+headless validation and recovery. The image does not create a universal username or password. Do not
+ship shared credentials in a release image.
 
 ### Raspberry Pi Imager customization limitation
 
-Use Ethernet for initial physical validation. Standard Wi-Fi/hostname/SSH/locale/timezone customization
-is **not currently supported or validated** when this Trixie `.img.xz` is selected with **Use custom**.
-Raspberry Pi Imager 2.x treats a standalone local image as `init_format: none` unless it is supplied
-through an OS manifest, and upstream `rpi-image-gen` cloud-init integration is still open. Imager 1.x
-may display customization but applies the wrong mechanism to Trixie. WhereHouse now respects the OS
-hostname if a supported provisioning method sets it, but the release must not claim customization
-until the dedicated physical follow-up passes. Do not enable SSH with a universal credential.
+Use Ethernet for initial physical validation. Standard Wi-Fi/hostname/user/SSH credential/locale/timezone
+customization is **not currently supported or validated** when this Trixie `.img.xz` is selected with
+**Use custom**. Raspberry Pi Imager 2.x treats a standalone local image as `init_format: none` unless
+it is supplied through an OS manifest, and upstream `rpi-image-gen` cloud-init integration is still
+open. Imager 1.x may display customization but applies the wrong mechanism to Trixie. WhereHouse
+respects the OS hostname if a supported provisioning method sets it, but the release must not claim
+Imager customization until the dedicated physical follow-up passes.
+
+SSH being enabled at the service level does not make unsupported Raspberry Pi Imager user/password
+customization reliable. A valid local account and authentication method must still be provisioned by
+a supported mechanism before SSH login can succeed.
 
 ## Data, external storage, and backup
 
