@@ -7,14 +7,14 @@ This roadmap describes longer-term evolution. The short-horizon path to the firs
 ## MVP foundation
 
 Reliable web/mobile inventory and hierarchy, useful search, reusable physical identifiers,
-offline/idempotent synchronization, recoverable backups, supported Pi operation, and reusable
+offline/idempotent synchronization, recoverable backups, flashable Pi appliance operation, and reusable
 application capabilities. These foundations precede external mutation adapters and richer features.
 
 ## Early post-MVP household features
 
 Lightweight categories/tags, checkout/return, movement/activity history, richer member roles,
-advanced backup retention and NAS/S3/B2/OneDrive/Google Drive providers, exports, improved Pi
-distribution and one-command installation. Prioritize observed household needs and data safety.
+advanced backup retention and NAS/S3/B2/OneDrive/Google Drive providers, exports, and richer Pi
+administration/update delivery. Prioritize observed household needs and data safety.
 
 ## Future intelligence and interfaces
 

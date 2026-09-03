@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""WhereHouse appliance lifecycle utility; standard-library only for first boot."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import secrets
+import shutil
+import subprocess
+import sys
+import tempfile
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+DEFAULT_ROOT = Path("/var/lib/wherehouse")
+INSTALL_DIR = Path("/opt/wherehouse")
+
+
+def atomic_write(path: Path, content: str, mode: int = 0o600) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        os.fchmod(descriptor, mode)
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def parse_env(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    return dict(
+        line.rstrip("\n").split("=", 1)
+        for line in path.read_text().splitlines()
+        if line and not line.startswith("#") and "=" in line
+    )
+
+
+def initialize(root: Path, hostname: str, image_version: str, build_date: str) -> bool:
+    env_file = root / "config/appliance.env"
+    existing = parse_env(env_file)
+    required = {"INSTANCE_ID", "POSTGRES_PASSWORD", "APP_SECRET"}
+    if required.issubset(existing):
+        validate_storage(root)
+        return False
+    if existing:
+        raise RuntimeError("Incomplete appliance configuration; refusing to replace existing state")
+    for directory in ("postgres", "uploads", "backups", "backup-staging", "config", "releases"):
+        (root / directory).mkdir(parents=True, exist_ok=True)
+    values = {
+        "INSTANCE_ID": str(uuid.uuid4()),
+        "POSTGRES_DB": "wherehouse",
+        "POSTGRES_USER": "wherehouse",
+        "POSTGRES_PASSWORD": secrets.token_urlsafe(36),
+        "APP_SECRET": secrets.token_urlsafe(64),
+        "WHEREHOUSE_DATA_DIR": str(root),
+        "WHEREHOUSE_HOSTNAME": hostname,
+        "APPLIANCE_IMAGE_VERSION": image_version,
+        "APPLIANCE_BUILD_DATE": build_date,
+    }
+    atomic_write(env_file, "".join(f"{key}={value}\n" for key, value in values.items()))
+    atomic_write(
+        root / "config/instance.json",
+        json.dumps(
+            {
+                "instance_id": values["INSTANCE_ID"],
+                "initialized_at": datetime.now(timezone.utc).isoformat(),
+                "image_version": image_version,
+            },
+            indent=2,
+        )
+        + "\n",
+    )
+    validate_storage(root)
+    return True
+
+
+def validate_storage(root: Path, minimum_free: int = 512 * 1024 * 1024) -> None:
+    if not root.is_dir() or not os.access(root, os.W_OK):
+        raise RuntimeError(f"Data directory is unavailable or not writable: {root}")
+    free = shutil.disk_usage(root).free
+    if free < minimum_free:
+        raise RuntimeError(f"Insufficient free space in {root}: {free} bytes")
+
+
+def compose(root: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess:
+    env_file = root / "config/appliance.env"
+    command = [
+        "docker", "compose", "--env-file", str(env_file),
+        "-f", str(INSTALL_DIR / "docker-compose.yml"),
+        "-f", str(INSTALL_DIR / "deploy/raspberry-pi/compose.appliance.yaml"),
+        *arguments,
+    ]
+    return subprocess.run(command, check=check)
+
+
+def update(root: Path, release: str) -> None:
+    validate_storage(root, 1024 * 1024 * 1024)
+    archive = root / "releases" / release / "wherehouse-runtime.tar"
+    if not archive.is_file():
+        raise RuntimeError(f"Release payload is missing: {archive}")
+    # Database migrations can be irreversible. Preserve a verified recovery artifact first.
+    subprocess.run(
+        [str(INSTALL_DIR / "deploy/raspberry-pi/wherehouse-backup"), "create"], check=True
+    )
+    previous = {}
+    for image in ("wherehouse-api:local", "wherehouse-web:local"):
+        result = subprocess.run(
+            ["docker", "image", "inspect", "--format", "{{.Id}}", image],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        previous[image] = result.stdout.strip()
+    subprocess.run(["docker", "load", "--input", str(archive)], check=True)
+    subprocess.run(["docker", "tag", f"wherehouse-api:{release}", "wherehouse-api:local"], check=True)
+    subprocess.run(["docker", "tag", f"wherehouse-web:{release}", "wherehouse-web:local"], check=True)
+    try:
+        compose(root, "up", "migrate", check=True)
+        compose(root, "up", "-d", "--wait", check=True)
+    except subprocess.CalledProcessError:
+        for image, image_id in previous.items():
+            subprocess.run(["docker", "tag", image_id, image], check=True)
+        compose(root, "up", "-d", check=False)
+        raise RuntimeError(
+            "Update health validation failed. Previous containers were restored, but a database "
+            "migration may prevent application rollback; follow the documented backup restore path."
+        )
+    atomic_write(root / "releases/current", release + "\n")
+
+
+def load_images(root: Path) -> None:
+    marker = root / "config/images-loaded"
+    if marker.exists():
+        return
+    archives = sorted((INSTALL_DIR / "deploy/raspberry-pi/images").glob("*.tar"))
+    if not archives:
+        raise RuntimeError("The appliance image does not contain its container payload")
+    for archive in archives:
+        subprocess.run(["docker", "load", "--input", str(archive)], check=True)
+    atomic_write(marker, datetime.now(timezone.utc).isoformat() + "\n")
+
+
+def factory_reset(root: Path, confirmation: str, delete_backups: bool) -> None:
+    expected = "DELETE ALL WHEREHOUSE DATA"
+    if confirmation != expected:
+        raise RuntimeError(f"Factory reset requires exact confirmation: {expected}")
+    compose(root, "down", check=False)
+    preserve = root / "backups"
+    temporary = root.parent / f"wherehouse-backups-{uuid.uuid4()}"
+    if preserve.exists() and not delete_backups:
+        preserve.rename(temporary)
+    shutil.rmtree(root)
+    if temporary.exists():
+        root.mkdir(parents=True)
+        temporary.rename(preserve)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
+    sub = parser.add_subparsers(dest="command", required=True)
+    init = sub.add_parser("init")
+    init.add_argument("--hostname", default="wherehouse")
+    init.add_argument("--image-version", default="development")
+    init.add_argument("--build-date", default="unknown")
+    sub.add_parser("validate-storage")
+    sub.add_parser("load-images")
+    upgrade = sub.add_parser("update")
+    upgrade.add_argument("release")
+    reset = sub.add_parser("factory-reset")
+    reset.add_argument("--confirm", required=True)
+    reset.add_argument("--delete-backups", action="store_true")
+    args = parser.parse_args()
+    try:
+        if args.command == "init":
+            initialize(args.root, args.hostname, args.image_version, args.build_date)
+        elif args.command == "validate-storage":
+            validate_storage(args.root)
+        elif args.command == "load-images":
+            load_images(args.root)
+        elif args.command == "update":
+            update(args.root, args.release)
+        elif args.command == "factory-reset":
+            factory_reset(args.root, args.confirm, args.delete_backups)
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+        print(f"wherehouse-ops: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

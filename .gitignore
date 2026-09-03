@@ -30,3 +30,4 @@ backend/.venv/
 uploads/
 /backups/
 /backup-staging/
+dist/

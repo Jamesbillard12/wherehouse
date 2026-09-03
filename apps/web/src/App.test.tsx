@@ -4,11 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const accountRequest = vi.hoisted(() => vi.fn())
 const workspacesRequest = vi.hoisted(() => vi.fn())
+const systemRequest = vi.hoisted(() => vi.fn())
 
 vi.mock('@wherehouse/api-client', async (importOriginal) => ({
   ...await importOriginal<typeof import('@wherehouse/api-client')>(),
   getMe: accountRequest,
   listWorkspaces: workspacesRequest,
+  getSystemStatus: systemRequest,
 }))
 
 import { App } from './App'
@@ -19,6 +21,8 @@ describe('App bootstrap', () => {
     sessionStorage.clear()
     accountRequest.mockReset()
     workspacesRequest.mockReset()
+    systemRequest.mockReset()
+    systemRequest.mockResolvedValue({ ready: true, initialized: false, hostname: 'wherehouse.local', storage: { message: 'Storage is healthy.' } })
   })
 
   it('does not flash the login screen while restoring a stored session', () => {

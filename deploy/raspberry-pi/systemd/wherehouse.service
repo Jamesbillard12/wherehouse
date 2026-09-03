@@ -1,0 +1,21 @@
+[Unit]
+Description=WhereHouse appliance
+Wants=network-online.target docker.service
+After=network-online.target docker.service local-fs.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/wherehouse
+EnvironmentFile=-/etc/wherehouse-image
+ExecStartPre=/opt/wherehouse/deploy/raspberry-pi/wherehouse-ops init --image-version ${WHEREHOUSE_IMAGE_VERSION} --build-date ${WHEREHOUSE_BUILD_DATE}
+ExecStartPre=/opt/wherehouse/deploy/raspberry-pi/wherehouse-ops validate-storage
+ExecStartPre=/opt/wherehouse/deploy/raspberry-pi/wherehouse-ops load-images
+ExecStart=/usr/bin/docker compose --env-file /var/lib/wherehouse/config/appliance.env -f /opt/wherehouse/docker-compose.yml -f /opt/wherehouse/deploy/raspberry-pi/compose.appliance.yaml up -d --wait
+ExecStop=/usr/bin/docker compose --env-file /var/lib/wherehouse/config/appliance.env -f /opt/wherehouse/docker-compose.yml -f /opt/wherehouse/deploy/raspberry-pi/compose.appliance.yaml down --timeout 60
+TimeoutStartSec=900
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

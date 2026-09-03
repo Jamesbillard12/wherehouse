@@ -123,6 +123,9 @@ input:not([data-slot="input"]):focus, select:focus { border-color: var(--action)
 .text-button { border: 0; padding: 0; background: none; color: var(--action); font-weight: 700; }
 .auth-card > .text-button { margin-top: 1.25rem; font-size: 0.84rem; }
 .alert { margin-top: 0.8rem; border-left: 3px solid var(--danger); padding: 0.75rem 0.9rem; background: #fbece7; color: #842f23; font-size: 0.85rem; }
+.setup-readiness { display: grid; gap: 0.3rem; margin-top: 1.25rem; border-left: 3px solid #b45309; padding: 0.75rem 0.9rem; background: #fff7ed; color: #713f12; font-size: 0.82rem; }
+.setup-readiness.ready { border-color: var(--forest); background: #edf7ef; color: #214e30; }
+.setup-readiness span { display: block; }
 
 .setup-layout { min-height: 100vh; background: var(--paper); }
 .simple-nav, .topbar { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 1.25rem clamp(1.5rem, 5vw, 4rem); }

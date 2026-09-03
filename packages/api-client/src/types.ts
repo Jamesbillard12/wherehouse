@@ -63,6 +63,31 @@ export type BackupStatus = {
   destinations: BackupDestinationStatus[]
 }
 
+export type StorageHealth = {
+  state: 'healthy' | 'low_space' | 'critical' | 'unavailable' | 'not_writable'
+  mounted: boolean
+  writable: boolean
+  free_bytes: number | null
+  total_bytes: number | null
+  message: string
+}
+
+export type SystemStatus = {
+  ready: boolean
+  initialized: boolean
+  instance_id: string | null
+  hostname: string
+  application_version: string
+  schema_version: string | null
+  image_version: string | null
+  build_date: string | null
+  device_model: string | null
+  os_version: string
+  storage: StorageHealth
+  account_count: number
+  workspace_count: number
+}
+
 export type Device = {
   id: string
   workspace_id: string

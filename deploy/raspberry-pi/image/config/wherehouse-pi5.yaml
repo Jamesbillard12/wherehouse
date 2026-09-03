@@ -1,0 +1,12 @@
+device:
+  layer: rpi5
+  hostname: wherehouse
+  storage_type: sd
+image:
+  layer: image-rpios
+  name: wherehouse-pi5
+  compression: none
+  root_part_size: 800%
+layer:
+  base: trixie-minbase
+  appliance: wherehouse-appliance

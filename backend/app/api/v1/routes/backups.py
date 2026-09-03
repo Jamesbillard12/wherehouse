@@ -26,6 +26,7 @@ from app.application.backups.errors import BackupError
 from app.application.backups.media import SelectedMediaRepository
 from app.application.backups.service import BackupService
 from app.application.backups.status import destination_status, summarize
+from app.application.system.status import ensure_operation_space
 from app.core.config import get_settings
 from app.infrastructure.backups import DropboxBackupProvider, LocalBackupProvider, PostgresBackup
 from app.infrastructure.backups.dropbox_credentials import DropboxCredentialStore
@@ -116,6 +117,7 @@ async def run_remote_backup(
     await require_instance_owner(principal, session)
     settings = get_settings()
     try:
+        ensure_operation_space(Path(settings.backup_staging_dir), 512 * 1024 * 1024)
         provider = provider_from_settings(provider_name)
         keys = await canonical_media_keys()
         workspace_metadata = await workspace_identities()

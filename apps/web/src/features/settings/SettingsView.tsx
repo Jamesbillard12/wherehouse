@@ -3,6 +3,7 @@ import {
   createPairingSession,
   disconnectDropbox,
   getBackupStatus,
+  getSystemStatus,
   listDevices,
   revokeDevice,
   runRemoteBackup,
@@ -11,6 +12,7 @@ import {
   type Workspace,
   type MeResponse,
   type PairingSession,
+  type SystemStatus,
 } from "@wherehouse/api-client";
 import {
   CircleUserRound,
@@ -577,6 +579,8 @@ function Privacy() {
   );
 }
 function About() {
+  const [system, setSystem] = useState<SystemStatus | null>(null);
+  useEffect(() => { void getSystemStatus().then(setSystem).catch(() => undefined); }, []);
   return (
     <>
       <p className="eyebrow">Application</p>
@@ -588,6 +592,14 @@ function About() {
           Local-first household inventory and spatial organization.
         </p>
         <small>Web version {__APP_VERSION__}</small>
+        {system ? (
+          <p className="muted">
+            Server {system.application_version} · schema {system.schema_version ?? "unknown"}<br />
+            Image {system.image_version ?? "not packaged"} · {system.hostname}<br />
+            {system.device_model ?? system.os_version}<br />
+            Storage: {system.storage.message}
+          </p>
+        ) : null}
       </div>
     </>
   );

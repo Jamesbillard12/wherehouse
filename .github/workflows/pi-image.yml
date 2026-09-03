@@ -1,0 +1,30 @@
+name: Raspberry Pi image
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version placed in image metadata
+        required: true
+
+jobs:
+  build:
+    runs-on: [self-hosted, Linux, ARM64, raspberry-pi-os]
+    strategy:
+      matrix:
+        model: [pi4, pi5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: raspberrypi/rpi-image-gen
+          ref: v2.6.0
+          path: rpi-image-gen
+      - name: Install image builder dependencies
+        run: sudo ./rpi-image-gen/install_deps.sh
+      - name: Build image and release metadata
+        run: ./deploy/raspberry-pi/image/build-image.sh '${{ inputs.version }}' ./rpi-image-gen '${{ matrix.model }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wherehouse-${{ matrix.model }}-${{ inputs.version }}
+          path: dist/pi/*

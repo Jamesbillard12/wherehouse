@@ -5,6 +5,7 @@
 - [Future architecture](future-architecture.md)
 - [Domain model](domain-model.md)
 - [ADR 0010: Workspace domain](adr/0010-workspace-domain.md)
+- [ADR 0011: Raspberry Pi appliance](adr/0011-raspberry-pi-appliance.md)
 - [Authentication and pairing](authentication.md)
 - [Offline and sync](offline-sync.md)
 - [Settings and household selection](settings.md)
