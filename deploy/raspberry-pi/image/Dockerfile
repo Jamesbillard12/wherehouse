@@ -8,8 +8,8 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y \
       autoconf automake autopoint bash btrfs-progs build-essential ca-certificates coreutils \
       cryptsetup curl dbus-user-session dctrl-tools debian-archive-keyring docker.io dosfstools \
-      dpkg-dev e2fsprogs fdisk flex gettext git grep libtool make mmdebstrap mtools pkgconf podman pv \
-      python3 python3-debian python3-jsonschema python3-pip python3-yaml rsync uidmap \
+      dpkg-dev e2fsprogs fdisk flex gettext git grep libtool make mmdebstrap mount mtools pkgconf podman pv \
+      python3 python3-debian python3-jsonschema python3-pip python3-yaml rsync uidmap util-linux \
       uuid-runtime xz-utils zip \
     && rm -rf /var/lib/apt/lists/*
 
