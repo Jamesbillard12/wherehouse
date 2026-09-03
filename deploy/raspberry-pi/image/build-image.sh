@@ -23,6 +23,20 @@ if [ "${WHEREHOUSE_ALLOW_DIRTY:-0}" != 1 ] && \
   exit 1
 fi
 
+ssh_public_key_file=${WHEREHOUSE_SSH_PUBLIC_KEY_FILE:-}
+if [ -n "$ssh_public_key_file" ]; then
+  if [ ! -f "$ssh_public_key_file" ]; then
+    echo "SSH public key file does not exist: $ssh_public_key_file" >&2
+    exit 1
+  fi
+  ssh_public_key_file=$(CDPATH= cd -- "$(dirname -- "$ssh_public_key_file")" && pwd)/$(basename -- "$ssh_public_key_file")
+  if [ "$(wc -l < "$ssh_public_key_file" | tr -d ' ')" -ne 1 ] || \
+     ! grep -Eq '^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521))[[:space:]]+[A-Za-z0-9+/=]+' "$ssh_public_key_file"; then
+    echo "WHEREHOUSE_SSH_PUBLIC_KEY_FILE must contain exactly one OpenSSH public key" >&2
+    exit 1
+  fi
+fi
+
 docker_bin=${DOCKER_BIN:-docker}
 if ! command -v "$docker_bin" >/dev/null 2>&1; then
   echo "Docker is required. On macOS, install and start Docker Desktop." >&2
@@ -54,6 +68,11 @@ echo "Board: $device ($(board_description "$device"))"
 echo "Host: $host_os $host_arch"
 echo "Builder platform: linux/arm64"
 echo "rpi-image-gen: $RPI_IMAGE_GEN_VERSION ($RPI_IMAGE_GEN_COMMIT)"
+if [ -n "$ssh_public_key_file" ]; then
+  echo "SSH diagnostics: enabled for wherehouse user with explicitly supplied public key"
+else
+  echo "SSH diagnostics: no login account provisioned (set WHEREHOUSE_SSH_PUBLIC_KEY_FILE to enable)"
+fi
 
 output=${WHEREHOUSE_PI_OUTPUT_DIR:-$repository/dist/pi}
 mkdir -p "$output"
@@ -73,15 +92,19 @@ esac
   -f "$repository/deploy/raspberry-pi/image/Dockerfile" \
   "$repository/deploy/raspberry-pi/image"
 
-"$docker_bin" run --rm --privileged --platform linux/arm64 \
+set -- run --rm --privileged --platform linux/arm64 \
   -e "HOST_UID=$(id -u)" -e "HOST_GID=$(id -g)" \
   -e "RPI_IMAGE_GEN_VERSION=$RPI_IMAGE_GEN_VERSION" \
   -e "RPI_IMAGE_GEN_COMMIT=$RPI_IMAGE_GEN_COMMIT" \
   -v "$repository:/workspace" \
   -v "$output:/output" \
   -v "$docker_socket:/var/run/docker.sock" \
-  -v wherehouse-pi-image-cache:/image-cache \
-  "$BUILDER_IMAGE" "$version" "$device"
+  -v wherehouse-pi-image-cache:/image-cache
+if [ -n "$ssh_public_key_file" ]; then
+  set -- "$@" -v "$ssh_public_key_file:/run/wherehouse-ssh-key.pub:ro"
+fi
+set -- "$@" "$BUILDER_IMAGE" "$version" "$device"
+"$docker_bin" "$@"
 
 artifact="$output/wherehouse-$device-$version.img.xz"
 for expected in "$artifact" "$artifact.sha256" "$artifact.json"; do
