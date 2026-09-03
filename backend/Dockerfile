@@ -10,10 +10,12 @@ RUN apt-get update \
 COPY pyproject.toml ./
 RUN uv sync --no-dev
 
+ENV PATH="/app/.venv/bin:${PATH}"
+
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
