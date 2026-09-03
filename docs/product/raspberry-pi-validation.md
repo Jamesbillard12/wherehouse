@@ -11,6 +11,8 @@ timings, and observed result for every row. Automated evidence never completes a
   no shell intervention.
 - [ ] Pair mobile; create locations/item/photo; search, scan, move, and archive.
 - [ ] Confirm no fixed OS/app/database/device/pairing credentials exist in the release image.
+- [ ] Using a supported Imager/manifest path, validate Wi-Fi, custom hostname, secure SSH choice,
+  locale, and timezone; until then use Ethernet and record customization as unsupported.
 
 ## Persistence and lifecycle
 

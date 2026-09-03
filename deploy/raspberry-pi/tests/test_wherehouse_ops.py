@@ -1,8 +1,8 @@
 import importlib.util
-from importlib.machinery import SourceFileLoader
 import os
 import tempfile
 import unittest
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from unittest.mock import patch
 
@@ -38,11 +38,12 @@ class FirstBootTests(unittest.TestCase):
                 ops.initialize(root, "wherehouse", "1", "today")
 
     def test_low_space_fails_before_startup(self):
-        with tempfile.TemporaryDirectory() as directory:
-            with patch.object(ops.shutil, "disk_usage") as usage:
-                usage.return_value.free = 99
-                with self.assertRaisesRegex(RuntimeError, "Insufficient"):
-                    ops.validate_storage(Path(directory), minimum_free=100)
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            ops.shutil, "disk_usage"
+        ) as usage:
+            usage.return_value.free = 99
+            with self.assertRaisesRegex(RuntimeError, "Insufficient"):
+                ops.validate_storage(Path(directory), minimum_free=100)
 
     def test_container_payload_is_loaded_once(self):
         with tempfile.TemporaryDirectory() as directory:

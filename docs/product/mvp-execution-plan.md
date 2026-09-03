@@ -170,7 +170,8 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 - **Exit criteria:** a non-developer completes image-to-browser setup and recorded validation proves
   persistence, backup/restore, update and safe failure behavior.
 - **Risk/branch:** upstream tooling, hardware/storage and power variation; secure release payload
-  delivery/signing remains incomplete. `feature/mvp-pi-operations`.
+  delivery/signing and standalone-image Imager customization remain incomplete.
+  `feature/mvp-pi-operations`.
 
 ## Phase 8: Future-readiness architecture gate
 

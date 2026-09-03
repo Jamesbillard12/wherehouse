@@ -8,12 +8,14 @@ import json
 import os
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 DEFAULT_ROOT = Path("/var/lib/wherehouse")
 INSTALL_DIR = Path("/opt/wherehouse")
@@ -44,7 +46,7 @@ def parse_env(path: Path) -> dict[str, str]:
     )
 
 
-def initialize(root: Path, hostname: str, image_version: str, build_date: str) -> bool:
+def initialize(root: Path, hostname: Optional[str], image_version: str, build_date: str) -> bool:
     env_file = root / "config/appliance.env"
     existing = parse_env(env_file)
     required = {"INSTANCE_ID", "POSTGRES_PASSWORD", "APP_SECRET"}
@@ -55,6 +57,7 @@ def initialize(root: Path, hostname: str, image_version: str, build_date: str) -
         raise RuntimeError("Incomplete appliance configuration; refusing to replace existing state")
     for directory in ("postgres", "uploads", "backups", "backup-staging", "config", "releases"):
         (root / directory).mkdir(parents=True, exist_ok=True)
+    hostname = hostname or socket.gethostname().split(".", 1)[0] or "wherehouse"
     values = {
         "INSTANCE_ID": str(uuid.uuid4()),
         "POSTGRES_DB": "wherehouse",
@@ -169,7 +172,7 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init")
-    init.add_argument("--hostname", default="wherehouse")
+    init.add_argument("--hostname")
     init.add_argument("--image-version", default="development")
     init.add_argument("--build-date", default="unknown")
     sub.add_parser("validate-storage")
