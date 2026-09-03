@@ -19,7 +19,7 @@ services:
     image: wherehouse-api:local
     build:
       context: ./backend
-    command: ["uv", "run", "alembic", "upgrade", "head"]
+    command: ["alembic", "upgrade", "head"]
     environment:
       WHEREHOUSE_ENV: local
       DATABASE_URL: postgresql+asyncpg://wherehouse:wherehouse@postgres:5432/wherehouse
