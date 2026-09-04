@@ -27,9 +27,11 @@ class ApplicationReleaseTests(unittest.TestCase):
 
         self.assertIn("environment: appliance-release", workflow)
         self.assertIn("secrets.WHEREHOUSE_RELEASE_SIGNING_KEY_PEM", workflow)
+        self.assertIn("secrets.WHEREHOUSE_RELEASE_PUBLIC_KEY_PEM", workflow)
         self.assertIn("Validate immutable tag", workflow)
         self.assertIn("git tag --points-at HEAD", workflow)
-        self.assertIn("Remove materialized signing key", workflow)
+        self.assertIn("Materialize and verify release keys", workflow)
+        self.assertIn("Remove materialized release keys", workflow)
         self.assertIn("gh release upload", workflow)
 
     def test_next_version_uses_semantic_order(self):
