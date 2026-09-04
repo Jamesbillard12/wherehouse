@@ -20,6 +20,12 @@ Application and appliance-image versions are independent after the first OTA. Ap
 API/web images, migrations, and compatible Compose configuration. OS, firmware, kernel, bootloader,
 Docker, and system packages require a future separate appliance mechanism.
 
+OTA-enabled image builds require the manifest URL and publisher public key as one complete trust
+configuration; intentionally offline images use an explicit disabled mode. The updater starts before
+the application and preserves its runtime directory across restarts so the API bind mount cannot
+retain an orphaned socket directory. Persistent installed-version metadata remains authoritative
+independently of updater liveness.
+
 Production artifacts are immutable GitHub Release assets produced from an existing `vX.Y.Z` tag on a
 GitHub-hosted Ubuntu 24.04 ARM64 runner; no Raspberry Pi or self-hosted Actions runner is required.
 The signing private key exists only as a protected release-environment secret and is materialized in

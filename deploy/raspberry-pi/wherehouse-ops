@@ -565,14 +565,20 @@ def validate_storage(root: Path, minimum_free: int = 512 * 1024 * 1024) -> None:
 
 
 def compose(root: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess:
-    env_file = root / "config/appliance.env"
     command = [
-        "docker", "compose", "--env-file", str(env_file),
-        "-f", str(INSTALL_DIR / "docker-compose.yml"),
-        "-f", str(INSTALL_DIR / "deploy/raspberry-pi/compose.appliance.yaml"),
+        *compose_command(root),
         *arguments,
     ]
     return subprocess.run(command, check=check)
+
+
+def compose_command(root: Path) -> list[str]:
+    env_file = root / "config/appliance.env"
+    return [
+        "docker", "compose", "--env-file", str(env_file),
+        "-f", str(INSTALL_DIR / "docker-compose.yml"),
+        "-f", str(INSTALL_DIR / "deploy/raspberry-pi/compose.appliance.yaml"),
+    ]
 
 
 def verify_http_services() -> None:
@@ -583,6 +589,47 @@ def verify_http_services() -> None:
                     raise RuntimeError("Updated service health check failed")
         except (error.HTTPError, error.URLError, TimeoutError) as exc:
             raise subprocess.CalledProcessError(1, ["health-check", url]) from exc
+
+
+def _command_health(command: list[str]) -> str:
+    try:
+        result = subprocess.run(command, check=False, capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.TimeoutExpired):
+        return "unavailable"
+    return "healthy" if result.returncode == 0 else "failed"
+
+
+def health_status(root: Path) -> dict:
+    env = parse_env(root / "config/appliance.env")
+    storage = read_storage_state(root)
+    backups = root / "backups"
+    return {
+        "version": current_version(root),
+        "imageVersion": env.get("APPLIANCE_IMAGE_VERSION", "unknown"),
+        "services": {
+            "docker": _command_health(["systemctl", "is-active", "--quiet", "docker.service"]),
+            "appliance": _command_health(["systemctl", "is-active", "--quiet", "wherehouse.service"]),
+            "updater": _command_health(["systemctl", "is-active", "--quiet", "wherehouse-update.service"]),
+            "api": _command_health(["curl", "--fail", "--silent", "http://127.0.0.1/api/v1/health"]),
+            "web": _command_health(["curl", "--fail", "--silent", "http://127.0.0.1/"]),
+            "database": _command_health([*compose_command(root), "exec", "-T", "postgres",
+                                          "pg_isready", "-U", env.get("POSTGRES_USER", "wherehouse"),
+                                          "-d", env.get("POSTGRES_DB", "wherehouse")]),
+        },
+        "storage": {"phase": storage.get("phase", "unknown"),
+                    "primary": storage.get("primary", "unknown")},
+        "networkStorage": "enabled" if storage.get("nas", {}).get("enabled") else "disabled",
+        "backup": "present" if backups.is_dir() and any(backups.iterdir()) else "none recorded",
+    }
+
+
+def print_health_status(status: dict) -> None:
+    print(f"WhereHouse version: {status['version']} (image {status['imageVersion']})")
+    for name, value in status["services"].items():
+        print(f"{name.replace('_', ' ').title()}: {value}")
+    print(f"Storage: {status['storage']['phase']} ({status['storage']['primary']})")
+    print(f"Network/NAS: {status['networkStorage']}")
+    print(f"Backup: {status['backup']}")
 
 
 def install_release(root: Path, release: str) -> None:
@@ -831,6 +878,8 @@ def main() -> int:
     sub.add_parser("update-check")
     sub.add_parser("update-status")
     sub.add_parser("storage-status")
+    status = sub.add_parser("status")
+    status.add_argument("--json", action="store_true")
     daemon = sub.add_parser("update-serve")
     daemon.add_argument("--socket", type=Path, default=APPLIANCE_SOCKET)
     parser.add_argument("--public-key", type=Path,
@@ -860,6 +909,12 @@ def main() -> int:
             print(json.dumps(read_state(args.root)))
         elif args.command == "storage-status":
             print(json.dumps(appliance_status(args.root)))
+        elif args.command == "status":
+            status_payload = health_status(args.root)
+            if args.json:
+                print(json.dumps(status_payload))
+            else:
+                print_health_status(status_payload)
         elif args.command == "update-serve":
             serve(args.root, args.socket, args.public_key)
         elif args.command == "factory-reset":

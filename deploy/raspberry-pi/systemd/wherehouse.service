@@ -1,8 +1,8 @@
 [Unit]
 Description=WhereHouse appliance
 Wants=network-online.target docker.service
-After=network-online.target docker.service local-fs.target
-Requires=docker.service
+After=network-online.target docker.service local-fs.target wherehouse-update.service
+Requires=docker.service wherehouse-update.service
 
 [Service]
 Type=oneshot

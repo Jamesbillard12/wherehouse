@@ -4,6 +4,25 @@ Record date, commit, image/checksum, Pi model/RAM, boot medium, image version, o
 timings, and observed result for every row. Automated evidence never completes a physical row. As of
 2026-09-03, all physical rows below are **not run**.
 
+For a key-enabled test image, include these first-boot checks:
+
+```sh
+ssh -o PasswordAuthentication=no wherehouse@wherehouse.local
+whoami
+hostname
+sudo systemctl --failed
+sudo docker compose --env-file /var/lib/wherehouse/config/appliance.env \
+  -f /opt/wherehouse/docker-compose.yml \
+  -f /opt/wherehouse/deploy/raspberry-pi/compose.appliance.yaml ps
+sudo wherehouse-ops status
+sudo systemctl status ssh.service wherehouse-update.service wherehouse.service --no-pager
+sudo journalctl -u wherehouse-update.service -b --no-pager
+```
+
+Confirm `whoami` is `wherehouse`, SSH never prompts for a password, no units are failed, API/web/database
+are healthy, Settings → System shows the installed version, and Check for Updates completes cleanly.
+After an update and reboot, repeat the SSH and status checks to prove the key and services remain intact.
+
 ## Fresh install (repeat on Pi 4 and Pi 5)
 
 - [ ] Verify SHA-256; flash the model-specific `.img.xz` with Raspberry Pi Imager.

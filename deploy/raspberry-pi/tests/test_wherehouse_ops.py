@@ -17,6 +17,21 @@ SPEC.loader.exec_module(ops)
 
 
 class FirstBootTests(unittest.TestCase):
+    def test_health_status_reports_version_services_storage_and_backup(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            ops, "_command_health", return_value="healthy"
+        ):
+            root = Path(directory)
+            (root / "config").mkdir()
+            (root / "config/appliance.env").write_text(
+                "WHEREHOUSE_VERSION=0.1.1\nAPPLIANCE_IMAGE_VERSION=0.1.1\n"
+                "POSTGRES_USER=wherehouse\nPOSTGRES_DB=wherehouse\n"
+            )
+            status = ops.health_status(root)
+        self.assertEqual("0.1.1", status["version"])
+        self.assertEqual("healthy", status["services"]["updater"])
+        self.assertEqual("internal", status["storage"]["primary"])
+        self.assertEqual("none recorded", status["backup"])
     def test_storage_discovery_excludes_root_and_accepts_usb_without_sdx_assumption(self):
         blockdevices = {"blockdevices": [
             {"name": "/dev/mmcblk0", "type": "disk", "size": 32, "tran": None, "serial": "root-disk",

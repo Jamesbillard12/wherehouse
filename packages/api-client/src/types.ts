@@ -124,6 +124,7 @@ export type ApplianceUpdateStatus = {
   errorCode: string | null
   errorMessage: string | null
   rollbackPerformed: boolean
+  serviceAvailable: boolean
 }
 
 export type Device = {

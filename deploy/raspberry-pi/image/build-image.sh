@@ -67,6 +67,35 @@ if [ "${WHEREHOUSE_ALLOW_DIRTY:-0}" != 1 ] && \
 fi
 
 ssh_public_key_file=${WHEREHOUSE_SSH_PUBLIC_KEY_FILE:-}
+ssh_public_key=${WHEREHOUSE_SSH_PUBLIC_KEY:-}
+ssh_mode=${WHEREHOUSE_SSH_MODE:-}
+if [ -n "$ssh_public_key_file" ] && [ -n "$ssh_public_key" ]; then
+  echo "Set only one of WHEREHOUSE_SSH_PUBLIC_KEY or WHEREHOUSE_SSH_PUBLIC_KEY_FILE" >&2
+  exit 1
+fi
+if [ -n "$ssh_public_key" ]; then
+  ssh_public_key_file=$(mktemp "${TMPDIR:-/tmp}/wherehouse-ssh-key.XXXXXX")
+  trap 'rm -f "$ssh_public_key_file"' EXIT INT TERM
+  printf '%s\n' "$ssh_public_key" > "$ssh_public_key_file"
+fi
+if [ -z "$ssh_mode" ]; then
+  if [ -n "$ssh_public_key_file" ]; then ssh_mode=key; else ssh_mode=disabled; fi
+fi
+case "$ssh_mode" in
+  key)
+    if [ -z "$ssh_public_key_file" ]; then
+      echo "WHEREHOUSE_SSH_MODE=key requires WHEREHOUSE_SSH_PUBLIC_KEY or WHEREHOUSE_SSH_PUBLIC_KEY_FILE" >&2
+      exit 1
+    fi
+    ;;
+  disabled)
+    if [ -n "$ssh_public_key_file" ]; then
+      echo "WHEREHOUSE_SSH_MODE=disabled cannot be combined with an SSH public key" >&2
+      exit 1
+    fi
+    ;;
+  *) echo "WHEREHOUSE_SSH_MODE must be 'key' or 'disabled'" >&2; exit 1 ;;
+esac
 if [ -n "$ssh_public_key_file" ]; then
   if [ ! -f "$ssh_public_key_file" ]; then
     echo "SSH public key file does not exist: $ssh_public_key_file" >&2
@@ -81,11 +110,30 @@ if [ -n "$ssh_public_key_file" ]; then
 fi
 update_public_key_file=${WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE:-}
 update_manifest_url=${WHEREHOUSE_UPDATE_MANIFEST_URL:-}
+update_mode=${WHEREHOUSE_UPDATE_MODE:-}
+if [ -z "$update_mode" ]; then
+  if [ -n "$update_public_key_file" ] || [ -n "$update_manifest_url" ]; then update_mode=enabled; else update_mode=disabled; fi
+fi
+case "$update_mode" in
+  enabled)
+    if [ -z "$update_public_key_file" ] || [ -z "$update_manifest_url" ]; then
+      echo "WHEREHOUSE_UPDATE_MODE=enabled requires WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE and WHEREHOUSE_UPDATE_MANIFEST_URL" >&2
+      exit 1
+    fi
+    ;;
+  disabled)
+    if [ -n "$update_public_key_file" ] || [ -n "$update_manifest_url" ]; then
+      echo "WHEREHOUSE_UPDATE_MODE=disabled cannot include updater configuration" >&2
+      exit 1
+    fi
+    ;;
+  *) echo "WHEREHOUSE_UPDATE_MODE must be 'enabled' or 'disabled'" >&2; exit 1 ;;
+esac
 case "$update_manifest_url" in
   ""|https://*) ;;
   *) echo "WHEREHOUSE_UPDATE_MANIFEST_URL must use HTTPS" >&2; exit 1 ;;
 esac
-if [ -n "$update_public_key_file" ]; then
+if [ "$update_mode" = enabled ]; then
   [ -f "$update_public_key_file" ] || { echo "Update public key does not exist: $update_public_key_file" >&2; exit 1; }
   update_public_key_file=$(CDPATH= cd -- "$(dirname -- "$update_public_key_file")" && pwd)/$(basename -- "$update_public_key_file")
   openssl pkey -pubin -in "$update_public_key_file" -noout >/dev/null 2>&1 || {
@@ -111,7 +159,7 @@ case "$host_os/$host_arch" in
 esac
 
 for required in Dockerfile docker-entrypoint.sh boards.sh "config/$config" \
-  layer/wherehouse-appliance.yaml bdebstrap/customize99-wherehouse; do
+  layer/wherehouse-appliance.yaml bdebstrap/customize99-wherehouse validate-rootfs.sh; do
   if [ ! -f "$script_dir/$required" ]; then
     echo "Required image-builder file is missing: deploy/raspberry-pi/image/$required" >&2
     exit 1
@@ -129,7 +177,7 @@ if [ -n "$ssh_public_key_file" ]; then
 else
   echo "SSH diagnostics: no login account provisioned (set WHEREHOUSE_SSH_PUBLIC_KEY_FILE to enable)"
 fi
-if [ -n "$update_public_key_file" ]; then
+if [ "$update_mode" = enabled ]; then
   echo "Application OTA: signed releases enabled"
 else
   echo "Application OTA: disabled (set WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE to enable)"
@@ -156,6 +204,8 @@ set -- run --rm --privileged --platform linux/arm64 \
   -e "RPI_IMAGE_GEN_VERSION=$RPI_IMAGE_GEN_VERSION" \
   -e "RPI_IMAGE_GEN_COMMIT=$RPI_IMAGE_GEN_COMMIT" \
   -e "WHEREHOUSE_UPDATE_MANIFEST_URL=$update_manifest_url" \
+  -e "WHEREHOUSE_SSH_MODE=$ssh_mode" \
+  -e "WHEREHOUSE_UPDATE_MODE=$update_mode" \
   -v "$repository:/workspace" \
   -v "$output:/output" \
   -v "$docker_socket:/var/run/docker.sock" \

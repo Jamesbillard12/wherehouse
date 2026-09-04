@@ -151,6 +151,14 @@ if ! grep -q "UUID=$boot_uuid[[:space:]]\+/boot/firmware[[:space:]]" "$fstab"; t
   exit 1
 fi
 sync
+expected_ssh_key=
+if [ "${WHEREHOUSE_SSH_MODE:-disabled}" = key ]; then
+  expected_ssh_key=/run/wherehouse-ssh-key.pub
+fi
+"$repository/deploy/raspberry-pi/image/validate-rootfs.sh" \
+  "$root_mount" "$version" "${WHEREHOUSE_SSH_MODE:-disabled}" \
+  "$expected_ssh_key" \
+  "${WHEREHOUSE_UPDATE_MODE:-disabled}"
 cleanup_image_mounts
 trap 'rm -rf "$stage"' EXIT INT TERM
 

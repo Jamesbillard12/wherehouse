@@ -21,6 +21,7 @@ const available = {
   runtimeSize: 1024, publishedAt: "2026-09-03T00:00:00Z",
   lastCheckedAt: "2026-09-03T00:00:00Z", errorCode: null, errorMessage: null,
   rollbackPerformed: false,
+  serviceAvailable: true,
 };
 
 describe("SoftwareUpdate", () => {
@@ -42,5 +43,16 @@ describe("SoftwareUpdate", () => {
     render(<SoftwareUpdate isOwner={false} token="token" />);
     expect(await screen.findByText(/only household owners/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Update Now" })).not.toBeInTheDocument();
+  });
+
+  it("shows the installed version and disables actions when the updater is unavailable", async () => {
+    getUpdateStatus.mockResolvedValue({ ...available, currentVersion: "0.1.1",
+      latestVersion: null, updateAvailable: false, phase: "failed",
+      serviceAvailable: false, errorCode: "updater_unavailable",
+      errorMessage: "Appliance update service is unavailable" });
+    render(<SoftwareUpdate isOwner token="token" />);
+    expect(await screen.findByText("0.1.1")).toBeInTheDocument();
+    expect(screen.getByText(/update service is unavailable/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check for Updates" })).toBeDisabled();
   });
 });

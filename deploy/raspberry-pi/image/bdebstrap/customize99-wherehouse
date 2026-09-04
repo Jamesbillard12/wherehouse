@@ -5,6 +5,7 @@ rootfs=${1:?root filesystem path is required}
 chroot "$rootfs" /bin/sh -eu <<'EOF'
 chmod 0755 /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops
 chmod 0755 /opt/wherehouse/deploy/raspberry-pi/wherehouse-backup
+ln -sfn /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops /usr/local/bin/wherehouse-ops
 
 # Docker is a hard appliance dependency. Validate the target rootfs while the
 # image is being built so a release can never boot successfully but fail later
@@ -50,7 +51,12 @@ if [ -f /etc/wherehouse-build/ssh-authorized-key ]; then
   if ! id wherehouse >/dev/null 2>&1; then
     useradd --create-home --shell /bin/bash wherehouse
   fi
-  passwd -l wherehouse >/dev/null 2>&1 || true
+  # Keep the account usable by sshd's account checks while making password login
+  # impossible: install a random, discarded password hash rather than locking it.
+  random_password=$(openssl rand -base64 48)
+  password_hash=$(openssl passwd -6 "$random_password")
+  usermod --password "$password_hash" wherehouse
+  unset random_password password_hash
   usermod -aG sudo,docker wherehouse
   install -d -m 0700 -o wherehouse -g wherehouse /home/wherehouse/.ssh
   install -m 0600 -o wherehouse -g wherehouse \
@@ -66,6 +72,8 @@ Match User wherehouse
     KbdInteractiveAuthentication no
     PubkeyAuthentication yes
 SSHEOF
+  install -d -m 0755 /run/sshd
+  sshd -t
   rm -rf /etc/wherehouse-build
 fi
 EOF

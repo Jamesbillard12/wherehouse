@@ -72,7 +72,14 @@ sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update-check
 sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update
 sudo systemctl restart wherehouse-update.service
 sudo journalctl -u wherehouse-update.service -n 200 --no-pager
+sudo wherehouse-ops status
 ```
+
+An OTA-enabled image build requires `WHEREHOUSE_UPDATE_MODE=enabled`,
+`WHEREHOUSE_UPDATE_MANIFEST_URL`, and `WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE`. Supplying only one trust
+input is a build error. Settings obtains the installed version from persistent appliance metadata;
+if the updater socket is unavailable it still shows that version and disables update actions with a
+specific service error.
 
 Restarting `wherehouse-update.service` runs interruption recovery, removes partial downloads, and
 preserves a visible failed state for diagnosis/retry. Database recovery deliberately reuses the
