@@ -19,8 +19,6 @@ jobs:
     environment: appliance-release
     env:
       RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
-      WHEREHOUSE_RELEASE_SIGNING_KEY: ${{ runner.temp }}/wherehouse-release-private.pem
-      WHEREHOUSE_RELEASE_PUBLIC_KEY: ${{ runner.temp }}/wherehouse-release-public.pem
       WHEREHOUSE_RELEASE_BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.event_name == 'push' && github.ref_name || inputs.tag }}/
       CI: "true"
     steps:
@@ -73,14 +71,18 @@ jobs:
           set -euo pipefail
           test -n "$RELEASE_SIGNING_KEY_PEM" || { echo 'Missing protected WHEREHOUSE_RELEASE_SIGNING_KEY_PEM secret' >&2; exit 1; }
           test -n "$RELEASE_PUBLIC_KEY_PEM" || { echo 'Missing WHEREHOUSE_RELEASE_PUBLIC_KEY_PEM secret' >&2; exit 1; }
+          signing_key="$RUNNER_TEMP/wherehouse-release-private.pem"
+          public_key="$RUNNER_TEMP/wherehouse-release-public.pem"
           umask 077
-          printf '%s\n' "$RELEASE_SIGNING_KEY_PEM" > "$WHEREHOUSE_RELEASE_SIGNING_KEY"
-          printf '%s\n' "$RELEASE_PUBLIC_KEY_PEM" > "$WHEREHOUSE_RELEASE_PUBLIC_KEY"
-          private_fingerprint=$(openssl pkey -in "$WHEREHOUSE_RELEASE_SIGNING_KEY" -pubout -outform DER | openssl dgst -sha256 | awk '{print $2}')
-          public_fingerprint=$(openssl pkey -pubin -in "$WHEREHOUSE_RELEASE_PUBLIC_KEY" -outform DER | openssl dgst -sha256 | awk '{print $2}')
+          printf '%s\n' "$RELEASE_SIGNING_KEY_PEM" > "$signing_key"
+          printf '%s\n' "$RELEASE_PUBLIC_KEY_PEM" > "$public_key"
+          private_fingerprint=$(openssl pkey -in "$signing_key" -pubout -outform DER | openssl dgst -sha256 | awk '{print $2}')
+          public_fingerprint=$(openssl pkey -pubin -in "$public_key" -outform DER | openssl dgst -sha256 | awk '{print $2}')
           test -n "$private_fingerprint"
           test "$private_fingerprint" = "$public_fingerprint" || { echo 'Release private key does not match appliance verification public key' >&2; exit 1; }
           echo "Verified release key pair: $private_fingerprint"
+          echo "WHEREHOUSE_RELEASE_SIGNING_KEY=$signing_key" >> "$GITHUB_ENV"
+          echo "WHEREHOUSE_RELEASE_PUBLIC_KEY=$public_key" >> "$GITHUB_ENV"
       - name: Build and self-verify signed ARM64 release
         run: ./build-release.sh "${RELEASE_TAG#v}"
       - name: Remove materialized release keys
