@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 MODULE = Path(__file__).parents[1] / "release/build_release.py"
+ROOT = Path(__file__).parents[3]
 SPEC = importlib.util.spec_from_file_location("build_release", MODULE)
 assert SPEC and SPEC.loader
 release = importlib.util.module_from_spec(SPEC)
@@ -11,6 +12,26 @@ SPEC.loader.exec_module(release)
 
 
 class ApplicationReleaseTests(unittest.TestCase):
+    def test_release_workflow_uses_hosted_arm64_with_explicit_tools(self):
+        workflow = (ROOT / ".github/workflows/application-release.yml").read_text()
+
+        self.assertIn("runs-on: ubuntu-24.04-arm", workflow)
+        self.assertNotIn("runs-on: [self-hosted, Linux, ARM64]", workflow)
+        self.assertIn("uses: actions/setup-node@v4", workflow)
+        self.assertIn("uses: astral-sh/setup-uv@v6", workflow)
+        self.assertIn("uv python install 3.13", workflow)
+        self.assertIn("docker info >/dev/null", workflow)
+
+    def test_release_workflow_preserves_signing_and_immutable_publication(self):
+        workflow = (ROOT / ".github/workflows/application-release.yml").read_text()
+
+        self.assertIn("environment: appliance-release", workflow)
+        self.assertIn("secrets.WHEREHOUSE_RELEASE_SIGNING_KEY_PEM", workflow)
+        self.assertIn("Validate immutable tag", workflow)
+        self.assertIn("git tag --points-at HEAD", workflow)
+        self.assertIn("Remove materialized signing key", workflow)
+        self.assertIn("gh release upload", workflow)
+
     def test_next_version_uses_semantic_order(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

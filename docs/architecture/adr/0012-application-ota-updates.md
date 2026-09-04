@@ -21,9 +21,11 @@ API/web images, migrations, and compatible Compose configuration. OS, firmware, 
 Docker, and system packages require a future separate appliance mechanism.
 
 Production artifacts are immutable GitHub Release assets produced from an existing `vX.Y.Z` tag on a
-protected ARM64 runner. The signing private key exists only as a protected release-environment secret;
-the public verification key is embedded in the appliance. Tag-derived version injection is the
-canonical version source for manifest, container images, API, web bundle, and installed marker.
+GitHub-hosted Ubuntu 24.04 ARM64 runner; no Raspberry Pi or self-hosted Actions runner is required.
+The signing private key exists only as a protected release-environment secret and is materialized in
+temporary runner storage only for the build; the public verification key is embedded in the
+appliance. Tag-derived version injection is the canonical version source for manifest, container
+images, API, web bundle, and installed marker.
 
 ## Safety and limitations
 

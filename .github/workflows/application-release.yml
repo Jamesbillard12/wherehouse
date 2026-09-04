@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build-test-publish:
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: ubuntu-24.04-arm
     environment: appliance-release
     env:
       RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
@@ -25,6 +25,31 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install Python 3.13
+        run: uv python install 3.13
+      - name: Verify hosted ARM64 release tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = aarch64
+          command -v git
+          command -v python3
+          command -v uv
+          command -v node
+          command -v corepack
+          command -v docker
+          command -v openssl
+          command -v gh
+          uv run --project backend python -c 'import platform; assert platform.machine() == "aarch64"'
+          docker info >/dev/null
       - name: Validate immutable tag
         shell: bash
         run: |
@@ -48,6 +73,10 @@ jobs:
           printf '%s\n' "$RELEASE_SIGNING_KEY_PEM" > "$WHEREHOUSE_RELEASE_SIGNING_KEY"
       - name: Build and self-verify signed ARM64 release
         run: ./build-release.sh "${RELEASE_TAG#v}"
+      - name: Remove materialized signing key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f -- "$WHEREHOUSE_RELEASE_SIGNING_KEY"
       - name: Publish immutable GitHub Release assets
         env:
           GH_TOKEN: ${{ github.token }}
