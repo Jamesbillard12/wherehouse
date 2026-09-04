@@ -37,27 +37,41 @@ if [ "$update_mode" = "enabled" ] && [ ! -f "$update_key" ]; then
   exit 1
 fi
 
-build_image() {
-  if [ "$update_mode" = "enabled" ]; then
+if [ -f "$ssh_key" ]; then
+  ssh_mode=key
+  echo "Building next WhereHouse image for $device with SSH diagnostics enabled"
+else
+  ssh_mode=disabled
+  echo "SSH public key not found at $ssh_key"
+  echo "Building next WhereHouse image for $device without SSH diagnostics"
+fi
+
+echo "OTA updates: $update_mode"
+
+if [ "$update_mode" = "enabled" ]; then
+  if [ "$ssh_mode" = "key" ]; then
+    WHEREHOUSE_SSH_MODE=key \
+    WHEREHOUSE_SSH_PUBLIC_KEY_FILE="$ssh_key" \
     WHEREHOUSE_UPDATE_MODE=enabled \
     WHEREHOUSE_UPDATE_MANIFEST_URL="$update_manifest" \
     WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE="$update_key" \
-    "$@"
+      ./deploy/raspberry-pi/image/build-image.sh next "$device"
   else
-    WHEREHOUSE_UPDATE_MODE=disabled "$@"
+    WHEREHOUSE_SSH_MODE=disabled \
+    WHEREHOUSE_UPDATE_MODE=enabled \
+    WHEREHOUSE_UPDATE_MANIFEST_URL="$update_manifest" \
+    WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE="$update_key" \
+      ./deploy/raspberry-pi/image/build-image.sh next "$device"
   fi
-}
-
-if [ -f "$ssh_key" ]; then
-  echo "Building next WhereHouse image for $device with SSH diagnostics enabled"
-  echo "OTA updates: $update_mode"
-  WHEREHOUSE_SSH_MODE=key \
-  WHEREHOUSE_SSH_PUBLIC_KEY_FILE="$ssh_key" \
-    build_image ./deploy/raspberry-pi/image/build-image.sh next "$device"
 else
-  echo "SSH public key not found at $ssh_key"
-  echo "Building next WhereHouse image for $device without SSH diagnostics"
-  echo "OTA updates: $update_mode"
-  WHEREHOUSE_SSH_MODE=disabled \
-    build_image ./deploy/raspberry-pi/image/build-image.sh next "$device"
+  if [ "$ssh_mode" = "key" ]; then
+    WHEREHOUSE_SSH_MODE=key \
+    WHEREHOUSE_SSH_PUBLIC_KEY_FILE="$ssh_key" \
+    WHEREHOUSE_UPDATE_MODE=disabled \
+      ./deploy/raspberry-pi/image/build-image.sh next "$device"
+  else
+    WHEREHOUSE_SSH_MODE=disabled \
+    WHEREHOUSE_UPDATE_MODE=disabled \
+      ./deploy/raspberry-pi/image/build-image.sh next "$device"
+  fi
 fi
