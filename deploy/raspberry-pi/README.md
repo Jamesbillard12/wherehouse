@@ -168,16 +168,20 @@ backup service and restore uses the same `.whbackup` flow; there is no Pi-specif
 
 ## Application update
 
-Place a verified release tar containing `wherehouse-api:<version>` and `wherehouse-web:<version>` at
-`/var/lib/wherehouse/releases/<version>/wherehouse-runtime.tar`, then run:
+Normal updates are discovered and installed from Settings → System using a signed immutable GitHub
+Release; no reflash, SSH, SCP, or manual Docker command is required. For console diagnostics or an
+emergency retry, use the same host updater:
 
 ```sh
-sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update <version>
+sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update-status
+sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update-check
+sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update
 ```
 
 This requires 1 GiB free, creates a backup with writes stopped, records current image IDs, loads the
 release, migrates, waits for health, and records success. Failed health restores prior containers.
-Migrations may be irreversible; if the prior application cannot use the schema, recreate cleanly and
+Migrations may be irreversible; OTA releases therefore require expand-contract migrations. If the
+prior application cannot use the schema, recreate cleanly and
 restore the pre-upgrade backup. OS/image upgrades are separate. Secure release download/signing is not
 implemented and remains a release blocker.
 

@@ -9,3 +9,7 @@ it does not add speculative scope.
 Application OTA releases use [`./build-release.sh`](../../build-release.sh) and the signed artifact
 process in [Application OTA operations](../deployment/application-ota.md). They do not require or imply
 a new Raspberry Pi OS image. Never store the release private key in this repository or an appliance.
+Production publication is tag-driven through `application-release.yml`, uses the protected
+`appliance-release` environment, self-verifies the signature, and refuses to overwrite an existing
+`release.json` asset. The Git tag, manifest version, API runtime version, web bundle version, image
+tags, appliance version marker, and UI-reported installed version all derive from the same `X.Y.Z`.

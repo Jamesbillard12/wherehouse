@@ -23,6 +23,10 @@ class ApplicationReleaseTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 release.version_tuple(value)
 
+    def test_tag_and_plain_versions_have_one_canonical_value(self):
+        self.assertEqual("1.2.3", release.version_from_ref("v1.2.3"))
+        self.assertEqual("1.2.3", release.version_from_ref("1.2.3"))
+
 
 if __name__ == "__main__":
     unittest.main()

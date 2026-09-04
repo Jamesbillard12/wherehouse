@@ -44,6 +44,34 @@ timings, and observed result for every row. Automated evidence never completes a
 
 ## Upgrade and failures
 
+Record `N`, `N+1`, tag/manifest URLs, Pi model, date, tester, backup artifact/checksum, and the output
+of these commands before and after each drill (commands are evidence only; the successful normal flow
+must still be initiated in Settings → System):
+
+```sh
+sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update-status
+sudo docker compose --env-file /var/lib/wherehouse/config/appliance.env \
+  -f /opt/wherehouse/docker-compose.yml \
+  -f /opt/wherehouse/deploy/raspberry-pi/compose.appliance.yaml ps
+sudo journalctl -u wherehouse-update.service --since '30 minutes ago' --no-pager
+sudo systemctl reboot
+```
+
+Before N→N+1, create a uniquely named item with media, record an owner and paired-device ID, and record
+the primary-storage UUID, SMB state, backup provider, and Dropbox connection state. Publish N+1 from a
+`vX.Y.Z` tag, check/install solely in Settings → System, permit API/web disconnection, reopen the UI,
+and compare every recorded value after completion and again after reboot.
+
+For the deterministic failure drill, build N+2 with
+`WHEREHOUSE_RELEASE_VALIDATION_SCENARIO=fail-health`; its signed manifest instructs the updater to fail
+after real API/web health checks so the normal rollback path is exercised. Publish it through the same
+signing workflow on an isolated trusted manifest endpoint and install from the UI. Do not point
+production appliances at an unsigned or mutable endpoint. Capture `phase=failed`,
+`rollbackPerformed=true`, the restored N+1
+version/images, unchanged recorded state, service health, and a successful retry after restoring the
+valid signed source. A migration-failure fixture may be used separately; do not combine an irreversible
+migration with the image-rollback drill.
+
 - [ ] Perform the no-SSH/no-SCP/no-reflash physical N → N+1 flow in
   [Application OTA operations](../deployment/application-ota.md); verify remote discovery, publisher
   signature and checksum, backup, migration, API/web health, browser/realtime reconnect, reported app

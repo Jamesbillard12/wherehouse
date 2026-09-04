@@ -1,0 +1,60 @@
+name: Publish appliance application release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v-prefixed semantic-version tag to publish
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-publish:
+    runs-on: [self-hosted, Linux, ARM64]
+    environment: appliance-release
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+      WHEREHOUSE_RELEASE_SIGNING_KEY: ${{ runner.temp }}/wherehouse-release-private.pem
+      WHEREHOUSE_RELEASE_BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.event_name == 'push' && github.ref_name || inputs.tag }}/
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - name: Validate immutable tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$(git tag --points-at HEAD | grep -Fx "$RELEASE_TAG")" = "$RELEASE_TAG"
+      - name: Run release tests
+        run: |
+          python3 -m unittest discover -s deploy/raspberry-pi/tests -p 'test_*.py'
+          cd backend && uv run python -m pytest && uv run ruff check app tests
+          corepack enable && pnpm install --frozen-lockfile
+          pnpm --filter @wherehouse/web test && pnpm -r typecheck
+      - name: Materialize protected signing key
+        env:
+          RELEASE_SIGNING_KEY_PEM: ${{ secrets.WHEREHOUSE_RELEASE_SIGNING_KEY_PEM }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_SIGNING_KEY_PEM" || { echo 'Missing protected WHEREHOUSE_RELEASE_SIGNING_KEY_PEM secret' >&2; exit 1; }
+          umask 077
+          printf '%s\n' "$RELEASE_SIGNING_KEY_PEM" > "$WHEREHOUSE_RELEASE_SIGNING_KEY"
+      - name: Build and self-verify signed ARM64 release
+        run: ./build-release.sh "${RELEASE_TAG#v}"
+      - name: Publish immutable GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          test -z "$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[] | select(.name == "release.json")' 2>/dev/null || true)" || { echo 'Release artifacts already published; refusing overwrite' >&2; exit 1; }
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --verify-tag --title "WhereHouse $version" --generate-notes
+          gh release upload "$RELEASE_TAG" dist/releases/"$version"/*

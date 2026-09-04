@@ -1,5 +1,8 @@
 FROM python:3.13-slim
 
+ARG WHEREHOUSE_VERSION=development
+ENV WHEREHOUSE_VERSION=${WHEREHOUSE_VERSION}
+
 WORKDIR /app
 
 RUN apt-get update \
