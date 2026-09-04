@@ -15,6 +15,8 @@
     "docker:up": "./docker-up.sh",
     "docker:stop": "./stop.sh",
     "pi:build": "./build-pi.sh",
+    "pi:build:remote": "sh -c 'command -v gh >/dev/null 2>&1 || { echo \"GitHub CLI (gh) is required\" >&2; exit 1; }; gh auth status >/dev/null 2>&1 || { echo \"GitHub CLI is not authenticated; run: gh auth login\" >&2; exit 1; }; version=\"${1:-next}\"; gh workflow run pi-image.yml --ref main -f version=\"$version\"; echo \"Triggered remote Pi image build for $version. View it with: gh run list --workflow pi-image.yml --limit 5\"' --",
+    "pi:build:remote:watch": "sh -c 'command -v gh >/dev/null 2>&1 || { echo \"GitHub CLI (gh) is required\" >&2; exit 1; }; gh auth status >/dev/null 2>&1 || { echo \"GitHub CLI is not authenticated; run: gh auth login\" >&2; exit 1; }; version=\"${1:-next}\"; gh workflow run pi-image.yml --ref main -f version=\"$version\"; echo \"Waiting for workflow run to appear...\"; sleep 3; run_id=$(gh run list --workflow pi-image.yml --branch main --event workflow_dispatch --limit 1 --json databaseId --jq \".[0].databaseId\"); test -n \"$run_id\" || { echo \"Could not find the workflow run\" >&2; exit 1; }; gh run watch \"$run_id\" --exit-status' --",
     "pi:image": "./deploy/raspberry-pi/image/build-image.sh",
     "pi:validate-rootfs": "./deploy/raspberry-pi/image/validate-rootfs.sh",
     "pi:test": "python3 -m unittest discover -s deploy/raspberry-pi/tests -p 'test_*.py'",
