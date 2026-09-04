@@ -10,14 +10,35 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
+    environment: appliance-release
     strategy:
       fail-fast: false
       matrix:
         model: [pi4, pi5]
+    env:
+      WHEREHOUSE_UPDATE_MODE: enabled
+      WHEREHOUSE_UPDATE_MANIFEST_URL: https://github.com/${{ github.repository }}/releases/latest/download/release.json
+      WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE: ${{ runner.temp }}/wherehouse-release-public.pem
     steps:
       - uses: actions/checkout@v4
+      - name: Materialize appliance update verification key
+        env:
+          RELEASE_PUBLIC_KEY_PEM: ${{ secrets.WHEREHOUSE_RELEASE_PUBLIC_KEY_PEM }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_PUBLIC_KEY_PEM" || { echo 'Missing WHEREHOUSE_RELEASE_PUBLIC_KEY_PEM secret' >&2; exit 1; }
+          umask 077
+          printf '%s\n' "$RELEASE_PUBLIC_KEY_PEM" > "$WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE"
+          openssl pkey -pubin -in "$WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE" -noout
+          fingerprint=$(openssl pkey -pubin -in "$WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE" -outform DER | openssl dgst -sha256 | awk '{print $2}')
+          echo "Embedding OTA verification key: $fingerprint"
       - name: Build image and release metadata
         run: ./deploy/raspberry-pi/image/build-image.sh '${{ inputs.version }}' '${{ matrix.model }}'
+      - name: Remove materialized verification key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f -- "$WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE"
       - uses: actions/upload-artifact@v4
         with:
           name: wherehouse-${{ matrix.model }}-${{ inputs.version }}
