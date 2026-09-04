@@ -38,6 +38,26 @@ async def update_request(operation: str) -> dict:
         raise HTTPException(status_code=503, detail="Appliance update service is unavailable") from exc
 
 
+def unavailable_update_status() -> dict:
+    settings = get_settings()
+    current = settings.wherehouse_version or settings.appliance_image_version or "development"
+    return {
+        "currentVersion": current,
+        "latestVersion": None,
+        "targetVersion": None,
+        "updateAvailable": False,
+        "channel": "stable",
+        "phase": "failed",
+        "progress": 0,
+        "message": "Installed version is available, but the appliance updater is unavailable",
+        "lastCheckedAt": None,
+        "errorCode": "updater_unavailable",
+        "errorMessage": "Appliance update service is unavailable",
+        "rollbackPerformed": False,
+        "serviceAvailable": False,
+    }
+
+
 async def appliance_request(operation: str, payload: dict | None = None) -> dict:
     try:
         return await asyncio.to_thread(update_client().request, operation, payload)
@@ -74,7 +94,14 @@ class EnableNasRequest(BaseModel):
 
 @router.get("/system/update")
 async def update_status(principal: PrincipalDep) -> dict:
-    return await update_request("status")
+    try:
+        status = await update_request("status")
+        status["serviceAvailable"] = True
+        return status
+    except HTTPException as exc:
+        if exc.status_code != 503:
+            raise
+        return unavailable_update_status()
 
 
 @router.post("/system/update/check")

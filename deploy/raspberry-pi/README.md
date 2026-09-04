@@ -28,6 +28,21 @@ WHEREHOUSE_SSH_PUBLIC_KEY_FILE="$HOME/.ssh/id_ed25519.pub" \
   ./deploy/raspberry-pi/image/build-image.sh 0.1.4 pi4
 ```
 
+The public key may also be passed directly. This complete macOS example enables signed OTA too:
+
+```sh
+WHEREHOUSE_SSH_MODE=key \
+WHEREHOUSE_SSH_PUBLIC_KEY="$(cat "$HOME/.ssh/id_ed25519.pub")" \
+WHEREHOUSE_UPDATE_MODE=enabled \
+WHEREHOUSE_UPDATE_MANIFEST_URL=https://github.com/Jamesbillard12/wherehouse/releases/latest/download/release.json \
+WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE=/secure/wherehouse-release-public.pem \
+  ./deploy/raspberry-pi/image/build-image.sh 0.1.2 pi5
+```
+
+Use `WHEREHOUSE_SSH_MODE=disabled` or `WHEREHOUSE_UPDATE_MODE=disabled` only for an intentionally
+unmanaged/offline image. Key mode fails without one valid public key. Enabled OTA mode fails unless
+both trust inputs are supplied. Never pass an SSH private key or release-signing private key.
+
 When this option is used the image creates `wherehouse`, installs only the supplied public key in
 `authorized_keys`, disables password and keyboard-interactive authentication for that account, and
 grants passwordless `sudo` for appliance diagnostics. The private key never enters the build. Do not
@@ -69,7 +84,9 @@ normal `image-rpios` disk image accepted by Raspberry Pi Imager.
 During a normal run the wrapper prints version, board, detected host, `linux/arm64`, the pinned
 generator revision, and whether explicit SSH diagnostics were provisioned. Failures propagate without
 creating a success message. The builder refuses to release an image if the kernel command line or
-fstab still contains `/dev/disk/by-slot/`. The final line names the verified host artifact.
+fstab still contains `/dev/disk/by-slot/`, or mounted-rootfs validation finds a missing user, key,
+permission, service, updater input, version marker, Compose file, or runtime payload. The final line
+names the verified host artifact.
 
 ### Build troubleshooting
 
@@ -111,6 +128,7 @@ networkctl status
 ip -4 addr
 sudo systemctl status wherehouse
 sudo journalctl -u wherehouse -b
+sudo wherehouse-ops status
 curl http://localhost/api/v1/system/status
 sudo systemctl restart wherehouse
 sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-backup create local
@@ -176,14 +194,20 @@ emergency retry, use the same host updater:
 sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update-status
 sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update-check
 sudo /opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update
+sudo systemctl status wherehouse-update.service
+sudo journalctl -u wherehouse-update.service -b --no-pager
 ```
+
+The updater starts before the application and preserves `/run/wherehouse` across service restarts so
+the API container retains the live host socket. `config/appliance.env` plus `releases/current` after
+OTA is the authoritative installed-version source. Settings can therefore show the installed version
+while separately reporting an updater-service failure.
 
 This requires 1 GiB free, creates a backup with writes stopped, records current image IDs, loads the
 release, migrates, waits for health, and records success. Failed health restores prior containers.
 Migrations may be irreversible; OTA releases therefore require expand-contract migrations. If the
 prior application cannot use the schema, recreate cleanly and
-restore the pre-upgrade backup. OS/image upgrades are separate. Secure release download/signing is not
-implemented and remains a release blocker.
+restore the pre-upgrade backup. OS/image upgrades are separate.
 
 ## Factory reset and recovery
 

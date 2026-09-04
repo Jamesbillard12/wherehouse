@@ -31,6 +31,29 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertEqual(2, result.returncode)
         self.assertIn("Usage:", result.stderr)
 
+    def test_key_ssh_mode_requires_an_explicit_public_key(self):
+        result = subprocess.run(
+            [str(SCRIPT), "0.1.2", "pi4"], cwd=ROOT,
+            env={**os.environ, "WHEREHOUSE_SSH_MODE": "key",
+                 "WHEREHOUSE_SSH_PUBLIC_KEY": "", "WHEREHOUSE_SSH_PUBLIC_KEY_FILE": "",
+                 "WHEREHOUSE_ALLOW_DIRTY": "1"},
+            text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(1, result.returncode)
+        self.assertIn("requires WHEREHOUSE_SSH_PUBLIC_KEY", result.stderr)
+
+    def test_enabled_updater_requires_both_trust_inputs(self):
+        result = subprocess.run(
+            [str(SCRIPT), "0.1.2", "pi4"], cwd=ROOT,
+            env={**os.environ, "WHEREHOUSE_UPDATE_MODE": "enabled",
+                 "WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE": "",
+                 "WHEREHOUSE_UPDATE_MANIFEST_URL": "https://example.test/release.json",
+                 "WHEREHOUSE_ALLOW_DIRTY": "1"},
+            text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(1, result.returncode)
+        self.assertIn("requires WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE", result.stderr)
+
     def test_apple_silicon_path_selects_arm64_docker_and_pi_config(self):
         with tempfile.TemporaryDirectory() as directory:
             directory_path = Path(directory)
@@ -141,6 +164,23 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertNotIn("customize-hooks:", layer)
         self.assertIn("/opt/wherehouse/deploy/raspberry-pi/wherehouse-ops", hook)
         self.assertIn("systemctl enable wherehouse.service", hook)
+
+    def test_generated_root_filesystem_is_validated_before_compression(self):
+        entrypoint = (ROOT / "deploy/raspberry-pi/image/docker-entrypoint.sh").read_text()
+        validator = (ROOT / "deploy/raspberry-pi/image/validate-rootfs.sh").read_text()
+        self.assertIn('validate-rootfs.sh"', entrypoint)
+        self.assertLess(entrypoint.index('validate-rootfs.sh"'), entrypoint.index("xz -T0 -9"))
+        for expected in ("authorized_keys", "wherehouse-update.service", "wherehouse-runtime.tar",
+                         "WHEREHOUSE_IMAGE_VERSION", "RuntimeDirectoryPreserve=yes"):
+            self.assertIn(expected, validator)
+
+    def test_ssh_account_is_key_only_but_not_os_locked(self):
+        hook = (ROOT / "deploy/raspberry-pi/image/bdebstrap/customize99-wherehouse").read_text()
+        self.assertIn('openssl passwd -6', hook)
+        self.assertNotIn('passwd -l wherehouse', hook)
+        self.assertIn('PubkeyAuthentication yes', hook)
+        self.assertIn('PasswordAuthentication no', hook)
+        self.assertIn('sshd -t', hook)
 
     def test_appliance_uses_upstream_wired_networking_and_remote_diagnostics(self):
         layer = (

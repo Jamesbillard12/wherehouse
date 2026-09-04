@@ -23,13 +23,15 @@ Application OTA is implemented separately from image/OS updating. Provision an i
 manifest URL and the matching release public key:
 
 ```sh
-WHEREHOUSE_UPDATE_MANIFEST_URL=https://releases.example/wherehouse/stable/release.json \
+WHEREHOUSE_UPDATE_MODE=enabled \
+WHEREHOUSE_UPDATE_MANIFEST_URL=https://github.com/Jamesbillard12/wherehouse/releases/latest/download/release.json \
 WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE=/secure/wherehouse-release-public.pem \
 deploy/raspberry-pi/image/build-image.sh next pi4
 ```
 
-The signing private key must never be put in the repository or appliance. An image without a public
-key intentionally cannot install OTA releases. The host `wherehouse-update.service` persists status
+The signing private key must never be put in the repository or appliance. Use
+`WHEREHOUSE_UPDATE_MODE=disabled` for an intentionally offline image; enabled mode fails the build
+unless both trust inputs are valid. The host `wherehouse-update.service` persists status
 at `/var/lib/wherehouse/config/update-state.json` and exposes only a local Unix socket to the API.
 Settings → System can check and install; the host operation continues while web/API containers restart.
 
