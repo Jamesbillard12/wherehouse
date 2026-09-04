@@ -218,7 +218,8 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertIn('root_uuid=$(blkid -s UUID -o value "$root_loop")', entrypoint)
         self.assertIn("root=UUID=$root_uuid", entrypoint)
         self.assertIn("UUID=$boot_uuid", entrypoint)
-        self.assertIn("Generated image still depends on /dev/disk/by-slot aliases", entrypoint)
+        self.assertIn("Generated kernel command line still depends on /dev/disk/by-slot aliases", entrypoint)
+        self.assertIn("Generated fstab still depends on /dev/disk/by-slot aliases", entrypoint)
         self.assertLess(entrypoint.index("cleanup_image_mounts"), entrypoint.index("xz -T0 -9"))
 
     def test_image_builder_source_is_not_embedded_in_appliance_overlay(self):
