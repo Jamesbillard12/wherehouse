@@ -34,12 +34,18 @@ def run(command: list[str], cwd: Path) -> None:
     subprocess.run(command, cwd=cwd, check=True)
 
 
+def version_from_ref(value: str) -> str:
+    """Return the canonical release version accepted from a CLI value or v-prefixed tag."""
+    version = value[1:] if value.startswith("v") else value
+    version_tuple(version)
+    return version
+
+
 def main() -> None:
     repository = Path(__file__).resolve().parents[3]
     output = Path(os.environ.get("WHEREHOUSE_RELEASE_OUTPUT_DIR", repository / "dist/releases"))
     requested = sys.argv[1] if len(sys.argv) > 1 else "next"
-    version = next_version(output) if requested == "next" else requested
-    version_tuple(version)
+    version = next_version(output) if requested == "next" else version_from_ref(requested)
     if os.environ.get("WHEREHOUSE_ALLOW_DIRTY") != "1":
         run(["git", "diff", "--quiet"], repository)
         run(["git", "diff", "--cached", "--quiet"], repository)
@@ -49,12 +55,14 @@ def main() -> None:
         raise SystemExit("WHEREHOUSE_RELEASE_SIGNING_KEY must name the private release key")
     if not base_url or not base_url.startswith("https://"):
         raise SystemExit("WHEREHOUSE_RELEASE_BASE_URL must be a trusted HTTPS directory URL")
+    if os.environ.get("CI") == "true" and requested == "next":
+        raise SystemExit("CI releases require an explicit semantic version from a tag")
     release_dir = output / version
     release_dir.mkdir(parents=True, exist_ok=False)
     api_image, web_image = f"wherehouse-api:{version}", f"wherehouse-web:{version}"
-    run(["docker", "build", "--platform", "linux/arm64", "-t", api_image,
+    run(["docker", "build", "--platform", "linux/arm64", "--build-arg", f"WHEREHOUSE_VERSION={version}", "-t", api_image,
          "-f", "backend/Dockerfile", "backend"], repository)
-    run(["docker", "build", "--platform", "linux/arm64", "-t", web_image,
+    run(["docker", "build", "--platform", "linux/arm64", "--build-arg", f"WHEREHOUSE_VERSION={version}", "-t", web_image,
          "-f", "deploy/docker/Dockerfile.web", "."], repository)
     runtime = release_dir / f"wherehouse-runtime-{version}.tar"
     run(["docker", "save", "--output", str(runtime), api_image, web_image], repository)
@@ -68,6 +76,11 @@ def main() -> None:
         "schemaVersion": 1, "product": "WhereHouse", "version": version,
         "channel": "stable", "architecture": "arm64",
         "minimumApplianceVersion": os.environ.get("WHEREHOUSE_MINIMUM_APPLIANCE_VERSION", "0.1.0"),
+        "minimumCurrentVersion": os.environ.get("WHEREHOUSE_MINIMUM_CURRENT_VERSION", "0.1.0"),
+        "minimumSchemaRevision": int(os.environ.get("WHEREHOUSE_MINIMUM_SCHEMA_REVISION", "13")),
+        "maximumSchemaRevision": int(os.environ.get("WHEREHOUSE_MAXIMUM_SCHEMA_REVISION", "13")),
+        "migrationPolicy": "expand-contract",
+        "validationScenario": os.environ.get("WHEREHOUSE_RELEASE_VALIDATION_SCENARIO", "normal"),
         "runtimeUrl": urljoin(base_url.rstrip("/") + "/", runtime.name),
         "runtimeSha256": digest, "runtimeSize": runtime.stat().st_size,
         "publishedAt": datetime.now(timezone.utc).isoformat(),
@@ -75,9 +88,16 @@ def main() -> None:
         "requiresReboot": False, "signatureAlgorithm": "rsa-sha256",
     }
     manifest_path = release_dir / "release.json"
+    if manifest["validationScenario"] not in {"normal", "fail-health"}:
+        raise SystemExit("WHEREHOUSE_RELEASE_VALIDATION_SCENARIO must be normal or fail-health")
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     run(["openssl", "dgst", "-sha256", "-sign", signing_key, "-out",
          str(release_dir / "release.json.sig"), str(manifest_path)], repository)
+    public_key = release_dir / "release-public-key.pem"
+    run(["openssl", "pkey", "-in", signing_key, "-pubout", "-out", str(public_key)], repository)
+    run(["openssl", "dgst", "-sha256", "-verify", str(public_key), "-signature",
+         str(release_dir / "release.json.sig"), str(manifest_path)], repository)
+    public_key.unlink()
     expected = [manifest_path, release_dir / "release.json.sig", runtime,
                 release_dir / f"{runtime.name}.sha256"]
     if not all(path.is_file() and path.stat().st_size for path in expected):

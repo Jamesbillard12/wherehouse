@@ -27,6 +27,7 @@ INSTALL_DIR = Path("/opt/wherehouse")
 PRODUCT = "WhereHouse"
 SUPPORTED_CHANNEL = "stable"
 ARCHITECTURE = "arm64"
+CURRENT_SCHEMA_REVISION = 13
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 STATE_NAME = "update-state.json"
 LOCK_NAME = "lifecycle.lock"
@@ -103,7 +104,9 @@ def validate_manifest(data: object, appliance_version: str) -> dict:
     if not isinstance(data, dict):
         raise RuntimeError("Release manifest must be a JSON object")
     required = {"schemaVersion": int, "product": str, "version": str, "channel": str,
-                "architecture": str, "minimumApplianceVersion": str, "runtimeUrl": str,
+                "architecture": str, "minimumApplianceVersion": str, "minimumCurrentVersion": str,
+                "minimumSchemaRevision": int, "maximumSchemaRevision": int,
+                "migrationPolicy": str, "validationScenario": str, "runtimeUrl": str,
                 "runtimeSha256": str, "runtimeSize": int, "publishedAt": str,
                 "releaseNotes": str, "requiresReboot": bool, "signatureAlgorithm": str}
     for field, kind in required.items():
@@ -114,10 +117,17 @@ def validate_manifest(data: object, appliance_version: str) -> dict:
     version = semver(data["version"])
     minimum = semver(data["minimumApplianceVersion"])
     appliance = semver(appliance_version)
+    minimum_current = semver(data["minimumCurrentVersion"])
     if data["channel"] != SUPPORTED_CHANNEL or data["architecture"] != ARCHITECTURE:
         raise RuntimeError("Release channel or architecture is not supported")
     if appliance < minimum:
         raise RuntimeError("Release requires a newer appliance image")
+    if data["minimumSchemaRevision"] < 0 or data["maximumSchemaRevision"] < data["minimumSchemaRevision"]:
+        raise RuntimeError("Release schema compatibility range is invalid")
+    if data["migrationPolicy"] != "expand-contract":
+        raise RuntimeError("Release migration policy is unsupported")
+    if data["validationScenario"] not in {"normal", "fail-health"}:
+        raise RuntimeError("Release validation scenario is unsupported")
     url = parse.urlparse(data["runtimeUrl"])
     if url.scheme != "https" or not url.netloc or url.username or url.password:
         raise RuntimeError("Release runtime URL must be HTTPS")
@@ -128,7 +138,7 @@ def validate_manifest(data: object, appliance_version: str) -> dict:
     if data["signatureAlgorithm"] != "rsa-sha256":
         raise RuntimeError("Release signature algorithm is unsupported")
     datetime.fromisoformat(data["publishedAt"].replace("Z", "+00:00"))
-    return dict(data, _version=version)
+    return dict(data, _version=version, _minimum_current=minimum_current)
 
 
 def sha256(path: Path) -> str:
@@ -190,7 +200,17 @@ def fetch_manifest(root: Path, public_key: Path) -> tuple[dict, Path]:
     manifest = validate_manifest(json.loads(manifest_path.read_text()),
                                  parse_env(root / "config/appliance.env").get(
                                      "APPLIANCE_IMAGE_VERSION", "0.0.0"))
-    available = semver(current_version(root)) < manifest["_version"]
+    current = semver(current_version(root))
+    if current < manifest["_minimum_current"]:
+        raise RuntimeError("Release does not support the installed application version")
+    if manifest["_version"] < current:
+        raise RuntimeError("Release downgrade is not permitted")
+    installed_schema = int(parse_env(root / "config/appliance.env").get(
+        "WHEREHOUSE_SCHEMA_REVISION", str(CURRENT_SCHEMA_REVISION)
+    ))
+    if not manifest["minimumSchemaRevision"] <= installed_schema <= manifest["maximumSchemaRevision"]:
+        raise RuntimeError("Release does not support the installed database schema")
+    available = current < manifest["_version"]
     write_state(root, currentVersion=current_version(root), latestVersion=manifest["version"],
                 targetVersion=manifest["version"] if available else None,
                 updateAvailable=available, channel=manifest["channel"], phase="available" if available else "idle",
@@ -505,6 +525,7 @@ def initialize(root: Path, hostname: Optional[str], image_version: str, build_da
         "WHEREHOUSE_HOSTNAME": hostname,
         "APPLIANCE_IMAGE_VERSION": image_version,
         "WHEREHOUSE_VERSION": image_version,
+        "WHEREHOUSE_SCHEMA_REVISION": str(CURRENT_SCHEMA_REVISION),
         "APPLIANCE_BUILD_DATE": build_date,
         "WHEREHOUSE_UPDATE_MANIFEST_URL": os.environ.get("WHEREHOUSE_UPDATE_MANIFEST_URL", ""),
     }
@@ -569,6 +590,7 @@ def install_release(root: Path, release: str) -> None:
     archive = root / "releases" / release / "wherehouse-runtime.tar"
     if not archive.is_file():
         raise RuntimeError(f"Release payload is missing: {archive}")
+    manifest = json.loads((archive.parent / "release.json").read_text())
     # Database migrations can be irreversible. Preserve a verified recovery artifact first.
     write_state(root, targetVersion=release, phase="backing_up", progress=40,
                 message="Creating verified backup")
@@ -599,10 +621,14 @@ def install_release(root: Path, release: str) -> None:
     try:
         write_state(root, phase="migrating", progress=70, message="Updating database")
         compose(root, "up", "migrate", check=True)
+        env["WHEREHOUSE_SCHEMA_REVISION"] = str(manifest["maximumSchemaRevision"])
+        atomic_write(env_path, "".join(f"{key}={value}\n" for key, value in env.items()))
         write_state(root, phase="restarting", progress=82, message="Restarting services")
         compose(root, "up", "-d", "--wait", check=True)
         write_state(root, phase="health_check", progress=92, message="Verifying installation")
         verify_http_services()
+        if manifest.get("validationScenario") == "fail-health":
+            raise subprocess.CalledProcessError(1, ["signed-failure-drill", "health"])
     except subprocess.CalledProcessError:
         env["WHEREHOUSE_VERSION"] = previous_version
         atomic_write(env_path, "".join(f"{key}={value}\n" for key, value in env.items()))
@@ -716,7 +742,9 @@ def serve(root: Path, socket_path: Path, public_key: Path) -> None:
     socket_path.unlink(missing_ok=True)
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(socket_path))
-    os.chmod(socket_path, 0o666)
+    # The API container runs as root and receives this socket explicitly. Do not grant every local
+    # account permission to trigger privileged lifecycle/storage operations.
+    os.chmod(socket_path, 0o660)
     server.listen(8)
     while True:
         connection, _ = server.accept()

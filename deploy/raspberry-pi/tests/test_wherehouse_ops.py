@@ -5,7 +5,7 @@ import unittest
 import json
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 MODULE_PATH = Path(__file__).parents[1] / "wherehouse-ops"
 SPEC = importlib.util.spec_from_loader(
@@ -105,6 +105,9 @@ class FirstBootTests(unittest.TestCase):
         manifest = {
             "schemaVersion": 1, "product": "WhereHouse", "version": "0.1.10",
             "channel": "stable", "architecture": "arm64", "minimumApplianceVersion": "0.1.0",
+            "minimumCurrentVersion": "0.1.0", "minimumSchemaRevision": 13,
+            "maximumSchemaRevision": 13, "migrationPolicy": "expand-contract",
+            "validationScenario": "normal",
             "runtimeUrl": "https://releases.example/wherehouse-runtime-0.1.10.tar",
             "runtimeSha256": "a" * 64, "runtimeSize": 123, "publishedAt": "2026-09-03T00:00:00Z",
             "releaseNotes": "Safer updates", "requiresReboot": False,
@@ -118,6 +121,10 @@ class FirstBootTests(unittest.TestCase):
                 ops.validate_manifest(invalid, "0.1.0")
         with self.assertRaisesRegex(RuntimeError, "newer appliance"):
             ops.validate_manifest(dict(manifest, minimumApplianceVersion="2.0.0"), "1.0.0")
+        with self.assertRaisesRegex(RuntimeError, "migration policy"):
+            ops.validate_manifest(dict(manifest, migrationPolicy="destructive"), "1.0.0")
+        with self.assertRaisesRegex(RuntimeError, "validation scenario"):
+            ops.validate_manifest(dict(manifest, validationScenario="shell"), "1.0.0")
 
     def test_download_is_atomic_and_rejects_partial_content(self):
         class Response:
@@ -144,6 +151,59 @@ class FirstBootTests(unittest.TestCase):
             state = json.loads((root / "config/update-state.json").read_text())
             self.assertEqual("downloading", state["phase"])
             self.assertEqual(42, state["progress"])
+
+    def test_manifest_discovery_rejects_unsupported_installed_schema(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            ops, "download"
+        ), patch.object(ops, "verify_signature"):
+            root = Path(directory)
+            (root / "config").mkdir()
+            (root / "config/appliance.env").write_text(
+                "APPLIANCE_IMAGE_VERSION=1.0.0\nWHEREHOUSE_VERSION=1.0.0\n"
+                "WHEREHOUSE_SCHEMA_REVISION=12\nWHEREHOUSE_UPDATE_MANIFEST_URL=https://example.test/release.json\n"
+            )
+            discovery = root / "releases/discovery"
+            discovery.mkdir(parents=True)
+            manifest = {
+                "schemaVersion": 1, "product": "WhereHouse", "version": "1.1.0",
+                "channel": "stable", "architecture": "arm64", "minimumApplianceVersion": "1.0.0",
+                "minimumCurrentVersion": "1.0.0", "minimumSchemaRevision": 13,
+                "maximumSchemaRevision": 13, "migrationPolicy": "expand-contract",
+                "validationScenario": "normal", "runtimeUrl": "https://example.test/runtime.tar",
+                "runtimeSha256": "a" * 64, "runtimeSize": 1,
+                "publishedAt": "2026-09-04T00:00:00Z", "releaseNotes": "test",
+                "requiresReboot": False, "signatureAlgorithm": "rsa-sha256",
+            }
+            (discovery / "release.json").write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(RuntimeError, "database schema"):
+                ops.fetch_manifest(root, root / "public.pem")
+
+    def test_signed_health_failure_drill_restores_previous_images_and_version(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            release_dir = root / "releases/1.1.0"
+            release_dir.mkdir(parents=True)
+            (release_dir / "wherehouse-runtime.tar").touch()
+            (release_dir / "release.json").write_text(json.dumps({
+                "validationScenario": "fail-health", "maximumSchemaRevision": 13
+            }))
+            (root / "config").mkdir()
+            (root / "config/appliance.env").write_text(
+                "APPLIANCE_IMAGE_VERSION=1.0.0\nWHEREHOUSE_VERSION=1.0.0\n"
+            )
+            completed = MagicMock()
+            completed.stdout = "sha256:previous\n"
+            with patch.object(ops, "validate_storage"), patch.object(
+                ops.subprocess, "run", return_value=completed
+            ) as run, patch.object(ops, "compose"), patch.object(ops, "verify_http_services"):
+                with self.assertRaisesRegex(RuntimeError, "Previous containers were restored"):
+                    ops.install_release(root, "1.1.0")
+            state = ops.read_state(root)
+            self.assertEqual("failed", state["phase"])
+            self.assertTrue(state["rollbackPerformed"])
+            self.assertEqual("1.0.0", ops.parse_env(root / "config/appliance.env")["WHEREHOUSE_VERSION"])
+            tag_calls = [call for call in run.call_args_list if call.args[0][:2] == ["docker", "tag"]]
+            self.assertEqual(4, len(tag_calls))
 
 
 if __name__ == "__main__":

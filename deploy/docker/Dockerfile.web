@@ -1,5 +1,8 @@
 FROM node:22-alpine AS build
 
+ARG WHEREHOUSE_VERSION=development
+ENV WHEREHOUSE_VERSION=${WHEREHOUSE_VERSION}
+
 WORKDIR /app
 RUN corepack enable
 

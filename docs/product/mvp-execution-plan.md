@@ -27,7 +27,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | Idempotent replay | Ready for validation | Stable persisted creation IDs, payload-conflict detection, uniqueness, retry classification, and restart recovery are implemented; timeout/race validation remains |
 | Realtime reconciliation | Implemented but needs hardening | Disconnect/reconnect/second-client convergence tests |
 | Backup and restore | In progress | Portable format, local/Dropbox adapters, provider-neutral status, web management, mobile health, verification and clean-restore path implemented; real PostgreSQL, SSD and Dropbox round trips remain |
-| Raspberry Pi deployment | Ready for physical validation | Image/build, first boot, mDNS, status, storage guards, lifecycle, and signed in-app application OTA orchestration are implemented; build/flash/Pi 4/5 and physical OTA evidence are absent |
+| Raspberry Pi deployment | Ready for physical validation | Image/build, first boot, mDNS, status, storage guards, lifecycle, signed in-app OTA, and protected tag-driven GitHub Release publishing are implemented; build/flash/Pi 4/5 and physical OTA evidence are absent |
 | Primary storage and basic NAS | Ready for physical validation | UUID/ext4 discovery, preparation, stopped-database migration, fail-closed startup, isolated authenticated SMB, and setup/Settings UX are implemented; USB/reboot/missing-drive and SMB client exercises remain |
 | Cloud deployment | Partially implemented | Guidance exists; not an MVP release substitute for supported local operation |
 | Application capabilities/actor context | Partially implemented | Create/update/delete/move item, container nesting, and identifiers lead; typed frontend feature actions now remove quick-create navigation coupling, while other route-owned location CRUD remains |
@@ -170,12 +170,13 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 - **Testing/docs:** automated initialization/secret/storage/API/UI coverage plus the dedicated
   [Raspberry Pi validation checklist](raspberry-pi-validation.md).
 - **Dependencies/non-goals:** phase 6 expectations; no Kubernetes, fleet manager, second database,
-  Pi-specific backup/API, universal credentials, or power-loss guarantees.
+  Pi-specific backup/API, universal credentials, or power-loss guarantees. Application OTA releases
+  require expand-contract migrations while the prior application remains a rollback target.
 - **Exit criteria:** a non-developer completes image-to-browser setup and recorded validation proves
   persistence, backup/restore, update and safe failure behavior.
-- **Risk/branch:** upstream tooling, hardware/storage and power variation; secure release payload
-  delivery/signing and standalone-image Imager customization remain incomplete.
-  `feature/mvp-pi-operations`.
+- **Risk/branch:** upstream tooling, hardware/storage and power variation; the protected release
+  workflow and physical signed N→N+1/rollback/reboot path remain unexecuted, and standalone-image
+  Imager customization remains incomplete. `feature/mvp-appliance-ota-production-readiness`.
 
 ## Phase 8: Future-readiness architecture gate
 

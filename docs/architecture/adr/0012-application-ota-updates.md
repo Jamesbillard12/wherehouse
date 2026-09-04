@@ -20,6 +20,11 @@ Application and appliance-image versions are independent after the first OTA. Ap
 API/web images, migrations, and compatible Compose configuration. OS, firmware, kernel, bootloader,
 Docker, and system packages require a future separate appliance mechanism.
 
+Production artifacts are immutable GitHub Release assets produced from an existing `vX.Y.Z` tag on a
+protected ARM64 runner. The signing private key exists only as a protected release-environment secret;
+the public verification key is embedded in the appliance. Tag-derived version injection is the
+canonical version source for manifest, container images, API, web bundle, and installed marker.
+
 ## Safety and limitations
 
 The host uses an advisory lifecycle lock, temporary downloads followed by atomic rename, signed
