@@ -19,6 +19,7 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
       WHEREHOUSE_RELEASE_SIGNING_KEY: ${{ runner.temp }}/wherehouse-release-private.pem
+      WHEREHOUSE_RELEASE_PUBLIC_KEY: ${{ runner.temp }}/wherehouse-release-public.pem
       WHEREHOUSE_RELEASE_BASE_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.event_name == 'push' && github.ref_name || inputs.tag }}/
       CI: "true"
     steps:
@@ -62,21 +63,29 @@ jobs:
           cd backend && uv run python -m pytest && uv run ruff check app tests
           corepack enable && pnpm install --frozen-lockfile
           pnpm --filter @wherehouse/web test && pnpm -r typecheck
-      - name: Materialize protected signing key
+      - name: Materialize and verify release keys
         env:
           RELEASE_SIGNING_KEY_PEM: ${{ secrets.WHEREHOUSE_RELEASE_SIGNING_KEY_PEM }}
+          RELEASE_PUBLIC_KEY_PEM: ${{ secrets.WHEREHOUSE_RELEASE_PUBLIC_KEY_PEM }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$RELEASE_SIGNING_KEY_PEM" || { echo 'Missing protected WHEREHOUSE_RELEASE_SIGNING_KEY_PEM secret' >&2; exit 1; }
+          test -n "$RELEASE_PUBLIC_KEY_PEM" || { echo 'Missing WHEREHOUSE_RELEASE_PUBLIC_KEY_PEM secret' >&2; exit 1; }
           umask 077
           printf '%s\n' "$RELEASE_SIGNING_KEY_PEM" > "$WHEREHOUSE_RELEASE_SIGNING_KEY"
+          printf '%s\n' "$RELEASE_PUBLIC_KEY_PEM" > "$WHEREHOUSE_RELEASE_PUBLIC_KEY"
+          private_fingerprint=$(openssl pkey -in "$WHEREHOUSE_RELEASE_SIGNING_KEY" -pubout -outform DER | openssl dgst -sha256 | awk '{print $2}')
+          public_fingerprint=$(openssl pkey -pubin -in "$WHEREHOUSE_RELEASE_PUBLIC_KEY" -outform DER | openssl dgst -sha256 | awk '{print $2}')
+          test -n "$private_fingerprint"
+          test "$private_fingerprint" = "$public_fingerprint" || { echo 'Release private key does not match appliance verification public key' >&2; exit 1; }
+          echo "Verified release key pair: $private_fingerprint"
       - name: Build and self-verify signed ARM64 release
         run: ./build-release.sh "${RELEASE_TAG#v}"
-      - name: Remove materialized signing key
+      - name: Remove materialized release keys
         if: ${{ always() }}
         shell: bash
-        run: rm -f -- "$WHEREHOUSE_RELEASE_SIGNING_KEY"
+        run: rm -f -- "$WHEREHOUSE_RELEASE_SIGNING_KEY" "$WHEREHOUSE_RELEASE_PUBLIC_KEY"
       - name: Publish immutable GitHub Release assets
         env:
           GH_TOKEN: ${{ github.token }}
