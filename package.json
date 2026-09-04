@@ -3,9 +3,24 @@
   "private": true,
   "packageManager": "pnpm@10.15.0",
   "scripts": {
+    "commands": "node ./scripts/commands.mjs",
+    "setup": "./setup.sh",
+    "dev": "./dev.sh",
     "dev:web": "pnpm --filter @wherehouse/web dev",
     "build:web": "pnpm --filter @wherehouse/web build",
     "dev:mobile": "pnpm --filter @wherehouse/mobile start",
+    "mobile": "./mobile.sh",
+    "ios:device": "./ios-device.sh",
+    "ios:simulator": "./ios-simulator.sh",
+    "docker:up": "./docker-up.sh",
+    "docker:stop": "./stop.sh",
+    "pi:build": "./build-pi.sh",
+    "pi:image": "./deploy/raspberry-pi/image/build-image.sh",
+    "pi:validate-rootfs": "./deploy/raspberry-pi/image/validate-rootfs.sh",
+    "pi:test": "python3 -m unittest discover -s deploy/raspberry-pi/tests -p 'test_*.py'",
+    "release:build": "./build-release.sh",
+    "release:publish": "sh -c './build-release.sh \"${1:-next}\" --publish' --",
+    "release:build:raw": "python3 ./deploy/raspberry-pi/release/build_release.py",
     "typecheck": "pnpm -r typecheck"
   }
 }
