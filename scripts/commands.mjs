@@ -12,6 +12,8 @@ const sections = [
   ]],
   ["Raspberry Pi", [
     ["pnpm pi:build [pi4|pi5]", "Build the next appliance image with the friendly wrapper"],
+    ["pnpm pi:build:remote [version|next]", "Trigger the GitHub Actions Pi image build on main"],
+    ["pnpm pi:build:remote:watch [version|next]", "Trigger the remote Pi image build and watch it until completion"],
     ["pnpm pi:image <version|next> <pi4|pi5>", "Call the low-level image builder directly"],
     ["pnpm pi:validate-rootfs <rootfs>", "Validate a generated appliance root filesystem"],
     ["pnpm pi:test", "Run Raspberry Pi appliance tests"],
