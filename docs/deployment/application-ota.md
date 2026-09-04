@@ -4,9 +4,12 @@
 
 Production releases are immutable GitHub Release assets built by
 `.github/workflows/application-release.yml` from a `vX.Y.Z` tag. The protected
-`appliance-release` GitHub environment must contain `WHEREHOUSE_RELEASE_SIGNING_KEY_PEM`. The workflow
-fails clearly when it is absent, materializes it only in runner temporary storage with owner-only
-permissions, signs the manifest, derives the public key, and verifies the signature before publishing.
+`appliance-release` GitHub environment must contain `WHEREHOUSE_RELEASE_SIGNING_KEY_PEM`. GitHub's
+hosted Ubuntu 24.04 ARM64 runner checks out the immutable tag, runs the release tests, and builds the
+native ARM64 runtime; publishing requires no Raspberry Pi or self-hosted Actions runner. The workflow
+fails clearly when the secret is absent, materializes it only in runner temporary storage with
+owner-only permissions for the build, removes it afterward, signs the manifest, derives the public
+key, and verifies the signature before publishing.
 
 Generate a 3072-bit RSA key offline, store the private PEM as that protected environment secret, and
 distribute only its public key in appliance images:
