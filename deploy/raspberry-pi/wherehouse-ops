@@ -30,10 +30,27 @@ ARCHITECTURE = "arm64"
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 STATE_NAME = "update-state.json"
 LOCK_NAME = "lifecycle.lock"
+STORAGE_STATE_NAME = "storage-state.json"
+STORAGE_MOUNT = Path("/mnt/wherehouse-storage")
+APPLIANCE_SOCKET = Path("/run/wherehouse/ops.sock")
+STORAGE_CONFIRMATION = "ERASE AND USE THIS DRIVE"
+NAS_SHARE = "Shared"
+NAS_USER_RE = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
+UUID_RE = re.compile(r"^[A-Fa-f0-9-]{4,64}$")
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def valid_filesystem_uuid(value: object) -> bool:
+    if not isinstance(value, str) or not UUID_RE.fullmatch(value):
+        return False
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return False
+    return True
 
 
 def semver(value: str) -> tuple[int, int, int]:
@@ -246,6 +263,226 @@ def parse_env(path: Path) -> dict[str, str]:
     )
 
 
+def storage_state_path(root: Path) -> Path:
+    return root / "config" / STORAGE_STATE_NAME
+
+
+def read_storage_state(root: Path) -> dict:
+    path = storage_state_path(root)
+    if not path.exists():
+        return {"schemaVersion": 1, "primary": "internal", "filesystemUuid": None,
+                "device": None, "phase": "healthy", "message": "Internal storage is ready",
+                "nas": {"enabled": False, "share": NAS_SHARE, "username": None}}
+    return json.loads(path.read_text())
+
+
+def write_storage_state(root: Path, state: dict) -> None:
+    atomic_write(storage_state_path(root), json.dumps(state, indent=2, sort_keys=True) + "\n")
+
+
+def _json_command(command: list[str]) -> object:
+    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    return json.loads(result.stdout)
+
+
+def _backing_disk(path: str) -> str:
+    source = subprocess.run(["findmnt", "-n", "-o", "SOURCE", "--target", path],
+                            check=True, capture_output=True, text=True).stdout.strip()
+    if source.startswith("/dev/"):
+        parent = subprocess.run(["lsblk", "-n", "-o", "PKNAME", source], check=True,
+                                capture_output=True, text=True).stdout.strip()
+        return f"/dev/{parent}" if parent else source
+    return source
+
+
+def _protected_devices() -> set[str]:
+    protected: set[str] = set()
+    for target in ("/", "/boot", "/boot/firmware"):
+        try:
+            source = subprocess.run(["findmnt", "-n", "-o", "SOURCE", "--target", target],
+                                    check=True, capture_output=True, text=True).stdout.strip()
+        except subprocess.CalledProcessError:
+            continue
+        if source.startswith("/dev/"):
+            protected.add(source)
+            protected.add(_backing_disk(target))
+    return protected
+
+
+def list_storage_devices(root: Path) -> list[dict]:
+    data = _json_command(["lsblk", "--json", "--bytes", "--paths", "--output",
+                          "NAME,KNAME,PKNAME,TYPE,SIZE,MODEL,VENDOR,TRAN,FSTYPE,UUID,SERIAL,WWN,MOUNTPOINTS"])
+    protected = _protected_devices()
+    active = read_storage_state(root)
+    devices = []
+    for disk in data.get("blockdevices", []):
+        if disk.get("type") != "disk":
+            continue
+        children = disk.get("children") or []
+        identities = {disk.get("name"), *(part.get("name") for part in children)}
+        is_protected = bool(identities & protected)
+        connection = (disk.get("tran") or "").lower()
+        identity_material = disk.get("wwn") or disk.get("serial")
+        selectable = connection == "usb" and not is_protected and bool(identity_material)
+        partitions = [{key: part.get(key) for key in ("name", "size", "fstype", "uuid", "mountpoints")}
+                      for part in children]
+        filesystem_uuid = next((part.get("uuid") for part in children if part.get("uuid")), disk.get("uuid"))
+        mountpoints = [point for item in [disk, *children] for point in (item.get("mountpoints") or []) if point]
+        usage = None
+        if mountpoints:
+            try:
+                disk_usage = shutil.disk_usage(mountpoints[0])
+                usage = {"totalBytes": disk_usage.total, "usedBytes": disk_usage.used,
+                         "freeBytes": disk_usage.free}
+            except OSError:
+                pass
+        stable_id = hashlib.sha256(f"{identity_material}|{disk.get('model')}|{disk.get('size')}".encode()).hexdigest()[:32]
+        devices.append({"id": stable_id, "devicePath": disk.get("name"), "model": (disk.get("model") or "").strip() or None,
+                        "vendor": (disk.get("vendor") or "").strip() or None,
+                        "capacityBytes": disk.get("size"), "connection": connection or None,
+                        "filesystem": next((part.get("fstype") for part in children if part.get("fstype")), disk.get("fstype")),
+                        "filesystemUuid": filesystem_uuid, "mountPoints": mountpoints,
+                        "partitions": partitions, "usage": usage, "primary": filesystem_uuid == active.get("filesystemUuid"),
+                        "selectable": selectable,
+                        "unselectableReason": "Operating system storage is protected" if is_protected else
+                        ("Only attached USB disks are supported" if connection != "usb" else
+                         ("The disk has no stable hardware identifier" if not identity_material else None))})
+    return devices
+
+
+def _selected_disk(root: Path, device_id: str) -> dict:
+    matches = [item for item in list_storage_devices(root) if item["id"] == device_id]
+    if len(matches) != 1 or not matches[0]["selectable"]:
+        raise RuntimeError("The selected disk is unavailable or protected")
+    return matches[0]
+
+
+def prepare_storage(root: Path, device_id: str, expected_id: str, confirmation: str) -> dict:
+    if confirmation != STORAGE_CONFIRMATION:
+        raise RuntimeError(f"Drive preparation requires exact confirmation: {STORAGE_CONFIRMATION}")
+    with LifecycleLock(root):
+        disk = _selected_disk(root, device_id)
+        device_path = disk["devicePath"]
+        if disk["id"] != expected_id or device_path in _protected_devices():
+            raise RuntimeError("Disk identity changed; preparation was cancelled")
+        state = read_storage_state(root)
+        state.update(phase="preparing", message="Preparing external storage")
+        write_storage_state(root, state)
+        subprocess.run(["wipefs", "--all", device_path], check=True)
+        subprocess.run(["parted", "--script", device_path, "mklabel", "gpt", "mkpart", "primary", "ext4", "0%", "100%"], check=True)
+        subprocess.run(["udevadm", "settle"], check=True)
+        refreshed = _selected_disk(root, device_id)
+        partition = next((part["name"] for part in refreshed["partitions"] if part["name"]), None)
+        if not partition:
+            raise RuntimeError("Prepared disk partition was not discovered")
+        subprocess.run(["mkfs.ext4", "-F", "-L", "wherehouse-storage", partition], check=True)
+        subprocess.run(["udevadm", "settle"], check=True)
+        refreshed = _selected_disk(root, device_id)
+        filesystem_uuid = refreshed.get("filesystemUuid")
+        if not valid_filesystem_uuid(filesystem_uuid):
+            raise RuntimeError("Prepared filesystem has no valid UUID")
+        state.update(phase="prepared", message="External storage is ready", device={k: disk[k] for k in ("id", "model", "vendor", "capacityBytes")}, filesystemUuid=filesystem_uuid)
+        write_storage_state(root, state)
+        return state
+
+
+def _mount_uuid(filesystem_uuid: str) -> None:
+    if not valid_filesystem_uuid(filesystem_uuid):
+        raise RuntimeError("Invalid filesystem UUID")
+    STORAGE_MOUNT.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["mount", "-t", "ext4", f"UUID={filesystem_uuid}", str(STORAGE_MOUNT)], check=True)
+
+
+def migrate_storage(root: Path, filesystem_uuid: str) -> dict:
+    if not valid_filesystem_uuid(filesystem_uuid):
+        raise RuntimeError("Invalid filesystem UUID")
+    with LifecycleLock(root):
+        state = read_storage_state(root)
+        original_state = dict(state)
+        fstab = Path("/etc/fstab")
+        original_fstab = fstab.read_text()
+        source = root.resolve()
+        state.update(phase="migrating", message="Moving application data")
+        write_storage_state(root, state)
+        compose(root, "down", check=False)
+        try:
+            _mount_uuid(filesystem_uuid)
+            application = STORAGE_MOUNT / "application"
+            shares = STORAGE_MOUNT / "shares"
+            backups = STORAGE_MOUNT / "backups"
+            for path, mode in ((application, 0o700), (shares, 0o750), (backups, 0o700)):
+                path.mkdir(parents=True, exist_ok=True, mode=mode)
+            subprocess.run(["rsync", "-aHAX", "--numeric-ids", f"{source}/", f"{application}/"], check=True)
+            verification = subprocess.run(["rsync", "-aHAXnc", "--delete", "--itemize-changes",
+                                           f"{source}/", f"{application}/"], check=True,
+                                          capture_output=True, text=True)
+            if verification.stdout.strip():
+                raise RuntimeError("Copied application data failed checksum verification")
+            if (source / "backups").exists():
+                subprocess.run(["rsync", "-aHAX", "--numeric-ids", f"{source / 'backups'}/", f"{backups}/"], check=True)
+                backup_verification = subprocess.run(
+                    ["rsync", "-aHAXnc", "--delete", "--itemize-changes", f"{source / 'backups'}/", f"{backups}/"],
+                    check=True, capture_output=True, text=True)
+                if backup_verification.stdout.strip():
+                    raise RuntimeError("Copied backups failed checksum verification")
+                shutil.rmtree(application / "backups")
+                (application / "backups").mkdir(mode=0o700)
+            if application.stat().st_dev == source.stat().st_dev:
+                raise RuntimeError("External storage did not mount on a distinct filesystem")
+            marker = "# WhereHouse primary storage"
+            lines = [line for line in fstab.read_text().splitlines()
+                     if marker not in line and str(STORAGE_MOUNT) not in line]
+            entries = (f"UUID={filesystem_uuid} {STORAGE_MOUNT} ext4 defaults,nofail,x-systemd.device-timeout=30 0 2 {marker}\n"
+                       f"{application} {root} none bind,x-systemd.requires-mounts-for={STORAGE_MOUNT} 0 0 {marker}\n"
+                       f"{backups} {root / 'backups'} none bind,x-systemd.requires-mounts-for={STORAGE_MOUNT} 0 0 {marker}\n")
+            atomic_write(fstab, "\n".join(lines) + "\n" + entries, 0o644)
+            state.update(primary="external", filesystemUuid=filesystem_uuid, phase="healthy", message="External storage is ready")
+            write_storage_state(application, state)
+            # Retain the external-primary marker on the SD copy as a fail-closed boot guard.
+            write_storage_state(root, state)
+            subprocess.run(["mount", "--bind", str(application), str(root)], check=True)
+            subprocess.run(["mount", "--bind", str(backups), str(root / "backups")], check=True)
+            compose(root, "up", "-d", "--wait")
+            verify_http_services()
+            return state
+        except Exception:
+            subprocess.run(["umount", str(root / "backups")], check=False)
+            subprocess.run(["umount", str(root)], check=False)
+            atomic_write(fstab, original_fstab, 0o644)
+            compose(root, "up", "-d", check=False)
+            original_state.update(phase="failed", message="Migration failed; internal storage was restored")
+            write_storage_state(root, original_state)
+            raise
+
+
+def configure_nas(root: Path, enabled: bool, username: str | None = None, password: str | None = None) -> dict:
+    with LifecycleLock(root):
+        state = read_storage_state(root)
+        if enabled:
+            if state.get("primary") != "external" or not STORAGE_MOUNT.is_mount():
+                raise RuntimeError("Network Storage requires healthy external primary storage")
+            if not username or not NAS_USER_RE.fullmatch(username):
+                raise RuntimeError("NAS username must start with a letter and contain only lowercase letters, numbers, _ or -")
+            if not password or len(password) < 12 or len(password) > 128:
+                raise RuntimeError("NAS password must contain 12 to 128 characters")
+            share = STORAGE_MOUNT / "shares" / NAS_SHARE
+            share.mkdir(parents=True, exist_ok=True, mode=0o750)
+            subprocess.run(["useradd", "--system", "--no-create-home", "--shell", "/usr/sbin/nologin", username], check=False)
+            subprocess.run(["chown", f"{username}:{username}", str(share)], check=True)
+            subprocess.run(["smbpasswd", "-s", "-a", username], input=f"{password}\n{password}\n", text=True, check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            config = f"""[global]\n   server role = standalone server\n   map to guest = Never\n   disable netbios = yes\n\n[{NAS_SHARE}]\n   path = {share}\n   valid users = {username}\n   read only = no\n   guest ok = no\n   follow symlinks = no\n   wide links = no\n"""
+            atomic_write(Path("/etc/samba/smb.conf"), config, 0o644)
+            subprocess.run(["testparm", "-s"], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(["systemctl", "enable", "--now", "smbd.service"], check=True)
+            state["nas"] = {"enabled": True, "share": NAS_SHARE, "username": username}
+        else:
+            subprocess.run(["systemctl", "disable", "--now", "smbd.service"], check=False)
+            state["nas"] = {"enabled": False, "share": NAS_SHARE, "username": state.get("nas", {}).get("username")}
+        write_storage_state(root, state)
+        return state
+
+
 def initialize(root: Path, hostname: Optional[str], image_version: str, build_date: str) -> bool:
     env_file = root / "config/appliance.env"
     existing = parse_env(env_file)
@@ -291,6 +528,16 @@ def initialize(root: Path, hostname: Optional[str], image_version: str, build_da
 def validate_storage(root: Path, minimum_free: int = 512 * 1024 * 1024) -> None:
     if not root.is_dir() or not os.access(root, os.W_OK):
         raise RuntimeError(f"Data directory is unavailable or not writable: {root}")
+    state = read_storage_state(root)
+    if state.get("primary") == "external":
+        expected = state.get("filesystemUuid")
+        try:
+            actual = subprocess.run(["findmnt", "-n", "-o", "UUID", "--target", str(root)],
+                                    check=True, capture_output=True, text=True).stdout.strip()
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError("Primary storage unavailable; reconnect the configured drive") from exc
+        if not expected or actual.lower() != str(expected).lower():
+            raise RuntimeError("Primary storage unavailable; the mounted drive identity is incorrect")
     free = shutil.disk_usage(root).free
     if free < minimum_free:
         raise RuntimeError(f"Insufficient free space in {root}: {free} bytes")
@@ -440,6 +687,29 @@ def _background_update(root: Path, public_key: Path) -> None:
         print(f"wherehouse-ops: background update failed: {exc}", file=sys.stderr)
 
 
+def appliance_status(root: Path) -> dict:
+    state = read_storage_state(root)
+    try:
+        usage = shutil.disk_usage(root)
+        state["usage"] = {"totalBytes": usage.total, "usedBytes": usage.used, "freeBytes": usage.free,
+                          "percentUsed": round(usage.used * 100 / usage.total, 1)}
+        if state.get("phase") == "healthy" and usage.free < 2 * 1024 * 1024 * 1024:
+            state.update(phase="low_space", message="Primary storage is running low on free space")
+    except OSError:
+        state["usage"] = None
+    state["devices"] = [{key: value for key, value in device.items() if key != "devicePath"}
+                        for device in list_storage_devices(root)]
+    state["mountPoint"] = str(STORAGE_MOUNT) if state.get("primary") == "external" else None
+    state["nas"]["server"] = f"{parse_env(root / 'config/appliance.env').get('WHEREHOUSE_HOSTNAME', 'wherehouse')}.local"
+    state["nas"]["address"] = f"smb://{state['nas']['server']}/{NAS_SHARE}"
+    if state.get("primary") == "external" and not STORAGE_MOUNT.is_mount():
+        state.update(phase="unavailable", message="Primary storage unavailable")
+        state["nas"]["available"] = False
+    else:
+        state["nas"]["available"] = bool(state["nas"].get("enabled"))
+    return state
+
+
 def serve(root: Path, socket_path: Path, public_key: Path) -> None:
     recover_interrupted_update(root)
     socket_path.parent.mkdir(parents=True, exist_ok=True)
@@ -452,7 +722,9 @@ def serve(root: Path, socket_path: Path, public_key: Path) -> None:
         connection, _ = server.accept()
         with connection:
             try:
-                command = connection.recv(4096).decode().strip()
+                raw = connection.recv(65536).decode().strip()
+                payload = json.loads(raw) if raw.startswith("{") else {"operation": raw}
+                command = payload.get("operation")
                 if command == "status":
                     response = {"ok": True, "status": read_state(root)}
                 elif command == "check":
@@ -464,6 +736,19 @@ def serve(root: Path, socket_path: Path, public_key: Path) -> None:
                         pass
                     start_update(root, public_key)
                     response = {"ok": True, "status": read_state(root)}
+                elif command == "storage.status":
+                    response = {"ok": True, "status": appliance_status(root)}
+                elif command == "storage.prepare":
+                    response = {"ok": True, "status": prepare_storage(
+                        root, payload.get("deviceId", ""), payload.get("expectedDeviceId", ""),
+                        payload.get("confirmation", ""))}
+                elif command == "storage.migrate":
+                    response = {"ok": True, "status": migrate_storage(root, payload.get("filesystemUuid", ""))}
+                elif command == "nas.enable":
+                    response = {"ok": True, "status": configure_nas(
+                        root, True, payload.get("username"), payload.get("password"))}
+                elif command == "nas.disable":
+                    response = {"ok": True, "status": configure_nas(root, False)}
                 else:
                     response = {"ok": False, "error": "Unsupported operation"}
             except Exception as exc:
@@ -517,8 +802,9 @@ def main() -> int:
     upgrade.add_argument("release", nargs="?")
     sub.add_parser("update-check")
     sub.add_parser("update-status")
+    sub.add_parser("storage-status")
     daemon = sub.add_parser("update-serve")
-    daemon.add_argument("--socket", type=Path, default=DEFAULT_ROOT / "config/update.sock")
+    daemon.add_argument("--socket", type=Path, default=APPLIANCE_SOCKET)
     parser.add_argument("--public-key", type=Path,
                         default=INSTALL_DIR / "deploy/raspberry-pi/update-public-key.pem")
     reset = sub.add_parser("factory-reset")
@@ -544,6 +830,8 @@ def main() -> int:
             print(json.dumps(read_state(args.root)))
         elif args.command == "update-status":
             print(json.dumps(read_state(args.root)))
+        elif args.command == "storage-status":
+            print(json.dumps(appliance_status(args.root)))
         elif args.command == "update-serve":
             serve(args.root, args.socket, args.public_key)
         elif args.command == "factory-reset":

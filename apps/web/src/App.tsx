@@ -76,7 +76,7 @@ export function App() {
     )
   }
   if (!token || !me) return <AuthScreen busy={loading} initialError={error} onAuthenticated={acceptToken} system={system} systemError={systemError} />
-  if (!workspaces.length) return <WorkspaceSetup system={system} user={me} onCreate={addWorkspace} onSignOut={signOut} />
+  if (!workspaces.length) return <WorkspaceSetup system={system} token={token} user={me} onCreate={addWorkspace} onSignOut={signOut} />
 
   const selected = workspaces.find((workspace) => workspace.id === selectedId) ?? workspaces[0]
   const membership = me.workspaces.find((access) => access.workspace_id === selected.id)

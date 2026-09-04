@@ -10,6 +10,12 @@ data; item/container images use the configured local-filesystem or S3-compatible
 Backup destinations receive only finalized portable artifacts. Never place live PostgreSQL files,
 WAL, SQLite databases, or mutable media directories in Dropbox or another consumer sync folder.
 
+On the Raspberry Pi appliance, `/var/lib/wherehouse` is the stable application-facing root. External
+primary storage uses ext4 mounted by UUID at `/mnt/wherehouse-storage`, with isolated `application/`,
+`backups/`, and `shares/` directories. Only `shares/Shared` may be exported by Samba; application
+data, PostgreSQL, configuration, secrets, backup artifacts, staging, and OTA state remain private.
+See [ADR 0013](adr/0013-primary-storage-and-smb.md).
+
 ## Implemented boundary
 
 `BackupService` depends on a four-operation `BackupProvider`: store, list, retrieve, and delete.

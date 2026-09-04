@@ -17,4 +17,7 @@ mmdebstrap:
     - nftables
     - openssh-server
     - openssl
+    - parted
+    - rsync
+    - samba
     - sudo

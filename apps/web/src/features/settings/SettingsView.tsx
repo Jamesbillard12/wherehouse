@@ -7,6 +7,11 @@ import {
   getSystemStatus,
   getUpdateStatus,
   installUpdate,
+  getStorageStatus,
+  prepareStorage,
+  migrateStorage,
+  enableNetworkStorage,
+  disableNetworkStorage,
   listDevices,
   revokeDevice,
   runRemoteBackup,
@@ -17,11 +22,14 @@ import {
   type MeResponse,
   type PairingSession,
   type SystemStatus,
+  type ApplianceStorageStatus,
 } from "@wherehouse/api-client";
 import {
   CircleUserRound,
   Cloud,
   Database,
+  HardDrive,
+  Network,
   House,
   Info,
   Laptop,
@@ -31,7 +39,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import QRCode from "qrcode";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -44,6 +52,8 @@ import type { SettingsSection } from "../../shared/utils/navigation";
 const sections: { id: SettingsSection; label: string; icon: typeof House }[] = [
   { id: "account", label: "Account", icon: CircleUserRound },
   { id: "workspaces", label: "Households", icon: House },
+  { id: "storage", label: "Storage", icon: HardDrive },
+  { id: "network-storage", label: "Network Storage", icon: Network },
   { id: "backups", label: "Backup & Restore", icon: Cloud },
   { id: "system", label: "System", icon: RefreshCw },
   { id: "preferences", label: "Preferences", icon: Palette },
@@ -107,6 +117,10 @@ export function SettingsView({
             />
           ) : section === "backups" ? (
             <Backups isOwner={isOwner} token={token} />
+          ) : section === "storage" ? (
+            <StorageSettings isOwner={isOwner} token={token} />
+          ) : section === "network-storage" ? (
+            <NetworkStorageSettings isOwner={isOwner} token={token} />
           ) : section === "system" ? (
             <SoftwareUpdate isOwner={isOwner} token={token} />
           ) : section === "preferences" ? (
@@ -126,6 +140,76 @@ const activeUpdatePhases = new Set<ApplianceUpdateStatus["phase"]>([
   "checking", "downloading", "verifying", "backing_up", "installing",
   "migrating", "restarting", "health_check", "rollback",
 ]);
+
+function useStorageStatus(token: string) {
+  const [status, setStatus] = useState<ApplianceStorageStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const refresh = () => getStorageStatus(token).then((value) => { setStatus(value); setError(null); return value; })
+    .catch((reason) => { setError(message(reason)); return null; });
+  useEffect(() => { void refresh(); }, [token]);
+  return { status, error, setError, refresh };
+}
+
+function StorageSettings({ isOwner, token }: { isOwner: boolean; token: string }) {
+  const { status, error, setError, refresh } = useStorageStatus(token);
+  const [confirmation, setConfirmation] = useState("");
+  const [busy, setBusy] = useState(false);
+  const primaryDevice = status?.devices.find((drive) => drive.primary);
+  async function prepare(deviceId: string) {
+    setBusy(true); setError(null);
+    try { const prepared = await prepareStorage(token, deviceId, confirmation); if (prepared.filesystemUuid) await migrateStorage(token, prepared.filesystemUuid); await refresh(); setConfirmation(""); }
+    catch (reason) { setError(message(reason)); } finally { setBusy(false); }
+  }
+  return <>
+    <p className="eyebrow">Appliance data</p><h2>Storage</h2>
+    <div className="settings-card"><h3>Primary storage</h3>
+      <p><strong>{status?.primary === "external" ? "External USB drive" : "Internal SD card"}</strong></p>
+      {primaryDevice ? <p>{primaryDevice.vendor ? `${primaryDevice.vendor} ` : ""}{primaryDevice.model ?? "USB drive"}<br />
+        {(primaryDevice.capacityBytes / 1_000_000_000).toFixed(0)} GB · {primaryDevice.filesystem ?? "Unknown filesystem"}
+        {primaryDevice.usage ? <><br />{(primaryDevice.usage.usedBytes / 1_000_000_000).toFixed(1)} GB used · {(primaryDevice.usage.freeBytes / 1_000_000_000).toFixed(1)} GB free</> : null}</p> : null}
+      <p className="muted">{status?.message ?? "Loading storage status…"}</p>
+      {status?.usage ? <p>{(status.usage.totalBytes / 1_000_000_000).toFixed(1)} GB total · {(status.usage.usedBytes / 1_000_000_000).toFixed(1)} GB used · {(status.usage.freeBytes / 1_000_000_000).toFixed(1)} GB free ({status.usage.percentUsed}% used)</p> : null}
+      {status?.filesystemUuid ? <small>Filesystem ID {status.filesystemUuid}</small> : null}
+    </div>
+    {status?.primary === "internal" ? <div className="settings-card"><h3>Attached USB drives</h3>
+      <p className="muted">Preparing a drive erases it completely, then safely stops and moves PostgreSQL, uploads, configuration, backups, and update state. The original SD copy is retained.</p>
+      {status.devices.filter((drive) => drive.selectable).map((drive) => <div className="backup-destination-header" key={drive.id}>
+        <div><strong>{drive.model ?? "USB drive"}</strong><small>{(drive.capacityBytes / 1_000_000_000).toFixed(0)} GB · {drive.filesystem ?? "Unformatted"}</small></div>
+        {isOwner ? <Button disabled={busy || confirmation !== "ERASE AND USE THIS DRIVE"} onClick={() => void prepare(drive.id)}>Prepare &amp; Migrate</Button> : null}
+      </div>)}
+      {isOwner && status.devices.some((drive) => drive.selectable) ? <label>Type <strong>ERASE AND USE THIS DRIVE</strong> to confirm<input autoComplete="off" onChange={(event) => setConfirmation(event.target.value)} value={confirmation} /></label> : null}
+      {!status.devices.some((drive) => drive.selectable) ? <p>No supported USB HDD or SSD is attached. Operating-system disks are never selectable.</p> : null}
+    </div> : null}
+    {error ? <div className="alert">{error}</div> : null}
+  </>;
+}
+
+function NetworkStorageSettings({ isOwner, token }: { isOwner: boolean; token: string }) {
+  const { status, error, setError, refresh } = useStorageStatus(token);
+  const [busy, setBusy] = useState(false);
+  async function enable(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
+    const password = String(data.get("password")); const confirmation = String(data.get("passwordConfirmation"));
+    if (password !== confirmation) { setError("Passwords do not match."); return; }
+    setBusy(true); setError(null);
+    try { await enableNetworkStorage(token, String(data.get("username")), password); form.reset(); await refresh(); }
+    catch (reason) { setError(message(reason)); } finally { setBusy(false); }
+  }
+  async function disable() { setBusy(true); try { await disableNetworkStorage(token); await refresh(); } catch (reason) { setError(message(reason)); } finally { setBusy(false); } }
+  return <>
+    <p className="eyebrow">Authenticated SMB sharing</p><h2>Network Storage</h2>
+    <div className="settings-card"><h3>Status: {status?.nas.enabled ? "Enabled" : "Disabled"}</h3>
+      {status?.nas.enabled ? <><p>Server <strong>{status.nas.server}</strong><br />Protocol <strong>SMB</strong><br />Share <strong>Shared</strong></p><p><code>{status.nas.address}</code><br /><code>\\\\{status.nas.server}\\Shared</code></p>
+        {isOwner ? <><form onSubmit={(event) => void enable(event)}><input name="username" type="hidden" value={status.nas.username ?? ""} /><label>New password<input autoComplete="new-password" minLength={12} name="password" required type="password" /></label><label>Confirm new password<input autoComplete="new-password" minLength={12} name="passwordConfirmation" required type="password" /></label><Button disabled={busy} type="submit">Change Password</Button></form><Button disabled={busy} onClick={() => void disable()}>Disable Network Storage</Button></> : null}</> : status?.primary !== "external" ?
+        <p>Network Storage requires an external primary drive so ordinary files never fill the appliance SD card.</p> :
+        <form onSubmit={(event) => void enable(event)}><p>Only <strong>Shared</strong> is exposed. WhereHouse application data, PostgreSQL, secrets, and backups remain private.</p>
+          <label>Username<input autoCapitalize="none" autoComplete="username" name="username" pattern="[a-z][a-z0-9_-]{0,30}" required /></label>
+          <label>Password<input autoComplete="new-password" minLength={12} name="password" required type="password" /></label>
+          <label>Confirm password<input autoComplete="new-password" minLength={12} name="passwordConfirmation" required type="password" /></label>
+          {isOwner ? <Button className="primary-button" disabled={busy} type="submit">Enable Network Storage</Button> : null}</form>}
+    </div>{error ? <div className="alert">{error}</div> : null}
+  </>;
+}
 
 export function SoftwareUpdate({ isOwner, token }: { isOwner: boolean; token: string }) {
   const [status, setStatus] = useState<ApplianceUpdateStatus | null>(null);

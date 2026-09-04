@@ -14,6 +14,7 @@ ADRs capture decisions whose consequences cross features or adapters.
 - [ADR-0010: Workspace is the top-level inventory boundary](0010-workspace-domain.md)
 - [ADR-0011: Package the canonical deployment as a Raspberry Pi appliance](0011-raspberry-pi-appliance.md)
 - [ADR-0012: Host-controlled signed application OTA updates](0012-application-ota-updates.md)
+- [ADR-0013: UUID-backed appliance storage and isolated SMB sharing](0013-primary-storage-and-smb.md)
 
 Status meanings: **Accepted** guides current work; **Proposed** needs validation or owner input
 before implementation. Supersede an ADR rather than silently rewriting an accepted decision.

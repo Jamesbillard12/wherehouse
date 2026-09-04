@@ -33,6 +33,10 @@ and post-MVP implementations are distinct; do not turn future adapters into curr
   path to arbitrary-depth locations. Spatial metadata stays optional and technology-neutral.
 - Keep backup orchestration provider-neutral. Never put live PostgreSQL files in consumer sync folders
   such as Dropbox/Drive/OneDrive. Preserve Pi-class/local operation and external-SSD compatibility.
+- Identify appliance disks by stable hardware identity and mount external primary storage by filesystem
+  UUID, never `/dev/sdX`. Root/boot protection and destructive confirmation must be enforced by the
+  privileged host boundary. Missing primary storage fails closed. SMB is opt-in and may expose only
+  allowlisted share roots that are separate from application data, PostgreSQL, secrets, and backups.
 - Use migrations, additive evolution and explicit repository boundaries. Treat inventory as private:
   validate untrusted input, authorize every capability and avoid logging household contents.
 - Do not create empty future abstractions, microservices, workflow systems or brokers without a real

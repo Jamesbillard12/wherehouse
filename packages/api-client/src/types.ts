@@ -86,6 +86,22 @@ export type SystemStatus = {
   storage: StorageHealth
   account_count: number
   workspace_count: number
+  capabilities: { storageManagement: boolean; networkStorage: boolean }
+}
+
+export type StorageDevice = {
+  id: string; model: string | null; vendor: string | null; capacityBytes: number
+  connection: string | null; filesystem: string | null; filesystemUuid: string | null
+  mountPoints: string[]; usage: { totalBytes: number; usedBytes: number; freeBytes: number } | null
+  primary: boolean; selectable: boolean; unselectableReason: string | null
+}
+
+export type ApplianceStorageStatus = {
+  schemaVersion: 1; primary: 'internal' | 'external'; filesystemUuid: string | null
+  phase: 'healthy' | 'low_space' | 'preparing' | 'prepared' | 'migrating' | 'unavailable' | 'failed'
+  message: string; devices: StorageDevice[]; mountPoint: string | null
+  usage: { totalBytes: number; usedBytes: number; freeBytes: number; percentUsed: number } | null
+  nas: { enabled: boolean; available: boolean; share: 'Shared'; username: string | null; server: string; address: string }
 }
 
 export type UpdatePhase = 'idle' | 'checking' | 'available' | 'downloading' | 'verifying' |

@@ -42,6 +42,7 @@ class SystemStatus:
     storage: StorageHealth
     account_count: int
     workspace_count: int
+    capabilities: dict[str, bool]
 
     def public_dict(self) -> dict:
         return asdict(self)
@@ -106,6 +107,8 @@ async def read_system_status(session: AsyncSession, settings: Settings) -> Syste
         storage=storage,
         account_count=account_count,
         workspace_count=workspace_count,
+        capabilities={"storageManagement": settings.storage_management_enabled,
+                      "networkStorage": settings.storage_management_enabled},
     )
 
 

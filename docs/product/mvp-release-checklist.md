@@ -97,6 +97,10 @@ automated tests are implementation evidence only; keep these rows unchecked unti
 - [ ] Stable instance identity/secrets through reboot; no credentials embedded in release image
 - [ ] mDNS discovery and device-IP fallback
 - [ ] SD, USB SSD, mounted storage, missing/unwritable/full-disk behavior
+- [ ] First-run internal/external choice, explicit erase confirmation, UUID migration, retained SD
+  recovery copy, changed device ordering, and missing/wrong-drive fail-closed behavior
+- [ ] First-run NAS skip and enable paths; later Settings enable/password-change/disable; authenticated
+  macOS and Windows `Shared` access, reboot persistence, and private application/backup isolation
 - [ ] Backup-gated update and failed-health/schema recovery exercise
 
 ## Backup and restore
