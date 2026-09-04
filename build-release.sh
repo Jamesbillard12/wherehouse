@@ -98,6 +98,10 @@ if [ -f "$signing_key" ]; then
   export WHEREHOUSE_RELEASE_SIGNING_KEY="$signing_key"
 fi
 
+if [ -z "${WHEREHOUSE_RELEASE_BASE_URL:-}" ]; then
+  export WHEREHOUSE_RELEASE_BASE_URL="https://github.com/Jamesbillard12/wherehouse/releases/download/v$version/"
+fi
+
 if [ -f "$signing_key" ] && [ -f "$verification_key" ]; then
   command -v openssl >/dev/null 2>&1 || { echo "OpenSSL is required to verify the release key pair" >&2; exit 1; }
   private_fingerprint=$(openssl pkey -in "$signing_key" -pubout -outform DER 2>/dev/null | openssl dgst -sha256 | awk '{print $2}')
