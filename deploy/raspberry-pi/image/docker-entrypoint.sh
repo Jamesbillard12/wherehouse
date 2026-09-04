@@ -73,6 +73,21 @@ if [ -d "$generator/work/cache" ]; then cp -a "$generator/work/cache/." /image-c
 image=$(find "$generator/work" -type f -name "wherehouse-$device.img" -print | sort | tail -1)
 test -n "$image"
 
+# Validate the generated root filesystem directly before packaging. This keeps
+# structural appliance validation independent of the host kernel's ability to
+# mount the final ext4 filesystem. Pi 5 images use 16 KiB ext4 blocks, while
+# GitHub-hosted ARM64 runners currently expose a kernel limited to 4 KiB blocks.
+generated_rootfs=$(find "$generator/work" -type d -path '*/filesystem' -print | sort | tail -1)
+test -n "$generated_rootfs"
+expected_ssh_key=
+if [ "${WHEREHOUSE_SSH_MODE:-disabled}" = key ]; then
+  expected_ssh_key=/run/wherehouse-ssh-key.pub
+fi
+"$repository/deploy/raspberry-pi/image/validate-rootfs.sh" \
+  "$generated_rootfs" "$version" "${WHEREHOUSE_SSH_MODE:-disabled}" \
+  "$expected_ssh_key" \
+  "${WHEREHOUSE_UPDATE_MODE:-disabled}"
+
 partition_geometry() {
   python3 - "$image" "$1" <<'PY'
 import json
@@ -110,13 +125,11 @@ root_loop=$(losetup --find --show \
   --sizelimit $((root_size * root_sector_size)) \
   "$image")
 boot_mount=$(mktemp -d)
-root_mount=$(mktemp -d)
 cleanup_image_mounts() {
-  umount "$root_mount" 2>/dev/null || true
   umount "$boot_mount" 2>/dev/null || true
   losetup -d "$root_loop" 2>/dev/null || true
   losetup -d "$boot_loop" 2>/dev/null || true
-  rmdir "$root_mount" "$boot_mount" 2>/dev/null || true
+  rmdir "$boot_mount" 2>/dev/null || true
 }
 trap 'cleanup_image_mounts; rm -rf "$stage"' EXIT INT TERM
 
@@ -125,40 +138,57 @@ root_uuid=$(blkid -s UUID -o value "$root_loop")
 test -n "$boot_uuid"
 test -n "$root_uuid"
 
+# The boot partition is FAT and can be mounted on all supported build hosts.
 mount "$boot_loop" "$boot_mount"
-mount "$root_loop" "$root_mount"
 cmdline="$boot_mount/cmdline.txt"
-fstab="$root_mount/etc/fstab"
 test -f "$cmdline"
-test -f "$fstab"
 sed -i "s#root=/dev/disk/by-slot/system#root=UUID=$root_uuid#g" "$cmdline"
-sed -i "s#/dev/disk/by-slot/system#UUID=$root_uuid#g" "$fstab"
-sed -i "s#/dev/disk/by-slot/boot#UUID=$boot_uuid#g" "$fstab"
-if grep -q '/dev/disk/by-slot/' "$cmdline" "$fstab"; then
-  echo "Generated image still depends on /dev/disk/by-slot aliases" >&2
+if grep -q '/dev/disk/by-slot/' "$cmdline"; then
+  echo "Generated kernel command line still depends on /dev/disk/by-slot aliases" >&2
   exit 1
 fi
 if ! grep -q "root=UUID=$root_uuid" "$cmdline"; then
   echo "Generated kernel command line is missing root filesystem UUID" >&2
   exit 1
 fi
-if ! grep -q "UUID=$root_uuid[[:space:]]\+/[[:space:]]" "$fstab"; then
+sync
+umount "$boot_mount"
+
+# Read and update /etc/fstab with e2fsprogs instead of mounting the root
+# filesystem. debugfs reads ext4 directly and therefore works with the Pi 5's
+# 16 KiB block size even when the host kernel cannot mount that filesystem.
+fstab_tmp=$(mktemp)
+patched_fstab=$(mktemp)
+debugfs -R "dump -p /etc/fstab $fstab_tmp" "$root_loop" >/dev/null 2>&1
+test -s "$fstab_tmp"
+sed \
+  -e "s#/dev/disk/by-slot/system#UUID=$root_uuid#g" \
+  -e "s#/dev/disk/by-slot/boot#UUID=$boot_uuid#g" \
+  "$fstab_tmp" > "$patched_fstab"
+if grep -q '/dev/disk/by-slot/' "$patched_fstab"; then
+  echo "Generated fstab still depends on /dev/disk/by-slot aliases" >&2
+  exit 1
+fi
+if ! grep -q "UUID=$root_uuid[[:space:]]\+/[[:space:]]" "$patched_fstab"; then
   echo "Generated fstab is missing root filesystem UUID" >&2
   exit 1
 fi
-if ! grep -q "UUID=$boot_uuid[[:space:]]\+/boot/firmware[[:space:]]" "$fstab"; then
+if ! grep -q "UUID=$boot_uuid[[:space:]]\+/boot/firmware[[:space:]]" "$patched_fstab"; then
   echo "Generated fstab is missing boot filesystem UUID" >&2
   exit 1
 fi
-sync
-expected_ssh_key=
-if [ "${WHEREHOUSE_SSH_MODE:-disabled}" = key ]; then
-  expected_ssh_key=/run/wherehouse-ssh-key.pub
-fi
-"$repository/deploy/raspberry-pi/image/validate-rootfs.sh" \
-  "$root_mount" "$version" "${WHEREHOUSE_SSH_MODE:-disabled}" \
-  "$expected_ssh_key" \
-  "${WHEREHOUSE_UPDATE_MODE:-disabled}"
+
+debugfs -w -R "rm /etc/fstab" "$root_loop" >/dev/null 2>&1
+debugfs -w -R "write $patched_fstab /etc/fstab" "$root_loop" >/dev/null 2>&1
+debugfs -w -R "set_inode_field /etc/fstab mode 0100644" "$root_loop" >/dev/null 2>&1
+verified_fstab=$(mktemp)
+debugfs -R "dump -p /etc/fstab $verified_fstab" "$root_loop" >/dev/null 2>&1
+cmp -s "$patched_fstab" "$verified_fstab" || {
+  echo "Generated fstab verification failed after writing filesystem UUIDs" >&2
+  exit 1
+}
+rm -f "$fstab_tmp" "$patched_fstab" "$verified_fstab"
+
 cleanup_image_mounts
 trap 'rm -rf "$stage"' EXIT INT TERM
 
