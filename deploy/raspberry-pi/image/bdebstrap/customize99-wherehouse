@@ -17,6 +17,9 @@ command -v dockerd >/dev/null 2>&1 || {
   echo "WhereHouse image is missing the Docker daemon" >&2
   exit 1
 }
+command -v smbd >/dev/null 2>&1 || { echo "WhereHouse image is missing Samba" >&2; exit 1; }
+command -v testparm >/dev/null 2>&1 || { echo "WhereHouse image is missing Samba validation" >&2; exit 1; }
+command -v parted >/dev/null 2>&1 || { echo "WhereHouse image is missing disk preparation tools" >&2; exit 1; }
 docker compose version >/dev/null 2>&1 || {
   echo "WhereHouse image is missing Docker Compose v2" >&2
   exit 1
@@ -32,8 +35,16 @@ systemctl enable avahi-daemon.service
 systemctl enable wherehouse.service
 systemctl enable wherehouse-update.service
 systemctl enable wherehouse-avahi.service
+systemctl disable smbd.service nmbd.service 2>/dev/null || true
 systemctl enable ssh.service
 mkdir -p -m 0700 /var/lib/wherehouse
+mkdir -p -m 0750 /mnt/wherehouse-storage
+install -d -m 0755 /etc/systemd/system/smbd.service.d
+cat > /etc/systemd/system/smbd.service.d/wherehouse-storage.conf <<'SMBUNIT'
+[Unit]
+RequiresMountsFor=/mnt/wherehouse-storage
+After=wherehouse.service
+SMBUNIT
 
 if [ -f /etc/wherehouse-build/ssh-authorized-key ]; then
   if ! id wherehouse >/dev/null 2>&1; then

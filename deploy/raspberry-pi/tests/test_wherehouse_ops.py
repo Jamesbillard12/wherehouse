@@ -17,6 +17,36 @@ SPEC.loader.exec_module(ops)
 
 
 class FirstBootTests(unittest.TestCase):
+    def test_storage_discovery_excludes_root_and_accepts_usb_without_sdx_assumption(self):
+        blockdevices = {"blockdevices": [
+            {"name": "/dev/mmcblk0", "type": "disk", "size": 32, "tran": None, "serial": "root-disk",
+             "children": [{"name": "/dev/mmcblk0p2", "size": 30, "type": "part", "uuid": "root", "mountpoints": ["/"]}]},
+            {"name": "/dev/nvme9n1", "type": "disk", "size": 4_000, "tran": "usb", "model": "External SSD", "serial": "usb-123",
+             "children": [{"name": "/dev/nvme9n1p1", "size": 4_000, "type": "part", "fstype": "ext4", "uuid": "abcd-1234", "mountpoints": []}]},
+        ]}
+        with tempfile.TemporaryDirectory() as directory, patch.object(ops, "_json_command", return_value=blockdevices), patch.object(
+            ops, "_protected_devices", return_value={"/dev/mmcblk0", "/dev/mmcblk0p2"}
+        ):
+            devices = ops.list_storage_devices(Path(directory))
+        self.assertFalse(devices[0]["selectable"])
+        self.assertEqual("Operating system storage is protected", devices[0]["unselectableReason"])
+        self.assertTrue(devices[1]["selectable"])
+        self.assertEqual("abcd-1234", devices[1]["filesystemUuid"])
+
+    def test_destructive_storage_confirmation_and_uuid_validation_are_strict(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(RuntimeError, "exact confirmation"):
+                ops.prepare_storage(Path(directory), "/dev/usb", "/dev/usb", "yes")
+            with self.assertRaisesRegex(RuntimeError, "Invalid filesystem UUID"):
+                ops.migrate_storage(Path(directory), "$(touch /tmp/nope)")
+
+    def test_nas_is_disabled_by_default_and_credentials_are_validated_before_commands(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertFalse(ops.read_storage_state(root)["nas"]["enabled"])
+            with self.assertRaisesRegex(RuntimeError, "external primary storage"):
+                ops.configure_nas(root, True, "valid_user", "long-enough-password")
+
     def test_initialization_is_idempotent_and_persists_secrets(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -24,6 +24,18 @@ timings, and observed result for every row. Automated evidence never completes a
 ## Storage, backup, and restore
 
 - [ ] Boot and operate from supported USB SSD media.
+- [ ] In first run, choose internal SD and skip Network Storage; confirm setup completes normally.
+- [ ] Attach a USB HDD/SSD; confirm model/capacity and that root, boot, and their parent disk are absent.
+- [ ] Cancel the erase warning and verify no change; then type the exact confirmation, prepare ext4,
+  migrate, and verify PostgreSQL, uploads, appliance configuration, and OTA state.
+- [ ] Reboot with changed USB enumeration order and confirm the UUID-selected disk/data return.
+- [ ] Boot once with the configured disk absent and once with a wrong disk; confirm PostgreSQL and
+  Samba fail closed with no empty fallback data/share. Reconnect the correct disk and recover.
+- [ ] Enable Network Storage in first run and separately after skipping it via Settings. From macOS
+  Finder connect to `smb://wherehouse.local/Shared`; from Windows connect to
+  `\\wherehouse.local\Shared`. Authenticate, create/read/rename/delete a file, reboot, and verify it.
+- [ ] Disable and re-enable SMB; confirm only `Shared` is visible and application data, PostgreSQL,
+  configuration, secrets, backups, and OS paths cannot be reached.
 - [ ] Test generic external storage: read/write, removal, missing-at-boot, reconnect, permissions,
   low-space, and full-space behavior.
 - [ ] Create/verify local, external, and (when credentials exist) Dropbox `.whbackup` artifacts.

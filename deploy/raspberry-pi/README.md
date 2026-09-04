@@ -142,10 +142,25 @@ first-boot provisioning mechanism is implemented.
 
 ## Data, external storage, and backup
 
-The default data root is `/var/lib/wherehouse`. For an external data disk, mount its filesystem there
-by UUID before starting WhereHouse; never use transient `/dev/sdX` names. Alternatively, keep live data
-internal and configure a mounted backup disk through the existing provider-neutral CLI. Never place
-live PostgreSQL data in Dropbox or another sync-provider directory.
+The default data root is `/var/lib/wherehouse`. Settings → Storage can prepare a USB HDD/SSD as ext4
+and migrate the complete private data root without SSH. The disk mounts by filesystem UUID at
+`/mnt/wherehouse-storage`; `application/` is bind-mounted at `/var/lib/wherehouse`. The guided flow
+derives and protects the active root/boot backing disk and never relies on transient `/dev/sdX` names.
+
+If the configured disk is absent or has the wrong UUID, startup fails closed with “Primary storage
+unavailable”; PostgreSQL is not initialized on the SD card. Power down, reconnect the correct disk,
+and boot again. Never remove primary storage while the appliance is running.
+
+After external primary storage is healthy, first-run setup or Settings → Network Storage can enable
+the authenticated `Shared` SMB share. On macOS use Finder → Go → Connect to Server and
+`smb://wherehouse.local/Shared`; on Windows use `\\wherehouse.local\Shared`. The credential is separate
+from the WhereHouse account. NAS is opt-in and exposes only `shares/Shared`; application data and
+backups remain private. Internal-SD NAS is unsupported for MVP so shared files cannot silently fill
+the boot disk.
+
+Alternatively, keep live data internal and configure a mounted backup disk through the existing
+provider-neutral CLI. Primary storage is not a backup; a same-disk backup cannot protect against disk
+failure. Never place live PostgreSQL data in Dropbox or another sync-provider directory.
 
 Missing, unwritable, or critically full storage prevents startup or known-dangerous backup/update
 work. WhereHouse never deletes inventory to reclaim space. Backup retention stays in the existing

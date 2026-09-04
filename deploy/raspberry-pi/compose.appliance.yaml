@@ -21,6 +21,7 @@ services:
       APPLIANCE_BUILD_DATE: ${APPLIANCE_BUILD_DATE}
       APPLIANCE_HOSTNAME: ${WHEREHOUSE_HOSTNAME}.local
       APPLIANCE_DATA_DIR: /data
+      STORAGE_MANAGEMENT_ENABLED: "true"
       IMAGE_STORAGE_BACKEND: local
       UPLOAD_DIR: /data/uploads
       PUBLIC_BASE_URL: http://${WHEREHOUSE_HOSTNAME}.local
@@ -37,6 +38,7 @@ services:
     environment: *appliance-environment
     volumes:
       - ${WHEREHOUSE_DATA_DIR}:/data
+      - /run/wherehouse:/run/wherehouse
 
   web:
     restart: unless-stopped

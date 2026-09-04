@@ -126,6 +126,8 @@ class ImageBuilderTests(unittest.TestCase):
         ).read_text()
         self.assertIn("    - docker-compose\n", layer)
         self.assertNotIn("docker-compose-plugin", layer)
+        self.assertIn("    - samba\n", layer)
+        self.assertIn("    - parted\n", layer)
 
     def test_appliance_initialization_runs_after_rootfs_overlay(self):
         layer = (

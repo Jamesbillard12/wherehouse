@@ -6,6 +6,8 @@ Requires=docker.service
 
 [Service]
 Type=simple
+RuntimeDirectory=wherehouse
+RuntimeDirectoryMode=0755
 ExecStart=/opt/wherehouse/deploy/raspberry-pi/wherehouse-ops update-serve
 Restart=on-failure
 RestartSec=5
