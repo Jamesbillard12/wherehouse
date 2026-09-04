@@ -11,7 +11,7 @@ const sections = [
     ["pnpm docker:stop", "Stop the Docker stack"],
   ]],
   ["Raspberry Pi", [
-    ["pnpm pi:build [pi4|pi5]", "Build the next appliance image with the friendly wrapper"],
+    ["pnpm pi:build [pi4|pi5]", "Build the next appliance image with OTA enabled using the canonical verification key"],
     ["pnpm pi:build:remote [version|next]", "Trigger the GitHub Actions Pi image build on main"],
     ["pnpm pi:build:remote:watch [version|next]", "Trigger the remote Pi image build and watch it until completion"],
     ["pnpm pi:image <version|next> <pi4|pi5>", "Call the low-level image builder directly"],
@@ -19,8 +19,8 @@ const sections = [
     ["pnpm pi:test", "Run Raspberry Pi appliance tests"],
   ]],
   ["Release", [
-    ["pnpm release:build [version|next]", "Build signed application release artifacts without publishing"],
-    ["pnpm release:publish [version|next]", "Build, tag, push, create the GitHub Release, and upload release assets"],
+    ["pnpm release:build [version|next]", "Build signed application release artifacts locally with the canonical key pair"],
+    ["pnpm release:publish [version|next]", "Create/push the release tag; GitHub Actions signs and publishes the OTA assets"],
     ["pnpm release:build:raw <version>", "Call the Python release builder directly"],
   ]],
   ["Quality", [
