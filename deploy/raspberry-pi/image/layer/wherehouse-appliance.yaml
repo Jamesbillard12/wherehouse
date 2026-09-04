@@ -16,4 +16,5 @@ mmdebstrap:
     - iproute2
     - nftables
     - openssh-server
+    - openssl
     - sudo

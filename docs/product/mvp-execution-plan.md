@@ -27,7 +27,7 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | Idempotent replay | Ready for validation | Stable persisted creation IDs, payload-conflict detection, uniqueness, retry classification, and restart recovery are implemented; timeout/race validation remains |
 | Realtime reconciliation | Implemented but needs hardening | Disconnect/reconnect/second-client convergence tests |
 | Backup and restore | In progress | Portable format, local/Dropbox adapters, provider-neutral status, web management, mobile health, verification and clean-restore path implemented; real PostgreSQL, SSD and Dropbox round trips remain |
-| Raspberry Pi deployment | Ready for physical validation | Image/build, first boot, mDNS, status, storage guards, lifecycle and update orchestration are implemented; build/flash/Pi 4/5 evidence is absent |
+| Raspberry Pi deployment | Ready for physical validation | Image/build, first boot, mDNS, status, storage guards, lifecycle, and signed in-app application OTA orchestration are implemented; build/flash/Pi 4/5 and physical OTA evidence are absent |
 | Cloud deployment | Partially implemented | Guidance exists; not an MVP release substitute for supported local operation |
 | Application capabilities/actor context | Partially implemented | Create/update/delete/move item, container nesting, and identifiers lead; typed frontend feature actions now remove quick-create navigation coupling, while other route-owned location CRUD remains |
 | Confirmations | Partially implemented | Reusable client UI exists; portable evidence/policy boundary is incomplete |
@@ -159,8 +159,9 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 ## Phase 7: Raspberry Pi and operational hardening
 
 - **Purpose/current state:** model-specific image definitions, embedded ARM64 containers, idempotent
-  unique first boot, systemd/Compose, Avahi, browser setup status, storage guards, backup-gated update,
-  reset confirmation, CI, and documentation are implemented. Image/hardware evidence is outstanding.
+  unique first boot, systemd/Compose, Avahi, browser setup status, storage guards, signed remote
+  application OTA with backup-gated host execution and web control, reset confirmation, CI, and
+  documentation are implemented. Image/hardware and physical OTA evidence are outstanding.
 - **Scope/work:** build/flash and validate Pi 4/5, SD/USB SSD, restart/reboot/power, migrations/updates,
   mounted storage, low/full space, real backup/restore, mDNS and failure recovery.
 - **Testing/docs:** automated initialization/secret/storage/API/UI coverage plus the dedicated

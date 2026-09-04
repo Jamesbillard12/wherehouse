@@ -1,13 +1,17 @@
 import {
   connectDropbox,
+  checkForUpdate,
   createPairingSession,
   disconnectDropbox,
   getBackupStatus,
   getSystemStatus,
+  getUpdateStatus,
+  installUpdate,
   listDevices,
   revokeDevice,
   runRemoteBackup,
   type BackupStatus,
+  type ApplianceUpdateStatus,
   type Device,
   type Workspace,
   type MeResponse,
@@ -23,6 +27,7 @@ import {
   Laptop,
   Palette,
   Shield,
+  RefreshCw,
   Smartphone,
 } from "lucide-react";
 import QRCode from "qrcode";
@@ -40,6 +45,7 @@ const sections: { id: SettingsSection; label: string; icon: typeof House }[] = [
   { id: "account", label: "Account", icon: CircleUserRound },
   { id: "workspaces", label: "Households", icon: House },
   { id: "backups", label: "Backup & Restore", icon: Cloud },
+  { id: "system", label: "System", icon: RefreshCw },
   { id: "preferences", label: "Preferences", icon: Palette },
   { id: "privacy", label: "Data & Privacy", icon: Shield },
   { id: "about", label: "About", icon: Info },
@@ -101,6 +107,8 @@ export function SettingsView({
             />
           ) : section === "backups" ? (
             <Backups isOwner={isOwner} token={token} />
+          ) : section === "system" ? (
+            <SoftwareUpdate isOwner={isOwner} token={token} />
           ) : section === "preferences" ? (
             <Preferences />
           ) : section === "privacy" ? (
@@ -112,6 +120,61 @@ export function SettingsView({
       </div>
     </div>
   );
+}
+
+const activeUpdatePhases = new Set<ApplianceUpdateStatus["phase"]>([
+  "checking", "downloading", "verifying", "backing_up", "installing",
+  "migrating", "restarting", "health_check", "rollback",
+]);
+
+export function SoftwareUpdate({ isOwner, token }: { isOwner: boolean; token: string }) {
+  const [status, setStatus] = useState<ApplianceUpdateStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const refresh = () => getUpdateStatus(token).then((value) => {
+    setStatus(value); setError(null); return value;
+  }).catch((reason) => { setError(message(reason)); return null; });
+  useEffect(() => {
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 3000);
+    return () => window.clearInterval(timer);
+  }, [token]);
+  async function check() {
+    try { setStatus(await checkForUpdate(token)); setError(null); }
+    catch (reason) { setError(message(reason)); }
+  }
+  async function install() {
+    try { setStatus(await installUpdate(token)); setError(null); }
+    catch (reason) { setError(message(reason)); }
+  }
+  const busy = status ? activeUpdatePhases.has(status.phase) : false;
+  return <>
+    <p className="eyebrow">Appliance application</p>
+    <h2>Software Update</h2>
+    <div className="settings-card software-update-card">
+      <div className="backup-destination-header">
+        <div><small>Current version</small><strong>{status?.currentVersion ?? "Loading…"}</strong></div>
+        {status?.latestVersion ? <div><small>Latest version</small><strong>{status.latestVersion}</strong></div> : null}
+      </div>
+      {status ? <>
+        <p>{status.message}</p>
+        {busy ? <progress aria-label="Update progress" max="100" value={status.progress}>{status.progress}%</progress> : null}
+        {status.releaseNotes ? <div><strong>Release notes</strong><p className="muted">{status.releaseNotes}</p></div> : null}
+        <p className="muted">Channel: {status.channel}{status.runtimeSize ? ` · Download ${formatBytes(status.runtimeSize)}` : ""}<br />
+          {status.lastCheckedAt ? `Last checked ${formatDate(status.lastCheckedAt)}` : "Not checked yet"}</p>
+        {status.errorMessage ? <div className="alert">{status.errorMessage}{status.rollbackPerformed ? " Previous application images were restored." : ""}</div> : null}
+      </> : null}
+      <p className="muted">WhereHouse may be unavailable briefly while the update is installed. The update continues if this browser disconnects.</p>
+      {isOwner ? <div className="backup-destination-actions">
+        <Button disabled={busy} onClick={() => void check()}>Check for Updates</Button>
+        <Button className="primary-button" disabled={busy || !status?.updateAvailable} onClick={() => void install()}>Update Now</Button>
+      </div> : <p className="muted">Only household owners can install appliance updates.</p>}
+    </div>
+    {error ? <div className="alert">{error}</div> : null}
+  </>;
+}
+
+function formatBytes(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
 }
 
 function Backups({ isOwner, token }: { isOwner: boolean; token: string }) {

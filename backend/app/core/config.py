@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     appliance_build_date: str | None = None
     appliance_hostname: str = "wherehouse.local"
     appliance_data_dir: str = "/data"
+    appliance_update_socket: str = "/data/config/update.sock"
     storage_warning_free_bytes: int = 2 * 1024 * 1024 * 1024
     storage_critical_free_bytes: int = 512 * 1024 * 1024
 
