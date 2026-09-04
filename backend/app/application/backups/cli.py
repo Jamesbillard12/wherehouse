@@ -50,6 +50,13 @@ async def workspace_identities() -> list[dict[str, str]]:
     ]
 
 
+async def backup_metadata() -> tuple[list[str], list[dict[str, str]]]:
+    """Collect database-backed backup metadata on a single asyncio event loop."""
+    keys = await canonical_media_keys()
+    workspaces = await workspace_identities()
+    return keys, workspaces
+
+
 def schema_revision() -> str:
     config = Config(str(Path(__file__).parents[3] / "alembic.ini"))
     config.set_main_option("script_location", str(Path(__file__).parents[3] / "alembic"))
@@ -191,8 +198,7 @@ def main(argv: list[str] | None = None) -> int:
         service = BackupService(provider_from_settings(provider_name))
         if args.command == "create":
             ensure_operation_space(Path(settings.backup_staging_dir), 512 * 1024 * 1024)
-            keys = asyncio.run(canonical_media_keys())
-            workspace_metadata = asyncio.run(workspace_identities())
+            keys, workspace_metadata = asyncio.run(backup_metadata())
             media = SelectedMediaRepository(get_image_storage(), keys)
             logger.info("backup started provider=%s", provider_name)
             artifact = create_artifact(
