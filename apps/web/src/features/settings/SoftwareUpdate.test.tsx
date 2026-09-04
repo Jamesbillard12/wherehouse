@@ -34,7 +34,14 @@ describe("SoftwareUpdate", () => {
   it("shows versions and lets an owner start the durable update", async () => {
     render(<SoftwareUpdate isOwner token="token" />);
     expect(await screen.findByText("0.1.10")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Update Now" }));
+    const checkButton = screen.getByRole("button", { name: "Check for Updates" });
+    const updateButton = screen.getByRole("button", { name: "Update Now" });
+    expect(checkButton).toHaveAttribute("data-slot", "button");
+    expect(updateButton).toHaveAttribute("data-slot", "button");
+    expect(updateButton).not.toHaveClass("primary-button");
+    fireEvent.click(checkButton);
+    await waitFor(() => expect(checkForUpdate).toHaveBeenCalledWith("token"));
+    fireEvent.click(updateButton);
     await waitFor(() => expect(installUpdate).toHaveBeenCalledWith("token"));
     expect(screen.getByText(/continues if this browser disconnects/i)).toBeInTheDocument();
   });
@@ -54,5 +61,6 @@ describe("SoftwareUpdate", () => {
     expect(await screen.findByText("0.1.1")).toBeInTheDocument();
     expect(screen.getByText(/update service is unavailable/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Check for Updates" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Update Now" })).toBeDisabled();
   });
 });

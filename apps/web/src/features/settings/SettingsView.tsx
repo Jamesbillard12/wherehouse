@@ -249,8 +249,8 @@ export function SoftwareUpdate({ isOwner, token }: { isOwner: boolean; token: st
       </> : null}
       <p className="muted">WhereHouse may be unavailable briefly while the update is installed. The update continues if this browser disconnects.</p>
       {isOwner ? <div className="backup-destination-actions">
-        <Button disabled={busy || status?.serviceAvailable === false} onClick={() => void check()}>Check for Updates</Button>
-        <Button className="primary-button" disabled={busy || status?.serviceAvailable === false || !status?.updateAvailable} onClick={() => void install()}>Update Now</Button>
+        <Button disabled={busy || status?.serviceAvailable === false} onClick={() => void check()} variant="outline">Check for Updates</Button>
+        <Button disabled={busy || status?.serviceAvailable === false || !status?.updateAvailable} onClick={() => void install()}>Update Now</Button>
       </div> : <p className="muted">Only household owners can install appliance updates.</p>}
     </div>
     {error ? <div className="alert">{error}</div> : null}
