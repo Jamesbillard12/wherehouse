@@ -176,6 +176,20 @@ and cycle semantics differ from item placement. Area and zone selectors used to 
 location's scope likewise remain feature-specific. Future location-aware workflows should reuse
 these components and helpers before adding path markup or an equivalent placement selector.
 
+### Shared physical identifier presentation
+
+`PhysicalIdentifierPicker` owns the accessible QR, NFC, combined, and unassigned selection group,
+including its established labels, explanatory copy, disabled state, and validation presentation.
+Item and container create/edit workflows pass initial state and continue to own form submission,
+permissions, mutations, and success or failure handling. `PhysicalIdentifierSummary` provides the
+shared icon-and-text representation for compact item and container status displays.
+
+QR generation, registration, replacement, revocation, printing decisions, and NFC behavior remain
+feature-owned. The existing item and container label adapters perform their own API calls and pass
+resolved QR image state to `PhysicalLabelDialog`; the shared presentation components do not embed
+identifier lifecycle rules. Future identifier-aware web workflows should search these WhereHouse
+components before adding selection, summary, or label markup.
+
 ## Mobile foundation evaluation
 
 | Option | Fit | Trade-off |

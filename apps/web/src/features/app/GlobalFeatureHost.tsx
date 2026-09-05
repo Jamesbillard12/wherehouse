@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { CreateImageField } from '../../components/wherehouse/CreateImageField'
 import { message } from '../../shared/utils/errors'
 import { AddItemDialog } from '../items/ItemsView'
-import { PhysicalIdentifierPicker } from '../items/PhysicalIdentifierPicker'
+import { PhysicalIdentifierPicker } from '../../components/wherehouse/PhysicalIdentifierPicker'
 import { AreaIconPicker, CONTAINER_TYPES } from '../locations/locationOptions'
 import { useFeatureActions } from './FeatureActions'
 

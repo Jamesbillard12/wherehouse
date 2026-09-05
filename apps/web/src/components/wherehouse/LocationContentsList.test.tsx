@@ -34,6 +34,7 @@ describe('LocationContentsList', () => {
     expect(screen.getAllByRole('button', { name: /^Delete / })).toHaveLength(2)
     expect(screen.getByText('3 items')).toBeInTheDocument()
     expect(screen.getByText('1 cups')).toBeInTheDocument()
+    expect(screen.getByText('QR + NFC')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Edit Cup' }))
     await user.click(screen.getByRole('button', { name: 'Delete Cup' }))
