@@ -1,12 +1,13 @@
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 export function ConfirmDialog({
   busy = false,
@@ -14,6 +15,7 @@ export function ConfirmDialog({
   confirmLabel = 'Confirm',
   description,
   destructive = false,
+  error,
   onCancel,
   onConfirm,
   open,
@@ -24,25 +26,27 @@ export function ConfirmDialog({
   confirmLabel?: string
   description: string
   destructive?: boolean
+  error?: string | null
   onCancel: () => void
   onConfirm: () => void | Promise<void>
   open: boolean
   title: string
 }) {
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !busy) onCancel() }}>
-      <DialogContent showCloseButton={!busy}>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button disabled={busy} onClick={onCancel} variant="outline">{cancelLabel}</Button>
+    <AlertDialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !busy) onCancel() }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        {error ? <p className="alert" role="alert">{error}</p> : null}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>{cancelLabel}</AlertDialogCancel>
           <Button onClick={() => void onConfirm()} pending={busy} variant={destructive ? 'destructive' : 'default'}>
             {busy ? `${confirmLabel}…` : confirmLabel}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

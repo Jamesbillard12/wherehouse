@@ -62,6 +62,10 @@ product concepts or reusable WhereHouse behavior in `components/wherehouse`; do 
 wrapper that only renames a primitive. Extend a primitive only for product-neutral variants or interaction
 behavior used by real callers, and preserve its accessibility contract. Add new shadcn primitives only when
 current feature work needs them, and migrate existing screens progressively with focused regression tests.
+Use Dialog for ordinary or rich modal workflows and AlertDialog/ConfirmDialog for consequential or
+destructive decisions. Do not add bespoke backdrops, focus-management code, or browser-native confirmation
+APIs. Keep errors in the active dialog and prevent dismissal or duplicate actions while mutations are pending;
+retain typed-phrase blocking workflows only when their extra friction is an intentional safety control.
 
 ## Workflow and verification
 

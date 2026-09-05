@@ -42,6 +42,8 @@ describe("SoftwareUpdate", () => {
     fireEvent.click(checkButton);
     await waitFor(() => expect(checkForUpdate).toHaveBeenCalledWith("token"));
     fireEvent.click(updateButton);
+    expect(screen.getByRole("alertdialog", { name: "Install 0.1.10?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Install update" }));
     await waitFor(() => expect(installUpdate).toHaveBeenCalledWith("token"));
     expect(screen.getByText(/continues if this browser disconnects/i)).toBeInTheDocument();
   });

@@ -56,4 +56,14 @@ describe('item archival', () => {
 
     expect(screen.getByText('Archive Cordless drill?')).toBeInTheDocument()
   })
+
+  it('dismisses item details with Escape', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    render(<ItemDetailsModal areas={[]} containerPlacements={[]} containers={[]} item={item} locationLabel="Unplaced" onClose={onClose} onDeleted={vi.fn()} onUpdated={vi.fn()} token="token" zones={[]} />)
+
+    await user.keyboard('{Escape}')
+
+    expect(onClose).toHaveBeenCalledOnce()
+  })
 })
