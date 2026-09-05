@@ -4,8 +4,9 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from alembic.config import Config
@@ -51,10 +52,17 @@ async def workspace_identities() -> list[dict[str, str]]:
 
 
 async def backup_metadata() -> tuple[list[str], list[dict[str, str]]]:
-    """Collect database-backed backup metadata on a single asyncio event loop."""
-    keys = await canonical_media_keys()
-    workspaces = await workspace_identities()
-    return keys, workspaces
+    return await canonical_media_keys(), await workspace_identities()
+
+
+def application_version() -> str:
+    configured = os.environ.get("WHEREHOUSE_VERSION") or os.environ.get("APPLIANCE_IMAGE_VERSION")
+    if configured:
+        return configured
+    try:
+        return version("wherehouse-api")
+    except PackageNotFoundError:
+        return "development"
 
 
 def schema_revision() -> str:
@@ -206,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
                 PostgresBackup(settings.database_url),
                 media,
                 schema_revision(),
-                version("wherehouse-api"),
+                application_version(),
                 workspace_metadata,
             )
             verified = verify_artifact(artifact)
