@@ -68,19 +68,51 @@ new web implementation dependency, not a shared styling contract. Existing selec
 while touched features move toward tokens and primitives. Adopting shadcn does **not** require a
 major one-time migration, and no current screen should be converted solely for consistency.
 
-### Initial web pilot
+### Installed web primitive baseline
 
 The first bounded adoption uses the shadcn `base-nova` style, Base UI, Lucide, CSS variables, and
 Tailwind CSS v4. Configuration lives in `apps/web/components.json`; generated and subsequently owned
-source lives in `apps/web/src/components/ui`. The initial primitive set is Button, Input, Textarea,
-and Dialog. WhereHouse colors are mapped to shadcn's semantic variables in `apps/web/src/styles.css`,
-while existing screen CSS remains active.
+source lives in `apps/web/src/components/ui`. The installed primitive set is Button, Dialog, Input,
+Select, and Textarea. Button owns product-neutral variants (`default`, `outline`, `secondary`, `ghost`,
+`destructive`, and `link`), sizes (text and icon sizes from `xs` through `lg`), disabled mechanics,
+focus-visible styling, and the shared `pending` state. Pending buttons are disabled, expose
+`aria-busy`, and include a non-semantic spinner while callers retain control of the visible action
+label. Input and Textarea own disabled, invalid, and focus-visible styling. Dialog and Select own
+their keyboard and focus behavior through Base UI.
 
-The add-item dialog is the pilot consumer. It validates focus containment and restoration, Escape
+WhereHouse colors are mapped to shadcn's semantic variables in `apps/web/src/styles.css`, while
+existing screen CSS remains active. Ordinary text, email, password, number, and readonly form fields
+use Input; multiline text uses Textarea. Native controls remain appropriate where they provide a
+distinct browser interaction that has not yet been migrated and tested, including file, range,
+radio, and checkbox inputs. Existing native selects remain intentional when replacing them with the
+composed Select would change form submission or keyboard behavior.
+
+The add-item dialog was the pilot consumer. It validates focus containment and restoration, Escape
 and backdrop dismissal, form submission, and disabled saving behavior. Other bespoke dialogs remain
 unchanged until their features are touched. Native `select` is intentionally retained in the pilot;
 adopt the shadcn Select only when a feature needs its richer composition and the interaction change
 can be tested directly.
+
+### Usage and extension rules
+
+Before writing a native control or a new utility-class bundle, search both `components/ui` and
+`components/wherehouse`. Use a component from `components/ui` when the concern is product-neutral
+presentation or interaction mechanics. Extend an installed primitive only when a real caller needs a
+reusable, product-neutral variant, size, state, or accessibility behavior; keep the existing
+`data-slot` contract and add direct primitive tests when behavior changes.
+
+Create a component in `components/wherehouse` when it names a product concept or centralizes reusable
+WhereHouse behavior, copy, domain-shaped props, or action semantics. Such a component should compose
+primitives and expose a stable product-facing API. Do not add a thin wrapper whose only purpose is to
+rename Button, Input, Dialog, Card, Badge, or another shadcn primitive.
+
+Add a missing shadcn primitive only for current or immediately scheduled feature work. The audit for
+the primitive-foundation refactor did not justify preinstalling Card, Badge, Label, Checkbox,
+Separator, Tooltip, Dropdown Menu, or Popover: current card and badge markup carries feature-specific
+layout or status semantics, and the remaining native control/menu patterns require focused interaction
+tests during their owning refactors. Dialog migrations, shared status views, location navigation,
+physical identifiers, item UI, Settings, and the app shell should add or adopt those primitives only
+as each real consumer is refactored.
 
 ## Mobile foundation evaluation
 

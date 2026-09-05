@@ -56,6 +56,13 @@ component → page/screen. Keep state at the narrowest useful scope, prefer comp
 and evaluate extraction before adding responsibility to an oversized component. Tests belong with the
 feature boundary; update architecture docs when introducing a durable pattern.
 
+For web work, search `apps/web/src/components/ui` and `apps/web/src/components/wherehouse` before adding
+control markup or a new component. Keep shadcn-managed, product-neutral mechanics in `components/ui` and
+product concepts or reusable WhereHouse behavior in `components/wherehouse`; do not create a semantic
+wrapper that only renames a primitive. Extend a primitive only for product-neutral variants or interaction
+behavior used by real callers, and preserve its accessibility contract. Add new shadcn primitives only when
+current feature work needs them, and migrate existing screens progressively with focused regression tests.
+
 ## Workflow and verification
 
 Inspect local guidance and actual code, make the smallest coherent change, and preserve separation of

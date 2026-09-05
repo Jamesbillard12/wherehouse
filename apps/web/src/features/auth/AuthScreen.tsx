@@ -2,6 +2,7 @@ import { login, register, type SystemStatus } from '@wherehouse/api-client'
 import { type FormEvent, useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 import { message } from '../../shared/utils/errors'
 
@@ -83,16 +84,16 @@ export function AuthScreen({
             {mode === 'register' ? (
               <label>
                 Your name
-                <input autoComplete="name" name="displayName" required />
+                <Input autoComplete="name" name="displayName" required />
               </label>
             ) : null}
             <label>
               Email
-              <input autoComplete="email" name="email" required type="email" />
+              <Input autoComplete="email" name="email" required type="email" />
             </label>
             <label>
               Password
-              <input
+              <Input
                 autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
                 minLength={mode === 'register' ? 10 : 1}
                 name="password"
@@ -102,7 +103,7 @@ export function AuthScreen({
               {mode === 'register' ? <span className="field-note">At least 10 characters</span> : null}
             </label>
             {error ? <div className="alert">{error}</div> : null}
-            <Button className="primary-button" disabled={busy || submitting} type="submit">
+            <Button className="primary-button" pending={busy || submitting} type="submit">
               {submitting || busy ? 'One moment…' : mode === 'register' ? 'Create account' : 'Sign in'}
             </Button>
           </form>

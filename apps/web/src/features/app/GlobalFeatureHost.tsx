@@ -7,6 +7,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { CreateImageField } from '../../components/wherehouse/CreateImageField'
 import { message } from '../../shared/utils/errors'
 import { AddItemDialog } from '../items/ItemsView'
@@ -80,10 +82,10 @@ export function GlobalFeatureHost({ workspace, onChanged, token }: { workspace: 
   const selectedZones = zones.filter((zone) => zone.area_id === areaId)
   return <Dialog open onOpenChange={(open) => { if (!open) actions.close() }}><DialogContent className="location-dialog w-[calc(100%-3rem)] max-w-[calc(100%-3rem)] gap-0 overflow-y-auto p-0 sm:w-[720px] sm:max-w-[720px]" showCloseButton={false}><DialogHeader className="dialog-heading flex-row"><div><p className="eyebrow">Quick create</p><DialogTitle>{request.kind === 'create-area' ? 'Add an area' : request.kind === 'create-zone' ? 'Add a zone' : 'Add a container'}</DialogTitle></div><DialogClose render={<Button size="icon" variant="secondary" />}>×</DialogClose></DialogHeader><form onSubmit={submitLocation}>
     {request.kind !== 'create-area' ? <label>Area<select name="areaId" onChange={(event) => setAreaId(event.target.value)} value={areaId}>{areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select></label> : null}
-    <label>Name<input autoFocus name="name" required /></label>
+    <label>Name<Input autoFocus name="name" required /></label>
     {request.kind === 'create-area' ? <AreaIconPicker /> : null}
     {request.kind === 'create-container' ? <><div className="form-row"><label>Type<select defaultValue="bin" name="containerType">{CONTAINER_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label><label>Zone <span className="optional">Optional</span><select defaultValue={request.defaults?.zoneId ?? ''} name="zoneId"><option value="">Directly in area</option>{selectedZones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select></label></div><PhysicalIdentifierPicker /></> : null}
-    <label>Description <span className="optional">Optional</span><textarea name="description" rows={3} /></label>
-    {error ? <div className="alert">{error}</div> : null}<div className="dialog-actions"><DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose><Button disabled={saving || (request.kind !== 'create-area' && !areaId)} type="submit">{saving ? 'Saving…' : 'Create'}</Button></div>
+    <label>Description <span className="optional">Optional</span><Textarea name="description" rows={3} /></label>
+    {error ? <div className="alert">{error}</div> : null}<div className="dialog-actions"><DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose><Button disabled={request.kind !== 'create-area' && !areaId} pending={saving} type="submit">{saving ? 'Saving…' : 'Create'}</Button></div>
   </form></DialogContent></Dialog>
 }
