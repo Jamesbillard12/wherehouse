@@ -10,13 +10,13 @@ decisions, not shared application contracts.
 | Concern | Web | Mobile |
 | --- | --- | --- |
 | Runtime | React 19, Vite 7, TypeScript | React Native 0.81, Expo 54, React 19, TypeScript |
-| Components | Native HTML plus an incremental shadcn/Base UI primitive layer | React Native primitives plus `AppHeader`, `BottomNavigation`, `ScannerScreen`, `ItemLocationPicker`, and `QuantityStepper` |
-| Styling | Tailwind CSS v4 for new primitives alongside global hand-written CSS split into base, dashboard, inventory, and responsive files | One large shared `StyleSheet` with a few inline icon colors |
-| Tokens | A small set of CSS custom properties for colors and button dimensions; many literal values remain | No token module; colors, spacing, type, radii, and elevation are literal values in the shared stylesheet |
+| Components | Native HTML plus an incremental shadcn/Base UI primitive layer | Source-owned RNR primitives alongside `AppHeader`, `BottomNavigation`, `ScannerScreen`, `ItemLocationPicker`, and `QuantityStepper` |
+| Styling | Tailwind CSS v4 for new primitives alongside global hand-written CSS split into base, dashboard, inventory, and responsive files | NativeWind 4/Tailwind 3 for new primitives alongside the existing shared `StyleSheet` |
+| Tokens | A small set of CSS custom properties for colors and button dimensions; many literal values remain | Initial semantic Tailwind tokens for colors, touch size, and radii; legacy literals remain |
 | Icons | `lucide-react` | `lucide-react-native` |
 | Forms | Native HTML forms and local React state; no form library | `TextInput`, `Pressable`, local state, and focused draft/edit hooks; no form library |
-| Component library | shadcn Nova source components backed by Base UI; first pilot is the add-item dialog | None |
-| Tailwind | Tailwind CSS v4 through the Vite plugin | Not installed; NativeWind is not installed |
+| Component library | shadcn Nova source components backed by Base UI; first pilot is the add-item dialog | React Native Reusables source model; first pilot is pairing |
+| Tailwind | Tailwind CSS v4 through the Vite plugin | Tailwind CSS 3 through stable NativeWind 4 and Expo Metro/Babel configuration |
 
 The clients share API types and inventory concepts, not UI implementations. Duplication is mostly
 visual constants and repeated concepts—cards, buttons, inputs, item/location rows, status colors,
@@ -35,7 +35,7 @@ WhereHouse design tokens      Versioned semantic UI contracts
       /          \                    /          \
 web CSS/Tailwind  mobile theme       web          mobile
       |              |                |              |
-shadcn/Base UI   RN/gluestack     semantic components and screens
+shadcn/Base UI   RNR/NativeWind  semantic components and screens
 ```
 
 - Use shadcn/ui as the preferred source for **new low-level web components**, styled with Tailwind.
@@ -44,8 +44,8 @@ shadcn/Base UI   RN/gluestack     semantic components and screens
 - Keep existing CSS-based screens working. Adoption is progressive and feature-driven, not a full
   migration. Existing Vite/React/Lucide choices fit shadcn well, but setup still requires Tailwind,
   an import alias, theme mapping, and component dependencies.
-- Keep mobile independently optimized around React Native. `gluestack-ui` is the leading candidate,
-  subject to a small Expo prototype and dependency/accessibility review before adoption.
+- Keep mobile independently optimized around React Native. React Native Reusables is the selected
+  source-owned primitive foundation, adopted incrementally through real feature slices.
 - Share WhereHouse-owned design tokens and semantic contracts. Do not share library APIs or force a
   universal component implementation.
 
@@ -190,22 +190,24 @@ resolved QR image state to `PhysicalLabelDialog`; the shared presentation compon
 identifier lifecycle rules. Future identifier-aware web workflows should search these WhereHouse
 components before adding selection, summary, or label markup.
 
-## Mobile foundation evaluation
+## Mobile foundation
 
-| Option | Fit | Trade-off |
-| --- | --- | --- |
-| React Native primitives (current) | Strong native control, smallest dependency footprint, already working | More accessibility/theming discipline and repeated component work remain WhereHouse's responsibility |
-| gluestack-ui | Leading candidate: native-focused components, theming, accessible primitive intent, and incremental use | Adds dependencies and another styling/theming layer; Expo compatibility, bundle impact, and real assistive-technology behavior need a prototype |
-| Tamagui | Strong tokens, themes, performance tooling, and cross-platform reach | More build/tooling complexity and encourages a broader web/mobile abstraction than WhereHouse currently needs |
-| React Native Paper | Mature accessible components and theming | Material design defaults are a less direct fit for the current WhereHouse visual language |
-| NativeWind-based components | Familiar utility workflow and flexible ownership | Utilities alone do not supply accessible behavior; coupling both clients to similar class syntax provides little product-level reuse |
+The selected mobile foundation is React Native Reusables using its source-owned model. Stable
+NativeWind 4 is the styling adapter with Tailwind CSS 3; Expo 54-compatible Reanimated and Worklets
+versions are pinned instead of accepting newer peers that target later React Native releases. Metro
+is configured for the pnpm monorepo, Babel uses the NativeWind JSX transform, and TypeScript includes
+NativeWind `className` types. This is mobile build infrastructure, not a cross-client UI abstraction.
 
-Continue using native primitives for current screens. Before selecting gluestack, prototype one
-representative flow containing input, validation, modal/sheet behavior, keyboard handling, dynamic
-type, screen-reader labels, dark/high-contrast theming, and Android/iOS interaction. Adopt it only if
-that prototype improves maintainability without regressing native ergonomics. If adopted, place
-mobile primitives under `apps/mobile/src/components/ui` and semantic components under
-`apps/mobile/src/components/wherehouse`; migrate only when a feature is touched.
+Copied or adapted primitives live in `apps/mobile/src/components/ui` and are owned by WhereHouse.
+They may diverge from upstream when product needs justify it; upstream updates are reviewed rather
+than applied blindly. Product-aware reusable presentation belongs in `components/wherehouse`.
+Features and screens retain workflow state, service/API calls, permissions, mutations, navigation,
+and orchestration. Do not wrap primitives in aliases that add no semantic behavior.
+
+The initial proof migrates only `PairingScreen` to Button, Text, Input, and Card. Existing screens and
+the shared `StyleSheet` continue to work while later tickets migrate coherent slices. See the
+[mobile migration inventory](mobile-ui-migration-inventory.md) for the audited roadmap and outstanding
+physical-device validation.
 
 ## Shared design tokens
 

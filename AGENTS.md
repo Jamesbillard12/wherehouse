@@ -44,9 +44,10 @@ and post-MVP implementations are distinct; do not turn future adapters into curr
 
 ## UI and contracts
 
-Web prefers incremental shadcn/Base UI and Tailwind; mobile retains native React Native patterns and
-evaluates gluestack through a bounded need. Share WhereHouse semantic tokens/behavior, not primitive
-props. Put cross-client contracts in `packages/api-client`; platform behavior stays in its client.
+Web prefers incremental shadcn/Base UI and Tailwind. Mobile uses React Native Reusables as its
+source-owned, shadcn-like foundation with NativeWind while retaining mobile-native React Native
+behavior. Share WhereHouse semantic tokens/behavior, not primitive props. Put cross-client contracts
+in `packages/api-client`; platform behavior stays in its client.
 
 Before adding UI, inspect existing primitives, feature modules, forms, dialogs, and hooks for reuse.
 Pages/screens compose reusable features; do not make a page the exclusive owner of an interaction or
@@ -66,6 +67,13 @@ Use Dialog for ordinary or rich modal workflows and AlertDialog/ConfirmDialog fo
 destructive decisions. Do not add bespoke backdrops, focus-management code, or browser-native confirmation
 APIs. Keep errors in the active dialog and prevent dismissal or duplicate actions while mutations are pending;
 retain typed-phrase blocking workflows only when their extra friction is an intentional safety control.
+
+For mobile work, search `apps/mobile/src/components/ui` and `apps/mobile/src/components/wherehouse`
+before adding controls. Low-level RNR-derived primitives belong in `components/ui`; reusable product-aware
+presentation belongs in `components/wherehouse`; workflow state, API calls, permissions, mutations,
+navigation, and orchestration remain in features/screens/hooks/services. Copied RNR files are owned by
+this repository and may be modified deliberately; review upstream updates intentionally. Prefer extending
+or reusing existing primitives and do not add thin aliases that provide no new semantics.
 
 Before duplicating icon/title/body/action markup for loading, empty, unavailable, error, warning, or success
 states, inspect the reusable WhereHouse state components. Shared state components own presentation and
