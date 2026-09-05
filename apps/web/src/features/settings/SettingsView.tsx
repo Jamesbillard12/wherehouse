@@ -188,6 +188,7 @@ function StorageSettings({ isOwner, token }: { isOwner: boolean; token: string }
 function NetworkStorageSettings({ isOwner, token }: { isOwner: boolean; token: string }) {
   const { status, error, setError, refresh } = useStorageStatus(token);
   const [busy, setBusy] = useState(false);
+  const [confirmingDisable, setConfirmingDisable] = useState(false);
   async function enable(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
     const password = String(data.get("password")); const confirmation = String(data.get("passwordConfirmation"));
@@ -196,25 +197,28 @@ function NetworkStorageSettings({ isOwner, token }: { isOwner: boolean; token: s
     try { await enableNetworkStorage(token, String(data.get("username")), password); form.reset(); await refresh(); }
     catch (reason) { setError(message(reason)); } finally { setBusy(false); }
   }
-  async function disable() { setBusy(true); try { await disableNetworkStorage(token); await refresh(); } catch (reason) { setError(message(reason)); } finally { setBusy(false); } }
+  async function disable() { setBusy(true); setError(null); try { await disableNetworkStorage(token); await refresh(); setConfirmingDisable(false); } catch (reason) { setError(message(reason)); } finally { setBusy(false); } }
   return <>
     <p className="eyebrow">Authenticated SMB sharing</p><h2>Network Storage</h2>
     <div className="settings-card"><h3>Status: {status?.nas.enabled ? "Enabled" : "Disabled"}</h3>
       {status?.nas.enabled ? <><p>Server <strong>{status.nas.server}</strong><br />Protocol <strong>SMB</strong><br />Share <strong>Shared</strong></p><p><code>{status.nas.address}</code><br /><code>\\\\{status.nas.server}\\Shared</code></p>
-        {isOwner ? <><form onSubmit={(event) => void enable(event)}><input name="username" type="hidden" value={status.nas.username ?? ""} /><label>New password<Input autoComplete="new-password" minLength={12} name="password" required type="password" /></label><label>Confirm new password<Input autoComplete="new-password" minLength={12} name="passwordConfirmation" required type="password" /></label><Button pending={busy} type="submit">Change Password</Button></form><Button disabled={busy} onClick={() => void disable()}>Disable Network Storage</Button></> : null}</> : status?.primary !== "external" ?
+        {isOwner ? <><form onSubmit={(event) => void enable(event)}><input name="username" type="hidden" value={status.nas.username ?? ""} /><label>New password<Input autoComplete="new-password" minLength={12} name="password" required type="password" /></label><label>Confirm new password<Input autoComplete="new-password" minLength={12} name="passwordConfirmation" required type="password" /></label><Button pending={busy} type="submit">Change Password</Button></form><Button disabled={busy} onClick={() => setConfirmingDisable(true)} variant="destructive">Disable Network Storage</Button></> : null}</> : status?.primary !== "external" ?
         <p>Network Storage requires an external primary drive so ordinary files never fill the appliance SD card.</p> :
         <form onSubmit={(event) => void enable(event)}><p>Only <strong>Shared</strong> is exposed. WhereHouse application data, PostgreSQL, secrets, and backups remain private.</p>
           <label>Username<Input autoCapitalize="none" autoComplete="username" name="username" pattern="[a-z][a-z0-9_-]{0,30}" required /></label>
           <label>Password<Input autoComplete="new-password" minLength={12} name="password" required type="password" /></label>
           <label>Confirm password<Input autoComplete="new-password" minLength={12} name="passwordConfirmation" required type="password" /></label>
           {isOwner ? <Button className="primary-button" pending={busy} type="submit">Enable Network Storage</Button> : null}</form>}
-    </div>{error ? <div className="alert">{error}</div> : null}
+    </div>{error && !confirmingDisable ? <div className="alert">{error}</div> : null}
+    <ConfirmDialog busy={busy} confirmLabel="Disable sharing" description="Devices will immediately lose access to the Shared folder. WhereHouse application data and backups are not affected." destructive error={error} onCancel={() => { setConfirmingDisable(false); setError(null); }} onConfirm={disable} open={confirmingDisable} title="Disable Network Storage?" />
   </>;
 }
 
 export function SoftwareUpdate({ isOwner, token }: { isOwner: boolean; token: string }) {
   const [status, setStatus] = useState<ApplianceUpdateStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingInstall, setConfirmingInstall] = useState(false);
+  const [installing, setInstalling] = useState(false);
   const refresh = () => getUpdateStatus(token).then((value) => {
     setStatus(value); setError(null); return value;
   }).catch((reason) => { setError(message(reason)); return null; });
@@ -228,10 +232,12 @@ export function SoftwareUpdate({ isOwner, token }: { isOwner: boolean; token: st
     catch (reason) { setError(message(reason)); }
   }
   async function install() {
-    try { setStatus(await installUpdate(token)); setError(null); }
+    setInstalling(true);
+    try { setStatus(await installUpdate(token)); setError(null); setConfirmingInstall(false); }
     catch (reason) { setError(message(reason)); }
+    finally { setInstalling(false); }
   }
-  const busy = status ? activeUpdatePhases.has(status.phase) : false;
+  const busy = installing || (status ? activeUpdatePhases.has(status.phase) : false);
   return <>
     <p className="eyebrow">Appliance application</p>
     <h2>Software Update</h2>
@@ -251,10 +257,11 @@ export function SoftwareUpdate({ isOwner, token }: { isOwner: boolean; token: st
       <p className="muted">WhereHouse may be unavailable briefly while the update is installed. The update continues if this browser disconnects.</p>
       {isOwner ? <div className="backup-destination-actions">
         <Button disabled={busy || status?.serviceAvailable === false} onClick={() => void check()} variant="outline">Check for Updates</Button>
-        <Button disabled={busy || status?.serviceAvailable === false || !status?.updateAvailable} onClick={() => void install()}>Update Now</Button>
+        <Button disabled={busy || status?.serviceAvailable === false || !status?.updateAvailable} onClick={() => setConfirmingInstall(true)}>Update Now</Button>
       </div> : <p className="muted">Only household owners can install appliance updates.</p>}
     </div>
-    {error ? <div className="alert">{error}</div> : null}
+    {error && !confirmingInstall ? <div className="alert">{error}</div> : null}
+    <ConfirmDialog busy={busy} confirmLabel="Install update" description="WhereHouse may be unavailable briefly. Installation continues if this browser disconnects, and a verified backup is required before the update proceeds." error={error} onCancel={() => { setConfirmingInstall(false); setError(null); }} onConfirm={install} open={confirmingInstall} title={`Install ${status?.latestVersion ?? "this update"}?`} />
   </>;
 }
 
@@ -266,6 +273,8 @@ function Backups({ isOwner, token }: { isOwner: boolean; token: string }) {
   const [status, setStatus] = useState<BackupStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const refresh = () =>
     getBackupStatus(token)
       .then(setStatus)
@@ -295,11 +304,16 @@ function Backups({ isOwner, token }: { isOwner: boolean; token: string }) {
     }
   }
   async function disconnect() {
+    setDisconnecting(true);
+    setError(null);
     try {
       await disconnectDropbox(token);
       await refresh();
+      setConfirmingDisconnect(false);
     } catch (reason) {
       setError(message(reason));
+    } finally {
+      setDisconnecting(false);
     }
   }
   return (
@@ -314,7 +328,7 @@ function Backups({ isOwner, token }: { isOwner: boolean; token: string }) {
         <BackupStatusPanel
           isOwner={isOwner}
           onConnect={() => void connect()}
-          onDisconnect={() => void disconnect()}
+          onDisconnect={() => setConfirmingDisconnect(true)}
           onRun={() => void run()}
           running={running}
           status={status}
@@ -322,7 +336,8 @@ function Backups({ isOwner, token }: { isOwner: boolean; token: string }) {
       ) : (
         <div className="settings-card">Loading backup status…</div>
       )}
-      {error ? <div className="alert">{error}</div> : null}
+      {error && !confirmingDisconnect ? <div className="alert">{error}</div> : null}
+      <ConfirmDialog busy={disconnecting} confirmLabel="Disconnect Dropbox" description="Automatic remote backups to Dropbox will stop. Existing backup files in Dropbox are not deleted." destructive error={error} onCancel={() => { setConfirmingDisconnect(false); setError(null); }} onConfirm={disconnect} open={confirmingDisconnect} title="Disconnect Dropbox?" />
       <div className="settings-card backup-restore-card">
         <h3>Restore</h3>
         <p className="muted">

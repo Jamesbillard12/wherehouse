@@ -22,7 +22,7 @@ import { Box, Camera, Image as ImageIcon, MapPin, PackagePlus, Pencil, Plus, Pri
 import { type FormEvent, type MouseEvent, type RefObject, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
@@ -165,17 +165,17 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
   }
 
   return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section aria-labelledby="item-details-title" aria-modal="true" className="location-dialog item-details-dialog" role="dialog">
-        <div className="dialog-heading">
-          <div><p className="eyebrow">Item details</p><h2 id="item-details-title">{item.name}</h2></div>
-          <Button aria-label="Close item details" onClick={onClose} size="icon" variant="secondary"><X aria-hidden="true" /></Button>
-        </div>
+    <Dialog open onOpenChange={(open) => { if (!open && !saving && !deleting && !imageBusy) onClose() }}>
+      <DialogContent className="location-dialog item-details-dialog block max-w-[calc(100%-3rem)] overflow-y-auto p-0 sm:max-w-[620px]" showCloseButton={false}>
+        <DialogHeader className="dialog-heading flex-row">
+          <div><p className="eyebrow">Item details</p><DialogTitle>{item.name}</DialogTitle><DialogDescription className="sr-only">View and edit item details.</DialogDescription></div>
+          <DialogClose aria-label="Close item details" disabled={saving || deleting || imageBusy} render={<Button size="icon" variant="secondary" />}><X aria-hidden="true" /></DialogClose>
+        </DialogHeader>
         <div className="item-image-panel">
-          {imageUrl ? <img alt={item.name} src={imageUrl} /> : <div className="item-image-placeholder"><ImageIcon aria-hidden="true" /><strong>No image yet</strong><span>Add a photo to make this item easier to identify.</span></div>}
+          {imageUrl ? <img alt={item.name} className="absolute inset-0 size-full object-cover" src={imageUrl} /> : <div className="item-image-placeholder"><ImageIcon aria-hidden="true" /><strong>No image yet</strong><span>Add a photo to make this item easier to identify.</span></div>}
           <label className="item-image-action"><Camera aria-hidden="true" /><span>{imageBusy ? 'Uploading…' : imageUrl ? 'Replace image' : 'Add image'}</span><input accept="image/jpeg,image/png,image/webp" disabled={imageBusy} onChange={(event) => { setImageToCrop(event.target.files?.[0] ?? null); event.target.value = '' }} type="file" /></label>
         </div>
-        {imageError ? <div className="alert">{imageError}</div> : null}
+        {imageError && !confirmingDelete ? <div className="alert">{imageError}</div> : null}
         {editing ? <form className="item-edit-form" onSubmit={saveItem}>
           <label>Name<Input autoFocus defaultValue={item.name} name="name" required /></label>
           <div className="form-row"><label>Quantity<Input defaultValue={Number(item.quantity)} min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><Input defaultValue={item.unit ?? ''} name="unit" /></label></div>
@@ -200,12 +200,12 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
         </dl>
         {item.description ? <div className="item-detail-copy"><strong>Description</strong><p>{item.description}</p></div> : null}
         {item.notes ? <div className="item-detail-copy"><strong>Notes</strong><p>{item.notes}</p></div> : null}
-        <div className="dialog-actions item-details-actions"><Button aria-label={`Archive ${item.name}`} onClick={() => setConfirmingDelete(true)} size="icon" title={`Archive ${item.name}`} variant="destructive"><Trash2 aria-hidden="true" /></Button><span className="dialog-action-spacer" /><Button className="secondary-action" onClick={onClose}>Close</Button><Button className="primary-button" onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</Button></div></>}
-      </section>
-      <ConfirmDialog busy={deleting} confirmLabel="Archive item" description="This removes the item from active inventory while retaining its archived record." destructive onCancel={() => setConfirmingDelete(false)} onConfirm={removeItem} open={confirmingDelete} title={`Archive ${item.name}?`} />
+        <div className="dialog-actions item-details-actions"><Button aria-label={`Archive ${item.name}`} onClick={() => setConfirmingDelete(true)} size="icon" title={`Archive ${item.name}`} variant="destructive"><Trash2 aria-hidden="true" /></Button><span className="dialog-action-spacer" /><DialogClose render={<Button variant="outline" />}>Close</DialogClose><Button onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</Button></div></>}
+      <ConfirmDialog busy={deleting} confirmLabel="Archive item" description="This removes the item from active inventory while retaining its archived record." destructive error={imageError} onCancel={() => { setConfirmingDelete(false); setImageError(null) }} onConfirm={removeItem} open={confirmingDelete} title={`Archive ${item.name}?`} />
       <ImageCropDialog file={imageToCrop} onCancel={() => setImageToCrop(null)} onConfirm={(file) => { setImageToCrop(null); void changeImage(file) }} />
       {showLabel ? <ItemLabelModal item={item} onClose={() => setShowLabel(false)} token={token} /> : null}
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

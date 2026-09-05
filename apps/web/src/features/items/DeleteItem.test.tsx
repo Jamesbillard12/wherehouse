@@ -3,11 +3,15 @@ import userEvent from '@testing-library/user-event'
 import type { Item } from '@wherehouse/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const deleteItemRequest = vi.hoisted(() => vi.fn())
+const { deleteItemRequest, getItemImageRequest } = vi.hoisted(() => ({
+  deleteItemRequest: vi.fn(),
+  getItemImageRequest: vi.fn(),
+}))
 
 vi.mock('@wherehouse/api-client', async (importOriginal) => ({
   ...await importOriginal<typeof import('@wherehouse/api-client')>(),
   deleteItem: deleteItemRequest,
+  getItemImage: getItemImageRequest,
 }))
 
 import { ItemDetailsModal } from './ItemsView'
@@ -31,8 +35,23 @@ const item = {
   updated_at: '2026-01-01T00:00:00Z',
 } satisfies Item
 
-describe('item archival', () => {
-  beforeEach(() => deleteItemRequest.mockReset())
+describe('item details', () => {
+  beforeEach(() => {
+    deleteItemRequest.mockReset()
+    getItemImageRequest.mockReset()
+  })
+
+  it('keeps the item image out of dialog track sizing and clipped to its media panel', async () => {
+    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:item-image'), revokeObjectURL: vi.fn() })
+    getItemImageRequest.mockResolvedValue(new Blob())
+    render(<ItemDetailsModal areas={[]} containerPlacements={[]} containers={[]} item={{ ...item, image_path: 'items/item-1.jpg' }} locationLabel="Unplaced" onClose={vi.fn()} onDeleted={vi.fn()} onUpdated={vi.fn()} token="token" zones={[]} />)
+
+    const image = await screen.findByRole('img', { name: 'Cordless drill' })
+    expect(screen.getByRole('dialog', { name: 'Cordless drill' })).toHaveClass('block')
+    expect(image.parentElement).toHaveClass('item-image-panel')
+    expect(image).toHaveClass('absolute', 'inset-0', 'size-full', 'object-cover')
+    expect(screen.getByText('Location').compareDocumentPosition(image) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+  })
 
   it('requires confirmation before archiving and removes the selected item', async () => {
     const user = userEvent.setup()
@@ -55,5 +74,15 @@ describe('item archival', () => {
     render(<ItemDetailsModal areas={[]} containerPlacements={[]} containers={[]} initialMode="delete" item={item} locationLabel="Unplaced" onClose={vi.fn()} onDeleted={vi.fn()} onUpdated={vi.fn()} token="token" zones={[]} />)
 
     expect(screen.getByText('Archive Cordless drill?')).toBeInTheDocument()
+  })
+
+  it('dismisses item details with Escape', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    render(<ItemDetailsModal areas={[]} containerPlacements={[]} containers={[]} item={item} locationLabel="Unplaced" onClose={onClose} onDeleted={vi.fn()} onUpdated={vi.fn()} token="token" zones={[]} />)
+
+    await user.keyboard('{Escape}')
+
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })

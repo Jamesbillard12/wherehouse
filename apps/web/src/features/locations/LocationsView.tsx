@@ -53,6 +53,7 @@ import {
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -546,7 +547,7 @@ export function LocationsView({ createRequest, workspace, onRevealConsumed, refr
     <div className="locations-view">
       <PageHeader description="Organize areas, zones, and every container inside them." eyebrow="Storage map" title="Locations" />
 
-      {error ? <div className="alert locations-alert">{error}</div> : null}
+      {error && !deleteTarget ? <div className="alert locations-alert">{error}</div> : null}
 
       {loading ? <div className="locations-loading">Loading locations…</div> : areas.length ? (
         <div className="locations-layout">
@@ -621,9 +622,9 @@ export function LocationsView({ createRequest, workspace, onRevealConsumed, refr
       {selectedDetailItem ? <ItemDetailsModal areas={areas} containerPlacements={placements} containers={containers} imageRevision={refreshKey} initialMode={selectedItemMode} item={selectedDetailItem} locationLabel={itemLocation(itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id), areas, zones, containers, placements)} onClose={() => setSelectedDetailItem(null)} onDeleted={(itemId) => { setSelectedDetailItem(null); setItems((current) => current.filter((item) => item.id !== itemId)); setItemPlacements((current) => current.filter((entry) => entry.item_id !== itemId)) }} onPlacementUpdated={(updated) => setItemPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedDetailItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id)} token={token} zones={zones} /> : null}
 
       {formMode ? (
-        <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setNewContainerImage(null); setFormMode(null) } }}>
-          <section aria-labelledby="location-dialog-title" aria-modal="true" className="location-dialog" role="dialog">
-            <div className="dialog-heading"><div><p className="eyebrow">Location setup</p><h2 id="location-dialog-title">{formMode === 'area' ? 'Add an area' : formMode === 'edit-area' ? `Edit ${selectedArea?.name}` : formMode === 'zone' ? `Add a zone to ${selectedArea?.name}` : formMode === 'edit-zone' ? `Edit ${selectedZone?.name}` : formMode === 'edit-container' ? `Edit ${selectedContainer?.name}` : `Add a container to ${selectedArea?.name}`}</h2></div><Button aria-label="Close" onClick={() => { setNewContainerImage(null); setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }}>×</Button></div>
+        <Dialog open onOpenChange={(open) => { if (!open && !saving) { setNewContainerImage(null); setFormMode(null); setSelectedZone(null); setSelectedContainer(null) } }}>
+          <DialogContent className="location-dialog max-w-[calc(100%-3rem)] gap-0 overflow-y-auto p-0 sm:max-w-[560px]" showCloseButton={false}>
+            <DialogHeader className="dialog-heading flex-row"><div><p className="eyebrow">Location setup</p><DialogTitle>{formMode === 'area' ? 'Add an area' : formMode === 'edit-area' ? `Edit ${selectedArea?.name}` : formMode === 'zone' ? `Add a zone to ${selectedArea?.name}` : formMode === 'edit-zone' ? `Edit ${selectedZone?.name}` : formMode === 'edit-container' ? `Edit ${selectedContainer?.name}` : `Add a container to ${selectedArea?.name}`}</DialogTitle><DialogDescription className="sr-only">Enter the location details.</DialogDescription></div><DialogClose aria-label="Close location dialog" disabled={saving} render={<Button size="icon" variant="secondary" />}>×</DialogClose></DialogHeader>
             <form onSubmit={formMode === 'area' ? submitArea : formMode === 'edit-area' ? submitAreaEdit : formMode === 'zone' ? submitZone : formMode === 'edit-zone' ? submitZoneEdit : formMode === 'edit-container' ? submitContainerEdit : submitContainer}>
               {formMode === 'edit-container' ? <div className="item-image-panel container-image-panel">{containerImageUrl ? <img alt={selectedContainer?.name} src={containerImageUrl} /> : <div className="item-image-placeholder"><ImageIcon aria-hidden="true" /><strong>No image yet</strong><span>Add a photo to make this container easier to identify.</span></div>}<label className="item-image-action"><Camera aria-hidden="true" /><span>{containerImageBusy ? 'Uploading…' : containerImageUrl ? 'Replace image' : 'Add image'}</span><input accept="image/jpeg,image/png,image/webp" disabled={containerImageBusy} onChange={(event) => { setContainerImageToCrop(event.target.files?.[0] ?? null); event.target.value = '' }} type="file" /></label></div> : null}
               {formMode === 'container' ? <CreateImageField label="Container image" onFileChange={setNewContainerImage} /> : null}
@@ -664,28 +665,29 @@ export function LocationsView({ createRequest, workspace, onRevealConsumed, refr
                 <label className="checkbox-label"><input defaultChecked={selectedContainer?.is_movable ?? true} name="isMovable" type="checkbox" /> This container can be moved</label>
               </> : null}
               <label>Description <span className="optional">Optional</span><Textarea defaultValue={formMode === 'edit-area' ? selectedArea?.description ?? '' : formMode === 'edit-zone' ? selectedZone?.description ?? '' : formMode === 'edit-container' ? selectedContainer?.description ?? '' : ''} name="description" placeholder="Add a helpful note…" rows={3} /></label>
-              <div className="dialog-actions"><Button className="secondary-action" onClick={() => { setNewContainerImage(null); setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }} type="button">Cancel</Button>{formMode === 'edit-container' ? <Button className="secondary-action" onClick={() => setShowContainerLabel(true)} type="button"><Printer aria-hidden="true" /> Print QR</Button> : null}<Button className="primary-button" pending={saving} type="submit">{saving ? 'Saving…' : formMode === 'area' ? 'Create area' : formMode === 'zone' ? 'Create zone' : formMode === 'edit-area' || formMode === 'edit-zone' || formMode === 'edit-container' ? 'Save changes' : 'Create container'}</Button></div>
+              <div className="dialog-actions"><DialogClose disabled={saving} render={<Button type="button" variant="outline" />}>Cancel</DialogClose>{formMode === 'edit-container' ? <Button onClick={() => setShowContainerLabel(true)} type="button" variant="outline"><Printer aria-hidden="true" /> Print QR</Button> : null}<Button pending={saving} type="submit">{saving ? 'Saving…' : formMode === 'area' ? 'Create area' : formMode === 'zone' ? 'Create zone' : formMode === 'edit-area' || formMode === 'edit-zone' || formMode === 'edit-container' ? 'Save changes' : 'Create container'}</Button></div>
             </form>
-          </section>
-        </div>
+          </DialogContent>
+        </Dialog>
       ) : null}
       {showContainerLabel && selectedContainer ? <ContainerLabelModal container={selectedContainer} onClose={() => setShowContainerLabel(false)} token={token} /> : null}
       <ImageCropDialog file={containerImageToCrop} onCancel={() => setContainerImageToCrop(null)} onConfirm={(file) => { setContainerImageToCrop(null); void changeContainerImage(file) }} />
-      {showNestedItemForm && openContainer ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setNewNestedItemImage(null); setShowNestedItemForm(false) } }}><section aria-labelledby="nested-item-dialog-title" aria-modal="true" className="location-dialog" role="dialog"><div className="dialog-heading"><div><p className="eyebrow">Add to {openContainer.name}</p><h2 id="nested-item-dialog-title">Add an item</h2></div><Button aria-label="Close" onClick={() => { setNewNestedItemImage(null); setShowNestedItemForm(false) }}>×</Button></div><form onSubmit={submitNestedItem}>
+      {showNestedItemForm && openContainer ? <Dialog open onOpenChange={(open) => { if (!open && !saving) { setNewNestedItemImage(null); setShowNestedItemForm(false) } }}><DialogContent className="location-dialog max-w-[calc(100%-3rem)] gap-0 overflow-y-auto p-0 sm:max-w-[560px]" showCloseButton={false}><DialogHeader className="dialog-heading flex-row"><div><p className="eyebrow">Add to {openContainer.name}</p><DialogTitle>Add an item</DialogTitle><DialogDescription className="sr-only">Create an item directly in this container.</DialogDescription></div><DialogClose aria-label="Close add item dialog" disabled={saving} render={<Button size="icon" variant="secondary" />}>×</DialogClose></DialogHeader><form onSubmit={submitNestedItem}>
         <CreateImageField label="Item image" onFileChange={setNewNestedItemImage} />
         <label>Name<Input autoFocus name="name" placeholder="Cordless drill" required /></label>
         <div className="form-row"><label>Quantity<Input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><Input name="unit" placeholder="pieces, boxes, feet" /></label></div>
         <PhysicalIdentifierPicker />
         <label>Description <span className="optional">Optional</span><Textarea name="description" rows={3} /></label>
         <div className="placement-summary"><Container aria-hidden="true" /><span><strong>Placed in {openContainer.name}</strong><small>{openContainer.code}</small></span></div>
-        <div className="dialog-actions"><Button className="secondary-action" onClick={() => { setNewNestedItemImage(null); setShowNestedItemForm(false) }} type="button">Cancel</Button><Button className="primary-button" pending={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</Button></div>
-      </form></section></div> : null}
+        <div className="dialog-actions"><DialogClose disabled={saving} render={<Button type="button" variant="outline" />}>Cancel</DialogClose><Button pending={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</Button></div>
+      </form></DialogContent></Dialog> : null}
       <ConfirmDialog
         busy={saving}
         confirmLabel={deleteTarget?.type === 'area' ? 'Delete area' : 'Delete container'}
         description={deleteTarget?.description ?? ''}
         destructive
-        onCancel={() => setDeleteTarget(null)}
+        error={error}
+        onCancel={() => { setDeleteTarget(null); setError(null) }}
         onConfirm={() => deleteTarget?.type === 'area' ? confirmRemoveArea() : deleteTarget ? confirmRemoveContainer(deleteTarget.container) : undefined}
         open={Boolean(deleteTarget)}
         title={deleteTarget?.type === 'area' ? `Delete ${deleteTarget.name}?` : deleteTarget ? `Delete ${deleteTarget.container.name} (${deleteTarget.container.code})?` : 'Delete location?'}

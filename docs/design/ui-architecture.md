@@ -72,13 +72,41 @@ major one-time migration, and no current screen should be converted solely for c
 
 The first bounded adoption uses the shadcn `base-nova` style, Base UI, Lucide, CSS variables, and
 Tailwind CSS v4. Configuration lives in `apps/web/components.json`; generated and subsequently owned
-source lives in `apps/web/src/components/ui`. The installed primitive set is Button, Dialog, Input,
+source lives in `apps/web/src/components/ui`. The installed primitive set is AlertDialog, Button, Dialog, Input,
 Select, and Textarea. Button owns product-neutral variants (`default`, `outline`, `secondary`, `ghost`,
 `destructive`, and `link`), sizes (text and icon sizes from `xs` through `lg`), disabled mechanics,
 focus-visible styling, and the shared `pending` state. Pending buttons are disabled, expose
 `aria-busy`, and include a non-semantic spinner while callers retain control of the visible action
-label. Input and Textarea own disabled, invalid, and focus-visible styling. Dialog and Select own
+label. Input and Textarea own disabled, invalid, and focus-visible styling. AlertDialog, Dialog, and Select own
 their keyboard and focus behavior through Base UI.
+
+Use Dialog for ordinary modal workflows and richer product workflows. Use AlertDialog for a
+destructive or consequential decision that must interrupt the user before work starts; unlike Dialog,
+it does not dismiss from an outside press. Both primitives own the shared overlay, responsive content,
+title/description, focus containment/restoration, Escape handling, and keyboard behavior. While a
+mutation is pending, disable dismissal and every action that could submit or abandon it, keep the
+pending label visible, and render mutation errors inside the open dialog.
+
+`ConfirmDialog` is the shared WhereHouse confirmation behavior, not a primitive alias: it composes
+AlertDialog with consistent cancel/confirm placement, destructive intent, pending-state dismissal and
+duplicate-submit guards, and an in-dialog error region. Callers remain responsible for specific titles,
+consequences, mutations, and product state. Do not add browser-native confirmation APIs or bespoke
+backdrops/focus handlers. A typed destructive phrase may remain a custom blocking workflow when the
+extra friction is itself a safety requirement.
+
+### Dialog and confirmation inventory
+
+The dialog-standardization audit classified the web application as follows:
+
+| Classification | Workflows | Standard |
+| --- | --- | --- |
+| Ordinary interaction | quick/add item, location create/edit, nested item create, item details/edit, QR label | Dialog |
+| Destructive confirmation | item archive, area/container delete, device revoke | ConfirmDialog over AlertDialog |
+| Consequential confirmation | Dropbox disconnect, network-storage disable, application update install | ConfirmDialog over AlertDialog |
+| Rich custom workflow | image crop, companion-capture review queue | Dialog with workflow-specific content |
+| Blocking decision | prepare and migrate an external storage device | Typed phrase retained because disk erasure requires deliberate host-boundary confirmation |
+
+No direct `window.confirm`, `window.alert`, or `window.prompt` calls remain in the web application.
 
 WhereHouse colors are mapped to shadcn's semantic variables in `apps/web/src/styles.css`, while
 existing screen CSS remains active. Ordinary text, email, password, number, and readonly form fields
