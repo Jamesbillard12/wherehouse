@@ -161,6 +161,9 @@
 .identifier-picker input:checked + span { border-color: var(--action); background: #f3f4ff; color: var(--action); box-shadow: 0 0 0 2px rgb(79 70 229 / 10%); }
 .identifier-picker input:checked + span strong { color: #4338ca; }
 .identifier-picker input:focus-visible + span { outline: 3px solid rgb(79 70 229 / 18%); outline-offset: 1px; }
+.identifier-picker:disabled > label { cursor: not-allowed; }
+.identifier-picker:disabled label > span { background: #f2f4f7; color: #98a2b3; opacity: 0.75; }
+.identifier-picker > .form-error { grid-column: 1 / -1; margin: 0; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
 .form-row > label { display: flex; flex-flow: row wrap; align-content: start; align-items: baseline; column-gap: 0.35rem; }
 .form-row > label > input, .form-row > label > select, .form-row > label > [data-slot="input"] { flex: 0 0 100%; margin-top: 0.45rem; }

@@ -72,6 +72,17 @@ describe('AddItemDialog', () => {
     expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled()
   })
 
+  it('uses the shared physical identifier picker for item creation', async () => {
+    render(<AddItemDialog {...dialogProps} onOpenChange={vi.fn()} onSubmit={vi.fn()} open />)
+
+    const picker = screen.getByRole('group', { name: 'Physical identifier' })
+    expect(picker).toContainElement(screen.getByRole('radio', { name: /Neither/ }))
+    expect(screen.getByRole('radio', { name: /Neither/ })).toBeChecked()
+
+    await userEvent.click(screen.getByRole('radio', { name: /Both/ }))
+    expect(screen.getByRole('radio', { name: /Both/ })).toBeChecked()
+  })
+
   it('uses the shared resolved hierarchy when selecting an item placement', async () => {
     let submittedPlacement: FormDataEntryValue | null = null
     const onSubmit = vi.fn((event: React.FormEvent<HTMLFormElement>) => {

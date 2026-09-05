@@ -18,7 +18,7 @@ import {
   type StorageContainer,
   type Zone,
 } from '@wherehouse/api-client'
-import { Box, Camera, Image as ImageIcon, MapPin, PackagePlus, Pencil, Plus, Printer, QrCode, Radio, Trash2, X } from 'lucide-react'
+import { Box, Camera, Image as ImageIcon, MapPin, PackagePlus, Pencil, Plus, Printer, Trash2, X } from 'lucide-react'
 import { type FormEvent, type MouseEvent, type RefObject, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -32,10 +32,10 @@ import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 import { EmptyState, LoadingState, StatusMessage } from '../../components/wherehouse/StateDisplay'
 import { LocationPath, locationPathSegments } from '../../components/wherehouse/LocationPath'
 import { LocationSelector } from '../../components/wherehouse/LocationSelector'
+import { PhysicalIdentifierPicker, PhysicalIdentifierSummary } from '../../components/wherehouse/PhysicalIdentifierPicker'
 import { itemLocationPath } from '../../components/wherehouse/locationPaths'
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
-import { PhysicalIdentifierPicker } from './PhysicalIdentifierPicker'
 import { ItemLabelModal } from './ItemLabelModal'
 
 export function itemLocation(
@@ -178,7 +178,7 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
         <dl className="item-detail-grid">
           <div><dt>Quantity</dt><dd>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</dd></div>
           <div><dt>Code</dt><dd>{item.code}</dd></div>
-          <div className="physical-identifier-detail"><dt>Physical identifier</dt><dd><span className="physical-identifier-value">{item.identifier_type !== 'nfc' && item.identifier_type !== 'none' ? <QrCode aria-hidden="true" /> : null}{item.identifier_type !== 'qr' && item.identifier_type !== 'none' ? <Radio aria-hidden="true" /> : null}{item.identifier_type === 'none' ? 'Neither' : item.identifier_type === 'both' ? 'QR + NFC' : item.identifier_type.toUpperCase()}</span>{item.identifier_type === 'qr' || item.identifier_type === 'both' ? <Button className="identifier-print-button" onClick={() => setShowLabel(true)} size="sm" variant="outline"><Printer aria-hidden="true" /> Print QR</Button> : null}</dd></div>
+          <div className="physical-identifier-detail"><dt>Physical identifier</dt><dd><PhysicalIdentifierSummary type={item.identifier_type} />{item.identifier_type === 'qr' || item.identifier_type === 'both' ? <Button className="identifier-print-button" onClick={() => setShowLabel(true)} size="sm" variant="outline"><Printer aria-hidden="true" /> Print QR</Button> : null}</dd></div>
           <div><dt>Manufacturer</dt><dd>{item.manufacturer || '—'}</dd></div>
           <div><dt>Model</dt><dd>{item.model || '—'}</dd></div>
           <div><dt>Serial number</dt><dd>{item.serial_number || '—'}</dd></div>

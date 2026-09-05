@@ -33,7 +33,6 @@ import {
   Building2,
   Caravan,
   ChevronRight,
-  CircleOff,
   Container,
   Camera,
   Image as ImageIcon,
@@ -44,7 +43,6 @@ import {
   Plus,
   Printer,
   QrCode,
-  Radio,
   Trash2,
   TreePine,
   Warehouse,
@@ -58,7 +56,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
 import { ItemDetailsModal, itemLocation } from '../items/ItemsView'
-import { PhysicalIdentifierPicker } from '../items/PhysicalIdentifierPicker'
+import { PhysicalIdentifierPicker } from '../../components/wherehouse/PhysicalIdentifierPicker'
 import { message } from '../../shared/utils/errors'
 import { areaKey } from '../../shared/utils/storage'
 import { AreaIcon, AreaIconPicker, CONTAINER_TYPES } from './locationOptions'
@@ -632,23 +630,7 @@ export function LocationsView({ createRequest, workspace, onRevealConsumed, refr
                   {formMode === 'edit-container' ? <label>Type<Input className="readonly-input" readOnly value={CONTAINER_TYPES.find((type) => type.value === selectedContainer?.container_type)?.label ?? 'Other'} /></label> : <label>Type<select defaultValue="bin" name="containerType">{CONTAINER_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>}
                   {formMode === 'edit-container' ? <label>Code<Input className="readonly-input" readOnly value={selectedContainer?.code ?? ''} /></label> : <div className="generated-code-note"><QrCode aria-hidden="true" /><span><strong>Code generated automatically</strong><small>Based on the selected container type</small></span></div>}
                 </div>
-                <fieldset className="identifier-picker">
-                  <legend>Physical identifier</legend>
-                  {([
-                    { value: 'qr', label: 'QR code', description: 'Print and scan a label', icon: QrCode },
-                    { value: 'nfc', label: 'NFC tag', description: 'Tap with a compatible phone', icon: Radio },
-                    { value: 'both', label: 'Both', description: 'Use QR and NFC together', icon: QrCode },
-                    { value: 'none', label: 'Neither', description: 'No physical tag', icon: CircleOff },
-                  ] as const).map((option) => {
-                    const Icon = option.icon
-                    return (
-                      <label key={option.value}>
-                        <input defaultChecked={(selectedContainer?.identifier_type ?? 'none') === option.value} name="identifierType" type="radio" value={option.value} />
-                        <span><span className="identifier-option-icons"><Icon aria-hidden="true" />{option.value === 'both' ? <Radio aria-hidden="true" /> : null}</span><span><strong>{option.label}</strong><small>{option.description}</small></span></span>
-                      </label>
-                    )
-                  })}
-                </fieldset>
+                <PhysicalIdentifierPicker defaultValue={selectedContainer?.identifier_type ?? 'none'} />
                 <label>Zone <span className="optional">Optional</span><select name="zoneId" onChange={(event) => {
                   const zoneId = event.target.value
                   setContainerFormZoneId(zoneId)
