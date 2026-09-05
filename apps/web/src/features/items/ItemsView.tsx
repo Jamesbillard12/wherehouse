@@ -30,6 +30,9 @@ import { CreateImageField } from '../../components/wherehouse/CreateImageField'
 import { PageHeader } from '../../components/wherehouse/PageHeader'
 import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 import { EmptyState, LoadingState, StatusMessage } from '../../components/wherehouse/StateDisplay'
+import { LocationPath, locationPathSegments } from '../../components/wherehouse/LocationPath'
+import { LocationSelector } from '../../components/wherehouse/LocationSelector'
+import { itemLocationPath } from '../../components/wherehouse/locationPaths'
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
 import { PhysicalIdentifierPicker } from './PhysicalIdentifierPicker'
@@ -42,24 +45,7 @@ export function itemLocation(
   containers: StorageContainer[],
   containerPlacements: ContainerPlacement[],
 ): string {
-  if (!placement) return 'Unplaced'
-  if (placement.resolved_path) return placement.resolved_path
-  if (placement.area_id) return areas.find((area) => area.id === placement.area_id)?.name ?? 'Area'
-  if (placement.zone_id) {
-    const zone = zones.find((entry) => entry.id === placement.zone_id)
-    const area = areas.find((entry) => entry.id === zone?.area_id)
-    return [area?.name, zone?.name].filter(Boolean).join(' / ')
-  }
-  const path: string[] = []
-  let container = containers.find((entry) => entry.id === placement.container_id)
-  const area = areas.find((entry) => entry.id === container?.area_id)
-  const zone = zones.find((entry) => entry.id === container?.zone_id)
-  while (container) {
-    path.unshift(container.name)
-    const parentId = containerPlacements.find((entry) => entry.container_id === container?.id)?.parent_container_id
-    container = containers.find((entry) => entry.id === parentId)
-  }
-  return [area?.name, zone?.name, ...path].filter(Boolean).join(' / ') || 'Unplaced'
+  return itemLocationPath(placement, areas, zones, containers, containerPlacements)
 }
 
 export function ItemDetailsModal({ areas, containerPlacements, containers, imageRevision = 0, initialMode = 'details', item, locationLabel, onClose, onDeleted, onPlacementUpdated, onUpdated, placement, token, zones }: { areas: Area[]; containerPlacements: ContainerPlacement[]; containers: StorageContainer[]; imageRevision?: number; initialMode?: 'details' | 'edit' | 'delete'; item: Item; locationLabel: string; onClose: () => void; onDeleted: (itemId: string) => void; onPlacementUpdated?: (placement: ItemPlacement) => void; onUpdated: (item: Item) => void; placement?: ItemPlacement; token: string; zones: Zone[] }) {
@@ -183,12 +169,12 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
           <div className="form-row"><label>Manufacturer <span className="optional">Optional</span><Input defaultValue={item.manufacturer ?? ''} name="manufacturer" /></label><label>Model <span className="optional">Optional</span><Input defaultValue={item.model ?? ''} name="model" /></label></div>
           <div className="form-row"><label>Serial number <span className="optional">Optional</span><Input defaultValue={item.serial_number ?? ''} name="serialNumber" /></label><label>Code<Input className="readonly-input" readOnly value={item.code} /></label></div>
           <PhysicalIdentifierPicker defaultValue={item.identifier_type} />
-          <label>Location<select defaultValue={placement?.area_id ? `area:${placement.area_id}` : placement?.zone_id ? `zone:${placement.zone_id}` : placement?.container_id ? `container:${placement.container_id}` : ''} name="placement"><option disabled value="">Choose a location</option>{areas.map((area) => <option key={area.id} value={`area:${area.id}`}>{area.name}</option>)}{zones.map((zone) => <option key={zone.id} value={`zone:${zone.id}`}>{areas.find((area) => area.id === zone.area_id)?.name} / {zone.name}</option>)}{containers.map((container) => <option key={container.id} value={`container:${container.id}`}>{itemLocation({ id: '', item_id: item.id, area_id: null, zone_id: null, container_id: container.id, relationship_type: 'in', created_at: '', updated_at: '' }, areas, zones, containers, containerPlacements)}</option>)}</select></label>
+          <LocationSelector areas={areas} containerPlacements={containerPlacements} containers={containers} defaultValue={placement?.area_id ? `area:${placement.area_id}` : placement?.zone_id ? `zone:${placement.zone_id}` : placement?.container_id ? `container:${placement.container_id}` : ''} required zones={zones} />
           <label>Description <span className="optional">Optional</span><Textarea defaultValue={item.description ?? ''} name="description" rows={3} /></label>
           <label>Notes <span className="optional">Optional</span><Textarea defaultValue={item.notes ?? ''} name="notes" rows={3} /></label>
           <div className="dialog-actions"><Button className="secondary-action" onClick={() => setEditing(false)} type="button">Cancel</Button><Button className="primary-button" pending={saving} type="submit">{saving ? 'Saving…' : 'Save changes'}</Button></div>
         </form> : <>
-        <div className="item-detail-location"><MapPin aria-hidden="true" /><span><small>Location</small><strong>{displayLocation}</strong></span></div>
+        <div className="item-detail-location"><MapPin aria-hidden="true" /><span><small>Location</small><strong><LocationPath segments={locationPathSegments(displayLocation)} /></strong></span></div>
         <dl className="item-detail-grid">
           <div><dt>Quantity</dt><dd>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</dd></div>
           <div><dt>Code</dt><dd>{item.code}</dd></div>
@@ -230,7 +216,7 @@ export function AddItemDialog({ areas, containerPlacements, containers, eyebrow 
           <div className="form-row"><label>Quantity<Input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><Input name="unit" placeholder="pieces, boxes, feet" /></label></div>
           <div className="form-row"><label>Manufacturer <span className="optional">Optional</span><Input name="manufacturer" /></label><label>Model <span className="optional">Optional</span><Input name="model" /></label></div>
           <PhysicalIdentifierPicker />
-          <label>Location <span className="optional">Optional</span><select defaultValue="" name="placement"><option value="">Unplaced</option>{areas.map((area) => <option key={area.id} value={`area:${area.id}`}>{area.name}</option>)}{zones.map((zone) => <option key={zone.id} value={`zone:${zone.id}`}>{areas.find((area) => area.id === zone.area_id)?.name} / {zone.name}</option>)}{containers.map((container) => <option key={container.id} value={`container:${container.id}`}>{itemLocation({ id: '', item_id: '', area_id: null, zone_id: null, container_id: container.id, relationship_type: 'in', created_at: '', updated_at: '' }, areas, zones, containers, containerPlacements)}</option>)}</select></label>
+          <LocationSelector areas={areas} containerPlacements={containerPlacements} containers={containers} defaultValue="" optional placeholder="Unplaced" zones={zones} />
           <label>Description <span className="optional">Optional</span><Textarea name="description" rows={3} /></label>
           <div className="dialog-actions"><DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose><Button pending={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</Button></div>
         </form>
@@ -348,7 +334,7 @@ export function ItemsView({ createRequestKey = 0, workspace, onCreateOpenChange,
               const placement = placements.find((entry) => entry.item_id === item.id)
               const locationLabel = itemLocation(placement, areas, zones, containers, containerPlacements)
               const areaId = placement?.area_id ?? zones.find((zone) => zone.id === placement?.zone_id)?.area_id ?? containers.find((container) => container.id === placement?.container_id)?.area_id
-              return <tr key={item.id}><td><a className="item-details-button" href={`/items#${item.id}`} onClick={(event) => { event.preventDefault(); setSelectedItem(item) }}><strong>{item.name}</strong>{item.description ? <small>{item.description}</small> : null}</a></td><td>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</td><td>{placement && areaId ? <a className="location-path" href="/locations" onClick={(event) => { event.preventDefault(); onOpenLocation({ areaId, ...(placement.container_id ? { containerId: placement.container_id } : {}), ...(placement.zone_id ? { zoneId: placement.zone_id } : {}) }) }}>{locationLabel}</a> : <span className="unplaced-badge">{locationLabel}</span>}</td><td>{[item.manufacturer, item.model].filter(Boolean).join(' · ') || '—'}</td></tr>
+              return <tr key={item.id}><td><a className="item-details-button" href={`/items#${item.id}`} onClick={(event) => { event.preventDefault(); setSelectedItem(item) }}><strong>{item.name}</strong>{item.description ? <small>{item.description}</small> : null}</a></td><td>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</td><td>{placement && areaId ? <a className="location-path" href="/locations" onClick={(event) => { event.preventDefault(); onOpenLocation({ areaId, ...(placement.container_id ? { containerId: placement.container_id } : {}), ...(placement.zone_id ? { zoneId: placement.zone_id } : {}) }) }}><LocationPath segments={locationPathSegments(locationLabel)} /></a> : <span className="unplaced-badge"><LocationPath segments={[]} /></span>}</td><td>{[item.manufacturer, item.model].filter(Boolean).join(' · ') || '—'}</td></tr>
             })}</tbody>
           </table>
         ) : <EmptyState action={<Button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add first item</Button>} description="Add your first item and place it directly in an area, zone, or container." icon={PackagePlus} title="No items yet" />}

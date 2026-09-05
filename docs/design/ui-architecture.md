@@ -160,6 +160,22 @@ information hierarchy is meaningfully different. Future screens should search th
 components before duplicating icon/title/body/action markup, and add a new variant only when current
 callers demonstrate a distinct reusable presentation.
 
+### Shared location presentation and selection
+
+`LocationPath` owns the common accessible presentation of resolved area, zone, and nested-container
+paths. It accepts resolved segments, performs no fetching, and supports the two established web
+presentations: compact text and the navigable container breadcrumb. `locationPaths.ts` centralizes
+cycle-safe display derivation for contracts that do not already provide a canonical `resolved_path`;
+server-resolved paths remain authoritative when available.
+
+`LocationSelector` owns the item-placement destination list and its label, optional/required
+placeholder, disabled state, and associated validation feedback. Callers still own selected state,
+mutation behavior, and all authorization or destination-validity decisions. Container parent
+selection remains in the Locations feature because its same-zone, self/descendant, relationship,
+and cycle semantics differ from item placement. Area and zone selectors used to establish another
+location's scope likewise remain feature-specific. Future location-aware workflows should reuse
+these components and helpers before adding path markup or an equivalent placement selector.
+
 ## Mobile foundation evaluation
 
 | Option | Fit | Trade-off |
