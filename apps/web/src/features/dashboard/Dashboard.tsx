@@ -39,6 +39,7 @@ import { SettingsView } from '../settings/SettingsView'
 import { FeatureActionsProvider, useFeatureActions } from '../app/FeatureActions'
 import { GlobalFeatureHost } from '../app/GlobalFeatureHost'
 import { settingsSectionFromLocation, type SettingsSection } from '../../shared/utils/navigation'
+import { LocationPath, locationPathSegments } from '../../components/wherehouse/LocationPath'
 
 const sectionsForMenu: { id: SettingsSection; label: string }[] = [
   { id: 'account', label: 'Account' }, { id: 'workspaces', label: 'Households' },
@@ -369,7 +370,7 @@ function DashboardContent({
             <div className="card-heading"><h2>Recently added items</h2><Box aria-hidden="true" /></div>
             {recentOverviewItems.length ? <div className="overview-list item-preview-list">{recentOverviewItems.map((item) => {
               const placement = overview.itemPlacements.find((entry) => entry.item_id === item.id)
-              return <button key={item.id} onClick={() => setSelectedOverviewItem(item)} type="button"><span className="area-icon"><Box aria-hidden="true" /></span><span><strong>{item.name}</strong><small>{itemLocation(placement, overview.areas, overview.zones, overview.containers, overview.containerPlacements)}</small></span><ChevronRight aria-hidden="true" /></button>
+              return <button key={item.id} onClick={() => setSelectedOverviewItem(item)} type="button"><span className="area-icon"><Box aria-hidden="true" /></span><span><strong>{item.name}</strong><small><LocationPath segments={locationPathSegments(itemLocation(placement, overview.areas, overview.zones, overview.containers, overview.containerPlacements))} /></small></span><ChevronRight aria-hidden="true" /></button>
             })}</div> : <><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>Your inventory is ready</strong><p>Items you add will appear here with their exact location path.</p></>}
             <a className="inline-link" href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }}>View all items →</a>
           </article>

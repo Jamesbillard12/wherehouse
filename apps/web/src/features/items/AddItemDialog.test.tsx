@@ -71,4 +71,20 @@ describe('AddItemDialog', () => {
     rerender(<AddItemDialog {...dialogProps} onOpenChange={vi.fn()} onSubmit={onSubmit} open saving />)
     expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled()
   })
+
+  it('uses the shared resolved hierarchy when selecting an item placement', async () => {
+    let submittedPlacement: FormDataEntryValue | null = null
+    const onSubmit = vi.fn((event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      submittedPlacement = new FormData(event.currentTarget).get('placement')
+    })
+    render(<AddItemDialog {...dialogProps} areas={[{ id: 'area-1', name: 'Garage' }] as never} containerPlacements={[{ container_id: 'bin', parent_container_id: 'shelf' }] as never} containers={[{ id: 'shelf', area_id: 'area-1', zone_id: 'zone-1', name: 'Shelf' }, { id: 'bin', area_id: 'area-1', zone_id: 'zone-1', name: 'Bin' }] as never} onOpenChange={vi.fn()} onSubmit={onSubmit} open zones={[{ id: 'zone-1', area_id: 'area-1', name: 'North wall' }] as never} />)
+
+    await userEvent.selectOptions(screen.getByLabelText(/Location/), 'container:bin')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Drill')
+    await userEvent.click(screen.getByRole('button', { name: 'Create item' }))
+
+    expect(screen.getByRole('option', { name: 'Garage / North wall / Shelf / Bin' })).toBeInTheDocument()
+    expect(submittedPlacement).toBe('container:bin')
+  })
 })

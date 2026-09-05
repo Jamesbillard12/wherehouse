@@ -69,6 +69,8 @@ import { CreateImageField } from '../../components/wherehouse/CreateImageField'
 import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 import { PageHeader } from '../../components/wherehouse/PageHeader'
 import { EmptyState, LoadingState, StatusMessage } from '../../components/wherehouse/StateDisplay'
+import { LocationPath } from '../../components/wherehouse/LocationPath'
+import { locationSegmentsForTarget } from '../../components/wherehouse/locationPaths'
 
 export { AreaIcon } from './locationOptions'
 export function LocationsView({ createRequest, workspace, onRevealConsumed, refreshKey = 0, revealAreaId, revealContainerId, revealItem, revealItemId, revealScanKey, revealZoneId, token }: { createRequest?: { key: number; type: 'area' | 'zone' | 'container' }; workspace: Workspace; onRevealConsumed?: () => void; refreshKey?: number; revealAreaId?: string; revealContainerId?: string; revealItem?: Item; revealItemId?: string; revealScanKey?: string; revealZoneId?: string; token: string }) {
@@ -504,13 +506,7 @@ export function LocationsView({ createRequest, workspace, onRevealConsumed, refr
   const placementByContainer = new Map(placements.map((placement) => [placement.container_id, placement]))
   const containerById = new Map(containers.map((container) => [container.id, container]))
   const openContainer = openContainerId ? containerById.get(openContainerId) : null
-  const openContainerTrail: StorageContainer[] = []
-  let trailCursor = openContainer
-  while (trailCursor) {
-    openContainerTrail.unshift(trailCursor)
-    const parentId = placementByContainer.get(trailCursor.id)?.parent_container_id
-    trailCursor = parentId ? containerById.get(parentId) : undefined
-  }
+  const openContainerTrail = openContainer ? locationSegmentsForTarget({ type: 'container', id: openContainer.id }, [], [], containers, placements) : []
   const visibleContainers = containers.filter((container) => {
     const parentId = placementByContainer.get(container.id)?.parent_container_id
     return openContainerId
@@ -591,7 +587,7 @@ export function LocationsView({ createRequest, workspace, onRevealConsumed, refr
               </div>
             ) : <div className="empty-strip"><span><MapPin aria-hidden="true" /> No zones yet. Add one to describe a shelf wall, workbench, or other section.</span><Button onClick={() => setFormMode('zone')}><Plus aria-hidden="true" /> Add zone</Button></div>}
 
-            {openContainer ? <div className="container-breadcrumb"><Button className="back-button" onClick={() => setOpenContainerId(placementByContainer.get(openContainer.id)?.parent_container_id ?? null)}>← Back</Button><nav aria-label="Container location" className="container-path">{openContainerTrail.map((container, index) => <span className="path-segment" key={container.id}>{index ? <ChevronRight aria-hidden="true" /> : null}{index < openContainerTrail.length - 1 ? <Button onClick={() => setOpenContainerId(container.id)}>{container.name}</Button> : <strong>{container.name}</strong>}</span>)}</nav><small>{openContainer.code}</small><div className="nested-actions"><Button className="add-nested-button" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add container</Button><Button className="add-nested-button" onClick={() => setShowNestedItemForm(true)}><Plus aria-hidden="true" /> Add item</Button></div></div> : null}
+            {openContainer ? <div className="container-breadcrumb"><Button className="back-button" onClick={() => setOpenContainerId(placementByContainer.get(openContainer.id)?.parent_container_id ?? null)}>← Back</Button><LocationPath label="Container location" onNavigate={(segment) => setOpenContainerId(segment.id ?? null)} segments={openContainerTrail} variant="breadcrumb" /><small>{openContainer.code}</small><div className="nested-actions"><Button className="add-nested-button" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add container</Button><Button className="add-nested-button" onClick={() => setShowNestedItemForm(true)}><Plus aria-hidden="true" /> Add item</Button></div></div> : null}
 
             {visibleContainers.length || visibleItems.length ? (
               <LocationContentsList
