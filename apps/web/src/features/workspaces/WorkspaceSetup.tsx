@@ -2,6 +2,7 @@ import { enableNetworkStorage, getStorageStatus, migrateStorage, prepareStorage,
 import { type FormEvent, useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 import { message } from '../../shared/utils/errors'
 
@@ -71,7 +72,7 @@ export function WorkspaceSetup({
           <p className="muted">Internal SD storage works for normal WhereHouse use. A USB HDD or SSD provides more space and is required for Network Storage.</p>
           <Button onClick={() => { setStorage((current) => current ? { ...current, primary: 'internal' } : current); setStep('nas') }}>Use Internal SD</Button>
           {storage?.devices.filter((drive) => drive.selectable).map((drive) => <div className="setup-readiness" key={drive.id}><strong>{drive.model ?? 'USB drive'} · {(drive.capacityBytes / 1_000_000_000).toFixed(0)} GB</strong><span>Preparing this drive will erase every file on it.</span><Button disabled={busy || driveConfirmation !== 'ERASE AND USE THIS DRIVE'} onClick={() => void useDrive(drive.id)}>Use This Drive</Button></div>)}
-          {storage?.devices.some((drive) => drive.selectable) ? <label>Type <strong>ERASE AND USE THIS DRIVE</strong> to confirm<input autoComplete="off" onChange={(event) => setDriveConfirmation(event.target.value)} value={driveConfirmation} /></label> : <p>No supported external USB drive is attached.</p>}
+          {storage?.devices.some((drive) => drive.selectable) ? <label>Type <strong>ERASE AND USE THIS DRIVE</strong> to confirm<Input autoComplete="off" onChange={(event) => setDriveConfirmation(event.target.value)} value={driveConfirmation} /></label> : <p>No supported external USB drive is attached.</p>}
           {error ? <div className="alert">{error}</div> : null}
         </> : step === 'nas' ? <>
           <span className="step-number">02</span><p className="eyebrow">Network Storage</p><h1>Share ordinary files too?</h1>
@@ -81,7 +82,7 @@ export function WorkspaceSetup({
         </> : step === 'nas-credentials' ? <>
           <span className="step-number">03</span><p className="eyebrow">Set Up Network Storage</p><h1>Secure your Shared folder.</h1>
           <p className="muted">Your files will be available at smb://wherehouse.local/Shared. This credential is separate from your WhereHouse account.</p>
-          <form onSubmit={(event) => void enableNas(event)}><label>Username<input autoComplete="username" name="username" pattern="[a-z][a-z0-9_-]{0,30}" required /></label><label>Password<input autoComplete="new-password" minLength={12} name="password" required type="password" /></label><label>Confirm password<input autoComplete="new-password" minLength={12} name="confirmation" required type="password" /></label>{error ? <div className="alert">{error}</div> : null}<Button className="primary-button" disabled={busy} type="submit">Enable Network Storage</Button><Button onClick={() => setStep('household')} type="button">Skip for now</Button></form>
+          <form onSubmit={(event) => void enableNas(event)}><label>Username<Input autoComplete="username" name="username" pattern="[a-z][a-z0-9_-]{0,30}" required /></label><label>Password<Input autoComplete="new-password" minLength={12} name="password" required type="password" /></label><label>Confirm password<Input autoComplete="new-password" minLength={12} name="confirmation" required type="password" /></label>{error ? <div className="alert">{error}</div> : null}<Button className="primary-button" pending={busy} type="submit">Enable Network Storage</Button><Button onClick={() => setStep('household')} type="button">Skip for now</Button></form>
         </> : <>
         <span className="step-number">{storageSupported ? '04' : '01'}</span>
         <p className="eyebrow">Hello, {user.user.display_name}</p>
@@ -97,10 +98,10 @@ export function WorkspaceSetup({
         <form onSubmit={submit}>
           <label>
             Household name
-            <input autoFocus name="name" placeholder="The Billard household" required />
+            <Input autoFocus name="name" placeholder="The Billard household" required />
           </label>
           {error ? <div className="alert">{error}</div> : null}
-          <Button className="primary-button" disabled={busy} type="submit">
+          <Button className="primary-button" pending={busy} type="submit">
             {busy ? 'Creating…' : 'Create household'}
           </Button>
         </form>

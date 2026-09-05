@@ -38,7 +38,7 @@ export function ConfirmDialog({
         </DialogHeader>
         <DialogFooter>
           <Button disabled={busy} onClick={onCancel} variant="outline">{cancelLabel}</Button>
-          <Button disabled={busy} onClick={() => void onConfirm()} variant={destructive ? 'destructive' : 'default'}>
+          <Button onClick={() => void onConfirm()} pending={busy} variant={destructive ? 'destructive' : 'default'}>
             {busy ? `${confirmLabel}…` : confirmLabel}
           </Button>
         </DialogFooter>

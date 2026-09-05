@@ -53,6 +53,8 @@ import {
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 
 import { ItemDetailsModal, itemLocation } from '../items/ItemsView'
 import { PhysicalIdentifierPicker } from '../items/PhysicalIdentifierPicker'
@@ -625,12 +627,12 @@ export function LocationsView({ createRequest, workspace, onRevealConsumed, refr
             <form onSubmit={formMode === 'area' ? submitArea : formMode === 'edit-area' ? submitAreaEdit : formMode === 'zone' ? submitZone : formMode === 'edit-zone' ? submitZoneEdit : formMode === 'edit-container' ? submitContainerEdit : submitContainer}>
               {formMode === 'edit-container' ? <div className="item-image-panel container-image-panel">{containerImageUrl ? <img alt={selectedContainer?.name} src={containerImageUrl} /> : <div className="item-image-placeholder"><ImageIcon aria-hidden="true" /><strong>No image yet</strong><span>Add a photo to make this container easier to identify.</span></div>}<label className="item-image-action"><Camera aria-hidden="true" /><span>{containerImageBusy ? 'Uploading…' : containerImageUrl ? 'Replace image' : 'Add image'}</span><input accept="image/jpeg,image/png,image/webp" disabled={containerImageBusy} onChange={(event) => { setContainerImageToCrop(event.target.files?.[0] ?? null); event.target.value = '' }} type="file" /></label></div> : null}
               {formMode === 'container' ? <CreateImageField label="Container image" onFileChange={setNewContainerImage} /> : null}
-              <label>Name<input autoFocus defaultValue={formMode === 'edit-area' ? selectedArea?.name : formMode === 'edit-zone' ? selectedZone?.name : formMode === 'edit-container' ? selectedContainer?.name : ''} name="name" placeholder={formMode === 'area' ? 'Garage' : formMode === 'zone' || formMode === 'edit-zone' ? 'North wall' : 'Camping bin'} required /></label>
+              <label>Name<Input autoFocus defaultValue={formMode === 'edit-area' ? selectedArea?.name : formMode === 'edit-zone' ? selectedZone?.name : formMode === 'edit-container' ? selectedContainer?.name : ''} name="name" placeholder={formMode === 'area' ? 'Garage' : formMode === 'zone' || formMode === 'edit-zone' ? 'North wall' : 'Camping bin'} required /></label>
               {formMode === 'area' || formMode === 'edit-area' ? <AreaIconPicker defaultValue={formMode === 'edit-area' ? selectedArea?.icon : undefined} /> : null}
               {formMode === 'container' || formMode === 'edit-container' ? <>
                 <div className="form-row">
-                  {formMode === 'edit-container' ? <label>Type<input className="readonly-input" readOnly value={CONTAINER_TYPES.find((type) => type.value === selectedContainer?.container_type)?.label ?? 'Other'} /></label> : <label>Type<select defaultValue="bin" name="containerType">{CONTAINER_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>}
-                  {formMode === 'edit-container' ? <label>Code<input className="readonly-input" readOnly value={selectedContainer?.code ?? ''} /></label> : <div className="generated-code-note"><QrCode aria-hidden="true" /><span><strong>Code generated automatically</strong><small>Based on the selected container type</small></span></div>}
+                  {formMode === 'edit-container' ? <label>Type<Input className="readonly-input" readOnly value={CONTAINER_TYPES.find((type) => type.value === selectedContainer?.container_type)?.label ?? 'Other'} /></label> : <label>Type<select defaultValue="bin" name="containerType">{CONTAINER_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>}
+                  {formMode === 'edit-container' ? <label>Code<Input className="readonly-input" readOnly value={selectedContainer?.code ?? ''} /></label> : <div className="generated-code-note"><QrCode aria-hidden="true" /><span><strong>Code generated automatically</strong><small>Based on the selected container type</small></span></div>}
                 </div>
                 <fieldset className="identifier-picker">
                   <legend>Physical identifier</legend>
@@ -661,8 +663,8 @@ export function LocationsView({ createRequest, workspace, onRevealConsumed, refr
                 </div>
                 <label className="checkbox-label"><input defaultChecked={selectedContainer?.is_movable ?? true} name="isMovable" type="checkbox" /> This container can be moved</label>
               </> : null}
-              <label>Description <span className="optional">Optional</span><textarea defaultValue={formMode === 'edit-area' ? selectedArea?.description ?? '' : formMode === 'edit-zone' ? selectedZone?.description ?? '' : formMode === 'edit-container' ? selectedContainer?.description ?? '' : ''} name="description" placeholder="Add a helpful note…" rows={3} /></label>
-              <div className="dialog-actions"><Button className="secondary-action" onClick={() => { setNewContainerImage(null); setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }} type="button">Cancel</Button>{formMode === 'edit-container' ? <Button className="secondary-action" onClick={() => setShowContainerLabel(true)} type="button"><Printer aria-hidden="true" /> Print QR</Button> : null}<Button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : formMode === 'area' ? 'Create area' : formMode === 'zone' ? 'Create zone' : formMode === 'edit-area' || formMode === 'edit-zone' || formMode === 'edit-container' ? 'Save changes' : 'Create container'}</Button></div>
+              <label>Description <span className="optional">Optional</span><Textarea defaultValue={formMode === 'edit-area' ? selectedArea?.description ?? '' : formMode === 'edit-zone' ? selectedZone?.description ?? '' : formMode === 'edit-container' ? selectedContainer?.description ?? '' : ''} name="description" placeholder="Add a helpful note…" rows={3} /></label>
+              <div className="dialog-actions"><Button className="secondary-action" onClick={() => { setNewContainerImage(null); setFormMode(null); setSelectedZone(null); setSelectedContainer(null) }} type="button">Cancel</Button>{formMode === 'edit-container' ? <Button className="secondary-action" onClick={() => setShowContainerLabel(true)} type="button"><Printer aria-hidden="true" /> Print QR</Button> : null}<Button className="primary-button" pending={saving} type="submit">{saving ? 'Saving…' : formMode === 'area' ? 'Create area' : formMode === 'zone' ? 'Create zone' : formMode === 'edit-area' || formMode === 'edit-zone' || formMode === 'edit-container' ? 'Save changes' : 'Create container'}</Button></div>
             </form>
           </section>
         </div>
@@ -671,12 +673,12 @@ export function LocationsView({ createRequest, workspace, onRevealConsumed, refr
       <ImageCropDialog file={containerImageToCrop} onCancel={() => setContainerImageToCrop(null)} onConfirm={(file) => { setContainerImageToCrop(null); void changeContainerImage(file) }} />
       {showNestedItemForm && openContainer ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setNewNestedItemImage(null); setShowNestedItemForm(false) } }}><section aria-labelledby="nested-item-dialog-title" aria-modal="true" className="location-dialog" role="dialog"><div className="dialog-heading"><div><p className="eyebrow">Add to {openContainer.name}</p><h2 id="nested-item-dialog-title">Add an item</h2></div><Button aria-label="Close" onClick={() => { setNewNestedItemImage(null); setShowNestedItemForm(false) }}>×</Button></div><form onSubmit={submitNestedItem}>
         <CreateImageField label="Item image" onFileChange={setNewNestedItemImage} />
-        <label>Name<input autoFocus name="name" placeholder="Cordless drill" required /></label>
-        <div className="form-row"><label>Quantity<input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><input name="unit" placeholder="pieces, boxes, feet" /></label></div>
+        <label>Name<Input autoFocus name="name" placeholder="Cordless drill" required /></label>
+        <div className="form-row"><label>Quantity<Input defaultValue="1" min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><Input name="unit" placeholder="pieces, boxes, feet" /></label></div>
         <PhysicalIdentifierPicker />
-        <label>Description <span className="optional">Optional</span><textarea name="description" rows={3} /></label>
+        <label>Description <span className="optional">Optional</span><Textarea name="description" rows={3} /></label>
         <div className="placement-summary"><Container aria-hidden="true" /><span><strong>Placed in {openContainer.name}</strong><small>{openContainer.code}</small></span></div>
-        <div className="dialog-actions"><Button className="secondary-action" onClick={() => { setNewNestedItemImage(null); setShowNestedItemForm(false) }} type="button">Cancel</Button><Button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</Button></div>
+        <div className="dialog-actions"><Button className="secondary-action" onClick={() => { setNewNestedItemImage(null); setShowNestedItemForm(false) }} type="button">Cancel</Button><Button className="primary-button" pending={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</Button></div>
       </form></section></div> : null}
       <ConfirmDialog
         busy={saving}

@@ -42,6 +42,7 @@ import QRCode from "qrcode";
 import { type FormEvent, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 import { ConfirmDialog } from "../../components/wherehouse/ConfirmDialog";
 import { PageHeader } from "../../components/wherehouse/PageHeader";
@@ -177,7 +178,7 @@ function StorageSettings({ isOwner, token }: { isOwner: boolean; token: string }
         <div><strong>{drive.model ?? "USB drive"}</strong><small>{(drive.capacityBytes / 1_000_000_000).toFixed(0)} GB · {drive.filesystem ?? "Unformatted"}</small></div>
         {isOwner ? <Button disabled={busy || confirmation !== "ERASE AND USE THIS DRIVE"} onClick={() => void prepare(drive.id)}>Prepare &amp; Migrate</Button> : null}
       </div>)}
-      {isOwner && status.devices.some((drive) => drive.selectable) ? <label>Type <strong>ERASE AND USE THIS DRIVE</strong> to confirm<input autoComplete="off" onChange={(event) => setConfirmation(event.target.value)} value={confirmation} /></label> : null}
+      {isOwner && status.devices.some((drive) => drive.selectable) ? <label>Type <strong>ERASE AND USE THIS DRIVE</strong> to confirm<Input autoComplete="off" onChange={(event) => setConfirmation(event.target.value)} value={confirmation} /></label> : null}
       {!status.devices.some((drive) => drive.selectable) ? <p>No supported USB HDD or SSD is attached. Operating-system disks are never selectable.</p> : null}
     </div> : null}
     {error ? <div className="alert">{error}</div> : null}
@@ -200,13 +201,13 @@ function NetworkStorageSettings({ isOwner, token }: { isOwner: boolean; token: s
     <p className="eyebrow">Authenticated SMB sharing</p><h2>Network Storage</h2>
     <div className="settings-card"><h3>Status: {status?.nas.enabled ? "Enabled" : "Disabled"}</h3>
       {status?.nas.enabled ? <><p>Server <strong>{status.nas.server}</strong><br />Protocol <strong>SMB</strong><br />Share <strong>Shared</strong></p><p><code>{status.nas.address}</code><br /><code>\\\\{status.nas.server}\\Shared</code></p>
-        {isOwner ? <><form onSubmit={(event) => void enable(event)}><input name="username" type="hidden" value={status.nas.username ?? ""} /><label>New password<input autoComplete="new-password" minLength={12} name="password" required type="password" /></label><label>Confirm new password<input autoComplete="new-password" minLength={12} name="passwordConfirmation" required type="password" /></label><Button disabled={busy} type="submit">Change Password</Button></form><Button disabled={busy} onClick={() => void disable()}>Disable Network Storage</Button></> : null}</> : status?.primary !== "external" ?
+        {isOwner ? <><form onSubmit={(event) => void enable(event)}><input name="username" type="hidden" value={status.nas.username ?? ""} /><label>New password<Input autoComplete="new-password" minLength={12} name="password" required type="password" /></label><label>Confirm new password<Input autoComplete="new-password" minLength={12} name="passwordConfirmation" required type="password" /></label><Button pending={busy} type="submit">Change Password</Button></form><Button disabled={busy} onClick={() => void disable()}>Disable Network Storage</Button></> : null}</> : status?.primary !== "external" ?
         <p>Network Storage requires an external primary drive so ordinary files never fill the appliance SD card.</p> :
         <form onSubmit={(event) => void enable(event)}><p>Only <strong>Shared</strong> is exposed. WhereHouse application data, PostgreSQL, secrets, and backups remain private.</p>
-          <label>Username<input autoCapitalize="none" autoComplete="username" name="username" pattern="[a-z][a-z0-9_-]{0,30}" required /></label>
-          <label>Password<input autoComplete="new-password" minLength={12} name="password" required type="password" /></label>
-          <label>Confirm password<input autoComplete="new-password" minLength={12} name="passwordConfirmation" required type="password" /></label>
-          {isOwner ? <Button className="primary-button" disabled={busy} type="submit">Enable Network Storage</Button> : null}</form>}
+          <label>Username<Input autoCapitalize="none" autoComplete="username" name="username" pattern="[a-z][a-z0-9_-]{0,30}" required /></label>
+          <label>Password<Input autoComplete="new-password" minLength={12} name="password" required type="password" /></label>
+          <label>Confirm password<Input autoComplete="new-password" minLength={12} name="passwordConfirmation" required type="password" /></label>
+          {isOwner ? <Button className="primary-button" pending={busy} type="submit">Enable Network Storage</Button> : null}</form>}
     </div>{error ? <div className="alert">{error}</div> : null}
   </>;
 }
@@ -438,11 +439,11 @@ function Account({ user }: { user: MeResponse }) {
       <div className="settings-card">
         <label>
           Display name
-          <input disabled value={user.user.display_name} />
+          <Input disabled value={user.user.display_name} />
         </label>
         <label>
           Email address
-          <input disabled value={user.user.email} />
+          <Input disabled value={user.user.email} />
         </label>
         <p className="muted">
           Profile and password changes are not yet supported by the account API.

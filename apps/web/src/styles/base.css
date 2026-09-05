@@ -87,6 +87,7 @@ button { cursor: pointer; }
 .auth-card h2, .panel h2 { margin: 0; font: 800 2rem/1.15 'Manrope', sans-serif; letter-spacing: -0.04em; }
 .auth-card form, .setup-card form { display: grid; gap: 1rem; margin-top: 2rem; }
 label { display: grid; gap: 0.45rem; color: #3f4942; font-size: 0.83rem; font-weight: 700; }
+label > [data-slot="input"] { min-height: 42px; }
 input:not([data-slot="input"]), select {
   width: 100%;
   border: 1px solid #cfd2c8;

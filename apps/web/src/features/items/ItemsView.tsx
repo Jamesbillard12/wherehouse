@@ -177,15 +177,15 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
         </div>
         {imageError ? <div className="alert">{imageError}</div> : null}
         {editing ? <form className="item-edit-form" onSubmit={saveItem}>
-          <label>Name<input autoFocus defaultValue={item.name} name="name" required /></label>
-          <div className="form-row"><label>Quantity<input defaultValue={Number(item.quantity)} min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><input defaultValue={item.unit ?? ''} name="unit" /></label></div>
-          <div className="form-row"><label>Manufacturer <span className="optional">Optional</span><input defaultValue={item.manufacturer ?? ''} name="manufacturer" /></label><label>Model <span className="optional">Optional</span><input defaultValue={item.model ?? ''} name="model" /></label></div>
-          <div className="form-row"><label>Serial number <span className="optional">Optional</span><input defaultValue={item.serial_number ?? ''} name="serialNumber" /></label><label>Code<input className="readonly-input" readOnly value={item.code} /></label></div>
+          <label>Name<Input autoFocus defaultValue={item.name} name="name" required /></label>
+          <div className="form-row"><label>Quantity<Input defaultValue={Number(item.quantity)} min="0.001" name="quantity" required step="0.001" type="number" /></label><label>Unit <span className="optional">Optional</span><Input defaultValue={item.unit ?? ''} name="unit" /></label></div>
+          <div className="form-row"><label>Manufacturer <span className="optional">Optional</span><Input defaultValue={item.manufacturer ?? ''} name="manufacturer" /></label><label>Model <span className="optional">Optional</span><Input defaultValue={item.model ?? ''} name="model" /></label></div>
+          <div className="form-row"><label>Serial number <span className="optional">Optional</span><Input defaultValue={item.serial_number ?? ''} name="serialNumber" /></label><label>Code<Input className="readonly-input" readOnly value={item.code} /></label></div>
           <PhysicalIdentifierPicker defaultValue={item.identifier_type} />
           <label>Location<select defaultValue={placement?.area_id ? `area:${placement.area_id}` : placement?.zone_id ? `zone:${placement.zone_id}` : placement?.container_id ? `container:${placement.container_id}` : ''} name="placement"><option disabled value="">Choose a location</option>{areas.map((area) => <option key={area.id} value={`area:${area.id}`}>{area.name}</option>)}{zones.map((zone) => <option key={zone.id} value={`zone:${zone.id}`}>{areas.find((area) => area.id === zone.area_id)?.name} / {zone.name}</option>)}{containers.map((container) => <option key={container.id} value={`container:${container.id}`}>{itemLocation({ id: '', item_id: item.id, area_id: null, zone_id: null, container_id: container.id, relationship_type: 'in', created_at: '', updated_at: '' }, areas, zones, containers, containerPlacements)}</option>)}</select></label>
-          <label>Description <span className="optional">Optional</span><textarea defaultValue={item.description ?? ''} name="description" rows={3} /></label>
-          <label>Notes <span className="optional">Optional</span><textarea defaultValue={item.notes ?? ''} name="notes" rows={3} /></label>
-          <div className="dialog-actions"><Button className="secondary-action" onClick={() => setEditing(false)} type="button">Cancel</Button><Button className="primary-button" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save changes'}</Button></div>
+          <label>Description <span className="optional">Optional</span><Textarea defaultValue={item.description ?? ''} name="description" rows={3} /></label>
+          <label>Notes <span className="optional">Optional</span><Textarea defaultValue={item.notes ?? ''} name="notes" rows={3} /></label>
+          <div className="dialog-actions"><Button className="secondary-action" onClick={() => setEditing(false)} type="button">Cancel</Button><Button className="primary-button" pending={saving} type="submit">{saving ? 'Saving…' : 'Save changes'}</Button></div>
         </form> : <>
         <div className="item-detail-location"><MapPin aria-hidden="true" /><span><small>Location</small><strong>{displayLocation}</strong></span></div>
         <dl className="item-detail-grid">
@@ -231,7 +231,7 @@ export function AddItemDialog({ areas, containerPlacements, containers, eyebrow 
           <PhysicalIdentifierPicker />
           <label>Location <span className="optional">Optional</span><select defaultValue="" name="placement"><option value="">Unplaced</option>{areas.map((area) => <option key={area.id} value={`area:${area.id}`}>{area.name}</option>)}{zones.map((zone) => <option key={zone.id} value={`zone:${zone.id}`}>{areas.find((area) => area.id === zone.area_id)?.name} / {zone.name}</option>)}{containers.map((container) => <option key={container.id} value={`container:${container.id}`}>{itemLocation({ id: '', item_id: '', area_id: null, zone_id: null, container_id: container.id, relationship_type: 'in', created_at: '', updated_at: '' }, areas, zones, containers, containerPlacements)}</option>)}</select></label>
           <label>Description <span className="optional">Optional</span><Textarea name="description" rows={3} /></label>
-          <div className="dialog-actions"><DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose><Button disabled={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</Button></div>
+          <div className="dialog-actions"><DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose><Button pending={saving} type="submit">{saving ? 'Saving…' : 'Create item'}</Button></div>
         </form>
       </DialogContent>
     </Dialog>
