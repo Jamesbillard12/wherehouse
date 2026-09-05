@@ -29,6 +29,7 @@ import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
 import { CreateImageField } from '../../components/wherehouse/CreateImageField'
 import { PageHeader } from '../../components/wherehouse/PageHeader'
 import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
+import { EmptyState, LoadingState, StatusMessage } from '../../components/wherehouse/StateDisplay'
 import { formatDate } from '../../shared/utils/date'
 import { message } from '../../shared/utils/errors'
 import { PhysicalIdentifierPicker } from './PhysicalIdentifierPicker'
@@ -333,9 +334,9 @@ export function ItemsView({ createRequestKey = 0, workspace, onCreateOpenChange,
   return (
     <div className="items-view">
       <PageHeader actions={<Button className="primary-button" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add item</Button>} description="Everything you track, with its exact storage path." eyebrow="Household inventory" title="Items" />
-      {error ? <div className="alert locations-alert">{error}</div> : null}
+      {error ? <StatusMessage className="locations-alert" tone="error">{error}</StatusMessage> : null}
       <section className="items-panel">
-        {loading ? <div className="locations-loading">Loading items…</div> : items.length ? (
+        {loading ? <LoadingState label="Loading items…" /> : items.length ? (
           <table className="items-table">
             <thead><tr><th>Item</th><th>Quantity</th><th>Location</th><th>Details</th></tr></thead>
             <tbody>{[...items].sort((left, right) => {
@@ -350,7 +351,7 @@ export function ItemsView({ createRequestKey = 0, workspace, onCreateOpenChange,
               return <tr key={item.id}><td><a className="item-details-button" href={`/items#${item.id}`} onClick={(event) => { event.preventDefault(); setSelectedItem(item) }}><strong>{item.name}</strong>{item.description ? <small>{item.description}</small> : null}</a></td><td>{Number(item.quantity)}{item.unit ? ` ${item.unit}` : ''}</td><td>{placement && areaId ? <a className="location-path" href="/locations" onClick={(event) => { event.preventDefault(); onOpenLocation({ areaId, ...(placement.container_id ? { containerId: placement.container_id } : {}), ...(placement.zone_id ? { zoneId: placement.zone_id } : {}) }) }}>{locationLabel}</a> : <span className="unplaced-badge">{locationLabel}</span>}</td><td>{[item.manufacturer, item.model].filter(Boolean).join(' · ') || '—'}</td></tr>
             })}</tbody>
           </table>
-        ) : <div className="location-empty"><div className="empty-illustration"><PackagePlus aria-hidden="true" /></div><strong>No items yet</strong><p>Add your first item and place it directly in an area, zone, or container.</p><Button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add first item</Button></div>}
+        ) : <EmptyState action={<Button className="primary-button compact" onClick={openAddItemDialog}><Plus aria-hidden="true" /> Add first item</Button>} description="Add your first item and place it directly in an area, zone, or container." icon={PackagePlus} title="No items yet" />}
       </section>
       {selectedItem ? <ItemDetailsModal areas={areas} containerPlacements={containerPlacements} containers={containers} imageRevision={refreshKey} item={selectedItem} locationLabel={itemLocation(placements.find((entry) => entry.item_id === selectedItem.id), areas, zones, containers, containerPlacements)} onClose={() => setSelectedItem(null)} onDeleted={(itemId) => { setSelectedItem(null); setItems((current) => current.filter((item) => item.id !== itemId)); setPlacements((current) => current.filter((entry) => entry.item_id !== itemId)) }} onPlacementUpdated={(updated) => setPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={placements.find((entry) => entry.item_id === selectedItem.id)} token={token} zones={zones} /> : null}
       <AddItemDialog areas={areas} containerPlacements={containerPlacements} containers={containers} finalFocus={addItemTriggerRef} onOpenChange={(open) => { setShowForm(open); onCreateOpenChange?.(open) }} onSubmit={submit} open={showForm} saving={saving} zones={zones} />

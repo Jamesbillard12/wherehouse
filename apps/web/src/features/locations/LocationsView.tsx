@@ -68,6 +68,7 @@ import { ConfirmDialog } from '../../components/wherehouse/ConfirmDialog'
 import { CreateImageField } from '../../components/wherehouse/CreateImageField'
 import { ImageCropDialog } from '../../components/wherehouse/ImageCropDialog'
 import { PageHeader } from '../../components/wherehouse/PageHeader'
+import { EmptyState, LoadingState, StatusMessage } from '../../components/wherehouse/StateDisplay'
 
 export { AreaIcon } from './locationOptions'
 export function LocationsView({ createRequest, workspace, onRevealConsumed, refreshKey = 0, revealAreaId, revealContainerId, revealItem, revealItemId, revealScanKey, revealZoneId, token }: { createRequest?: { key: number; type: 'area' | 'zone' | 'container' }; workspace: Workspace; onRevealConsumed?: () => void; refreshKey?: number; revealAreaId?: string; revealContainerId?: string; revealItem?: Item; revealItemId?: string; revealScanKey?: string; revealZoneId?: string; token: string }) {
@@ -547,9 +548,9 @@ export function LocationsView({ createRequest, workspace, onRevealConsumed, refr
     <div className="locations-view">
       <PageHeader description="Organize areas, zones, and every container inside them." eyebrow="Storage map" title="Locations" />
 
-      {error && !deleteTarget ? <div className="alert locations-alert">{error}</div> : null}
+      {error && !deleteTarget ? <StatusMessage className="locations-alert" tone="error">{error}</StatusMessage> : null}
 
-      {loading ? <div className="locations-loading">Loading locations…</div> : areas.length ? (
+      {loading ? <LoadingState label="Loading locations…" /> : areas.length ? (
         <div className="locations-layout">
           <aside className="area-list" aria-label="Areas">
             <div className="section-title">
@@ -611,12 +612,12 @@ export function LocationsView({ createRequest, workspace, onRevealConsumed, refr
                 saving={saving}
               />
             ) : (
-              <div className="location-empty"><div className="empty-illustration"><Container aria-hidden="true" /></div><strong>{openContainer ? `${openContainer.name} is empty` : `No containers in ${selectedArea?.name}`}</strong><p>{openContainer ? 'Add a nested container or place items here.' : 'Add a shelf, cabinet, bin, or any other place that can hold workspace items.'}</p>{openContainer ? <div className="empty-actions"><Button className="secondary-action" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add nested container</Button><Button className="primary-button compact" onClick={() => setShowNestedItemForm(true)}><Plus aria-hidden="true" /> Add item</Button></div> : <Button className="primary-button compact" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add first container</Button>}</div>
+              <EmptyState action={openContainer ? <Button className="primary-button compact" onClick={() => setShowNestedItemForm(true)}><Plus aria-hidden="true" /> Add item</Button> : <Button className="primary-button compact" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add first container</Button>} description={openContainer ? 'Add a nested container or place items here.' : 'Add a shelf, cabinet, bin, or any other place that can hold workspace items.'} icon={Container} secondaryAction={openContainer ? <Button className="secondary-action" onClick={() => setFormMode('container')}><Plus aria-hidden="true" /> Add nested container</Button> : undefined} title={openContainer ? `${openContainer.name} is empty` : `No containers in ${selectedArea?.name}`} />
             )}
           </section>
         </div>
       ) : (
-        <div className="location-empty first-area"><div className="empty-illustration"><Warehouse aria-hidden="true" /></div><strong>Create your first area</strong><p>Start with a major physical location such as a garage, attic, shed, trailer, or workshop.</p><Button className="primary-button compact" onClick={() => setFormMode('area')}><Plus aria-hidden="true" /> Add area</Button></div>
+        <EmptyState action={<Button className="primary-button compact" onClick={() => setFormMode('area')}><Plus aria-hidden="true" /> Add area</Button>} className="first-area" description="Start with a major physical location such as a garage, attic, shed, trailer, or workshop." icon={Warehouse} title="Create your first area" />
       )}
 
       {selectedDetailItem ? <ItemDetailsModal areas={areas} containerPlacements={placements} containers={containers} imageRevision={refreshKey} initialMode={selectedItemMode} item={selectedDetailItem} locationLabel={itemLocation(itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id), areas, zones, containers, placements)} onClose={() => setSelectedDetailItem(null)} onDeleted={(itemId) => { setSelectedDetailItem(null); setItems((current) => current.filter((item) => item.id !== itemId)); setItemPlacements((current) => current.filter((entry) => entry.item_id !== itemId)) }} onPlacementUpdated={(updated) => setItemPlacements((current) => [...current.filter((entry) => entry.item_id !== updated.item_id), updated])} onUpdated={(updated) => { setSelectedDetailItem(updated); setItems((current) => current.map((item) => item.id === updated.id ? updated : item)) }} placement={itemPlacements.find((entry) => entry.item_id === selectedDetailItem.id)} token={token} zones={zones} /> : null}

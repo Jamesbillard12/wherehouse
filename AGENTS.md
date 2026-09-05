@@ -67,6 +67,13 @@ destructive decisions. Do not add bespoke backdrops, focus-management code, or b
 APIs. Keep errors in the active dialog and prevent dismissal or duplicate actions while mutations are pending;
 retain typed-phrase blocking workflows only when their extra friction is an intentional safety control.
 
+Before duplicating icon/title/body/action markup for loading, empty, unavailable, error, warning, or success
+states, inspect the reusable WhereHouse state components. Shared state components own presentation and
+accessible status semantics; feature code owns domain copy, retry callbacks, mutations, availability decisions,
+and action labels. Keep deliberate skeletons, progress displays, form validation, realtime indicators, search
+feedback, and dense health panels specialized when their interaction or information hierarchy is meaningfully
+different from a generic state presentation.
+
 ## Workflow and verification
 
 Inspect local guidance and actual code, make the smallest coherent change, and preserve separation of
