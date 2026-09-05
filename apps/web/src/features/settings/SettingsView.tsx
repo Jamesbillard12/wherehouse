@@ -46,6 +46,7 @@ import { Input } from "@/components/ui/input";
 
 import { ConfirmDialog } from "../../components/wherehouse/ConfirmDialog";
 import { PageHeader } from "../../components/wherehouse/PageHeader";
+import { ErrorState, LoadingState, StatusMessage } from "../../components/wherehouse/StateDisplay";
 import { formatDate } from "../../shared/utils/date";
 import { message } from "../../shared/utils/errors";
 import type { SettingsSection } from "../../shared/utils/navigation";
@@ -252,7 +253,7 @@ export function SoftwareUpdate({ isOwner, token }: { isOwner: boolean; token: st
         {status.releaseNotes ? <div><strong>Release notes</strong><p className="muted">{status.releaseNotes}</p></div> : null}
         <p className="muted">Channel: {status.channel}{status.runtimeSize ? ` · Download ${formatBytes(status.runtimeSize)}` : ""}<br />
           {status.lastCheckedAt ? `Last checked ${formatDate(status.lastCheckedAt)}` : "Not checked yet"}</p>
-        {status.errorMessage ? <div className="alert">{status.errorMessage}{status.rollbackPerformed ? " Previous application images were restored." : ""}</div> : null}
+        {status.errorMessage ? <StatusMessage tone="error">{status.errorMessage}{status.rollbackPerformed ? " Previous application images were restored." : ""}</StatusMessage> : null}
       </> : null}
       <p className="muted">WhereHouse may be unavailable briefly while the update is installed. The update continues if this browser disconnects.</p>
       {isOwner ? <div className="backup-destination-actions">
@@ -260,7 +261,7 @@ export function SoftwareUpdate({ isOwner, token }: { isOwner: boolean; token: st
         <Button disabled={busy || status?.serviceAvailable === false || !status?.updateAvailable} onClick={() => setConfirmingInstall(true)}>Update Now</Button>
       </div> : <p className="muted">Only household owners can install appliance updates.</p>}
     </div>
-    {error && !confirmingInstall ? <div className="alert">{error}</div> : null}
+    {error && !confirmingInstall ? <StatusMessage tone="error">{error}</StatusMessage> : null}
     <ConfirmDialog busy={busy} confirmLabel="Install update" description="WhereHouse may be unavailable briefly. Installation continues if this browser disconnects, and a verified backup is required before the update proceeds." error={error} onCancel={() => { setConfirmingInstall(false); setError(null); }} onConfirm={install} open={confirmingInstall} title={`Install ${status?.latestVersion ?? "this update"}?`} />
   </>;
 }
@@ -333,10 +334,12 @@ function Backups({ isOwner, token }: { isOwner: boolean; token: string }) {
           running={running}
           status={status}
         />
+      ) : error ? (
+        <ErrorState action={<Button onClick={() => void refresh()} variant="outline">Retry</Button>} className="settings-card" description={error} title="Unable to load backup status" />
       ) : (
-        <div className="settings-card">Loading backup status…</div>
+        <LoadingState className="settings-card" label="Loading backup status…" />
       )}
-      {error && !confirmingDisconnect ? <div className="alert">{error}</div> : null}
+      {error && status && !confirmingDisconnect ? <StatusMessage tone="error">{error}</StatusMessage> : null}
       <ConfirmDialog busy={disconnecting} confirmLabel="Disconnect Dropbox" description="Automatic remote backups to Dropbox will stop. Existing backup files in Dropbox are not deleted." destructive error={error} onCancel={() => { setConfirmingDisconnect(false); setError(null); }} onConfirm={disconnect} open={confirmingDisconnect} title="Disconnect Dropbox?" />
       <div className="settings-card backup-restore-card">
         <h3>Restore</h3>
@@ -438,7 +441,7 @@ export function BackupStatusPanel({
             ) : null}
           </div>
           {destination.needs_attention ? (
-            <p className="alert">Reconnect or reauthorize Dropbox.</p>
+            <StatusMessage tone="warning">Reconnect or reauthorize Dropbox.</StatusMessage>
           ) : null}
         </article>
       ))}

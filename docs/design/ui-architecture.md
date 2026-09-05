@@ -142,6 +142,24 @@ tests during their owning refactors. Dialog migrations, shared status views, loc
 physical identifiers, item UI, Settings, and the app shell should add or adopt those primitives only
 as each real consumer is refactored.
 
+### Shared state presentations
+
+Reusable loading, empty, error, and inline status presentation lives in the WhereHouse component
+layer. `LoadingState` is for section-level waits where the existing view does not use a deliberate
+skeleton or progress indicator. `EmptyState` provides the shared icon, heading, description, and
+optional action layout. `ErrorState` provides the corresponding prominent failure and retry layout.
+`StatusMessage` is for compact informational, success, warning, or error feedback within an active
+workflow. Error tones use alert semantics; other tones use status semantics, so callers should not
+add live regions unless dynamic announcement is useful for that interaction.
+
+Features continue to own all domain copy, retry callbacks, mutations, availability decisions, and
+action labels. Pass actions into the state component rather than embedding API behavior there. Do
+not replace intentional search-menu feedback, skeletons, progress bars, realtime indicators, form
+validation, or dense health/status cards with a generic state display when their interaction or
+information hierarchy is meaningfully different. Future screens should search the WhereHouse state
+components before duplicating icon/title/body/action markup, and add a new variant only when current
+callers demonstrate a distinct reusable presentation.
+
 ## Mobile foundation evaluation
 
 | Option | Fit | Trade-off |
