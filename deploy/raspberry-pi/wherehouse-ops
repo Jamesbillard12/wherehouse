@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -582,13 +583,20 @@ def compose_command(root: Path) -> list[str]:
 
 
 def verify_http_services() -> None:
-    for url in ("http://127.0.0.1/api/v1/health", "http://127.0.0.1/"):
+    urls = ("http://127.0.0.1/api/v1/health", "http://127.0.0.1/")
+    deadline = time.monotonic() + 60
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
         try:
-            with request.urlopen(url, timeout=15) as response:
-                if response.status >= 400:
-                    raise RuntimeError("Updated service health check failed")
-        except (error.HTTPError, error.URLError, TimeoutError) as exc:
-            raise subprocess.CalledProcessError(1, ["health-check", url]) from exc
+            for url in urls:
+                with request.urlopen(url, timeout=5) as response:
+                    if response.status >= 400:
+                        raise RuntimeError("Updated service health check failed")
+            return
+        except (error.HTTPError, error.URLError, TimeoutError, RuntimeError) as exc:
+            last_error = exc
+            time.sleep(2)
+    raise subprocess.CalledProcessError(1, ["health-check", *urls]) from last_error
 
 
 def _command_health(command: list[str]) -> str:
