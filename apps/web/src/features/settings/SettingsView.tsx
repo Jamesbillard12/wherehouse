@@ -514,6 +514,20 @@ function Workspaces({
       }).then(setQrCode);
   }, [pairing]);
   useEffect(() => {
+    if (!pairing) return;
+    const remaining = new Date(pairing.expires_at).getTime() - Date.now();
+    if (remaining <= 0) {
+      setPairing(null);
+      setQrCode("");
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      setPairing(null);
+      setQrCode("");
+    }, remaining);
+    return () => window.clearTimeout(timeout);
+  }, [pairing]);
+  useEffect(() => {
     if (!isOwner) return;
     let cancelled = false;
     async function refreshDevices() {
@@ -648,7 +662,7 @@ function Workspaces({
               className="primary-button compact"
               onClick={() => void pair()}
             >
-              Pair a device
+              {pairing ? "Generate replacement code" : "Pair a device"}
             </Button>
             {pairing && qrCode ? (
               <div className="settings-pairing">

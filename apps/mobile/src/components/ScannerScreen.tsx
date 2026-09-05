@@ -8,10 +8,9 @@ import { styles } from '../theme/styles'
 
 type ScannerMode = 'pairing' | 'identify' | 'item-location'
 
-export function ScannerScreen({ mode, onCancel, onError, onScan }: {
+export function ScannerScreen({ mode, onCancel, onScan }: {
   mode: ScannerMode
   onCancel: () => void
-  onError: (message: string) => void
   onScan: (value: string) => void
 }) {
   const accepted = useRef(false)
@@ -21,11 +20,6 @@ export function ScannerScreen({ mode, onCancel, onError, onScan }: {
       <CameraView barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => {
         if (accepted.current) return
         accepted.current = true
-        if (mode === 'pairing' && !data.startsWith('wherehouse://pair?')) {
-          onError('That QR code is not a WhereHouse pairing code.')
-          onCancel()
-          return
-        }
         onScan(data)
       }} style={styles.scannerCamera} />
       <SafeAreaView style={styles.scannerOverlay}>

@@ -31,7 +31,11 @@ are recorded in `apps/web/components.json`.
 The root `./dev.sh` command combines PostgreSQL startup, migrations, the API, and the web app for
 normal development. It binds the API to all local interfaces and uses the detected LAN address for
 companion pairing. The phone and development computer must be on the same network. See the root
-README for all convenience commands.
+README for all convenience commands. If automatic detection cannot find the correct interface, start
+development with a reachable address, for example
+`PUBLIC_BASE_URL=http://<your-mac-lan-address>:8000 ./dev.sh`; never put that machine-specific address
+in committed configuration. iOS will ask for local-network access the first time the companion reaches
+the development API.
 
 ## API
 

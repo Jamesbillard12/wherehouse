@@ -49,6 +49,17 @@ router = APIRouter()
 settings = get_settings()
 
 
+def build_pairing_uri(base_url: str, token: str) -> str:
+    return "wherehouse://pair?" + urlencode(
+        {
+            "type": "wherehouse-pairing",
+            "version": 1,
+            "server": base_url.rstrip("/"),
+            "token": token,
+        }
+    )
+
+
 async def issue_user_session(user: User, session: SessionDep) -> AccessToken:
     raw_token = new_token("usr")
     expires_at = datetime.now(UTC) + timedelta(hours=settings.user_session_ttl_hours)
@@ -168,9 +179,7 @@ async def create_pairing_session(
     except Exception:
         await session.rollback()
         raise
-    pairing_uri = "wherehouse://pair?" + urlencode(
-        {"server": instance.base_url, "token": raw_token}
-    )
+    pairing_uri = build_pairing_uri(instance.base_url, raw_token)
     return PairingSessionCreated(
         id=pairing.id, token=raw_token, pairing_uri=pairing_uri, expires_at=expires_at
     )

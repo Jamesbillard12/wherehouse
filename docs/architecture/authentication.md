@@ -26,8 +26,9 @@ pair or revoke devices.
 
 1. An authenticated owner calls `POST /api/v1/workspaces/{id}/pairing-sessions`; the v1 household
    route remains a deprecated compatibility alias.
-2. The response includes a `wherehouse://pair` URI suitable for a QR code. The token expires after
-   ten minutes by default and can be consumed only once.
+2. The response includes a versioned `wherehouse://pair` URI suitable for a QR code. Version 1 carries
+   `type=wherehouse-pairing`, `version=1`, the configured `server` URL, and the opaque one-time `token`.
+   The token expires after ten minutes by default and can be consumed only once.
 3. The companion sends the token and its device identity to `POST /api/v1/pairing/consume`.
 4. The response contains the server URL, workspace/user/instance IDs, and a revocable device bearer
    credential.
@@ -45,4 +46,5 @@ state, so the old credential remains invalid after re-pairing. The event contain
 device ID, and revocation time, never a credential.
 
 `PUBLIC_BASE_URL` must be the URL reachable by the companion. Self-hosted deployments may use a
-LAN or HTTPS URL; cloud deployments should use their public HTTPS API URL.
+LAN or `.local` URL; cloud deployments should use their public HTTPS API URL. Loopback hosts such as
+`localhost` and `127.0.0.1` are rejected by the companion because they identify the phone itself.

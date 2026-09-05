@@ -2,6 +2,8 @@ import * as SecureStore from 'expo-secure-store'
 import { consumePairing } from '@wherehouse/api-client'
 
 const PAIRING_KEY = 'wherehouse.pairing.v1'
+const PAIRING_TYPE = 'wherehouse-pairing'
+const PAIRING_VERSION = '1'
 
 export type PairedServer = {
   accessToken: string
@@ -34,13 +36,25 @@ function normalizePairedServer(value: string): PairedServer {
 }
 
 export function isPairingUri(value: string): boolean {
-  return value.trim().startsWith('wherehouse://pair?')
+  try {
+    parsePairingUri(value)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function parsePairingUri(value: string): { server: string; token: string } {
   const url = new URL(value.trim())
   if (url.protocol !== 'wherehouse:' || url.hostname !== 'pair') {
     throw new Error('This is not a WhereHouse pairing link.')
+  }
+
+  if (url.searchParams.get('type') !== PAIRING_TYPE) {
+    throw new Error('This is not a WhereHouse pairing code.')
+  }
+  if (url.searchParams.get('version') !== PAIRING_VERSION) {
+    throw new Error('This pairing code version is not supported. Create a new code and try again.')
   }
 
   const server = url.searchParams.get('server')?.replace(/\/$/, '')
@@ -52,6 +66,13 @@ export function parsePairingUri(value: string): { server: string; token: string 
   const serverUrl = new URL(server)
   if (serverUrl.protocol !== 'https:' && serverUrl.protocol !== 'http:') {
     throw new Error('The server URL must use HTTP or HTTPS.')
+  }
+  if (serverUrl.username || serverUrl.password) {
+    throw new Error('The pairing server URL must not contain credentials.')
+  }
+  const hostname = serverUrl.hostname.replace(/^\[|\]$/g, '')
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    throw new Error('This pairing code points to this phone, not the WhereHouse server. Configure PUBLIC_BASE_URL with a LAN, .local, or HTTPS address and create a new code.')
   }
   return { server, token }
 }

@@ -267,19 +267,21 @@ export default function App() {
   }
 
   async function pairFromScan(value: string) {
-    const next = await pairDevice(value, `${Platform.OS} companion`)
-    setRevokedConnection(null)
-    setSelectedLocation(null)
-    setAddItemLocation(undefined)
-    setEditItemLocation(undefined)
-    setEditingItem(null)
-    setInventory(EMPTY_INVENTORY)
-    setScanSessionEntries([])
-    setScanSessionOpen(false)
     setScannerMode(null)
-    setPairedServer(next)
-    setActiveTab('home')
+    setBusy(true)
     setError(null)
+    try {
+      const next = await pairDevice(value, `${Platform.OS} companion`)
+      clearProtectedState()
+      setRevokedConnection(null)
+      setPairedServer(next)
+      setActiveTab('home')
+    } catch (reason) {
+      setPairingUri(value)
+      setError(reason instanceof Error ? reason.message : 'Household pairing failed.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function forget() {
@@ -310,7 +312,9 @@ export default function App() {
     if (!cameraPermission?.granted) {
       const permission = await requestCameraPermission()
       if (!permission.granted) {
-        setError('Camera access is required to scan a pairing code.')
+        setError(permission.canAskAgain
+          ? 'Camera access is required to scan a pairing code.'
+          : 'Camera access is disabled. Enable Camera for WhereHouse in iOS Settings, then try again.')
         return
       }
     }
@@ -533,7 +537,7 @@ export default function App() {
   }
 
   if (scannerMode) {
-    return <ScannerScreen mode={scannerMode} onCancel={() => setScannerMode(null)} onError={setError} onScan={(data) => { setError(null); setScannerMode(null); if (scannerMode === 'pairing') setPairingUri(data); else if (scannerMode === 'item-location') void selectItemLocationCode(data); else void identify(data) }} />
+    return <ScannerScreen mode={scannerMode} onCancel={() => setScannerMode(null)} onScan={(data) => { setError(null); if (scannerMode === 'pairing') void pairFromScan(data); else { setScannerMode(null); if (scannerMode === 'item-location') void selectItemLocationCode(data); else void identify(data) } }} />
   }
 
 
