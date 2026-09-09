@@ -21,6 +21,16 @@ export async function assignNfcTag(
   const { previousPayload } = await writeNfcIdentifier(identifier.payload)
   await client.activateIdentifier(identifier.id)
 
+  const current = parseIdentifierPayload(identifier.payload)
+  if (!current || current.version !== 1) {
+    throw new Error('The NFC tag was written, but the server returned an unsupported identifier.')
+  }
+  try {
+    await client.resolveIdentifier(current.publicId)
+  } catch {
+    throw new Error('The NFC tag was written, but its new identifier is not active on the server. Try writing it again while connected.')
+  }
+
   if (!previousPayload || previousPayload === identifier.payload) return { reassigned: false }
   const previous = parseIdentifierPayload(previousPayload)
   if (!previous || previous.version !== 1) return { reassigned: false }

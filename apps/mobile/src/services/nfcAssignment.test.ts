@@ -27,6 +27,7 @@ describe('NFC tag assignment', () => {
 
     await expect(assignNfcTag(api, 'item', 'item-1')).resolves.toEqual({ reassigned: true })
 
+    expect(api.resolveIdentifier).toHaveBeenCalledWith('idn_new')
     expect(api.resolveIdentifier).toHaveBeenCalledWith('idn_old')
     expect(api.revokeIdentifier).toHaveBeenCalledWith('old-id')
     expect(api.activateIdentifier.mock.invocationCallOrder[0])
@@ -49,13 +50,15 @@ describe('NFC tag assignment', () => {
 
     await expect(assignNfcTag(api, 'item', 'item-1')).resolves.toEqual({ reassigned: false })
 
-    expect(api.resolveIdentifier).not.toHaveBeenCalled()
+    expect(api.resolveIdentifier).toHaveBeenCalledWith('idn_new')
     expect(api.revokeIdentifier).not.toHaveBeenCalled()
   })
 
   it('keeps the verified replacement when the previous identifier is foreign or inactive', async () => {
     const api = client()
-    api.resolveIdentifier.mockRejectedValue(new ApiError('Identifier not found', 404))
+    api.resolveIdentifier
+      .mockResolvedValueOnce({ identifier: { id: 'new-id', medium: 'nfc' } })
+      .mockRejectedValueOnce(new ApiError('Identifier not found', 404))
     vi.mocked(writeNfcIdentifier).mockResolvedValue({ previousPayload: oldPayload })
 
     await expect(assignNfcTag(api, 'item', 'item-1')).resolves.toEqual({ reassigned: false })
@@ -65,12 +68,24 @@ describe('NFC tag assignment', () => {
 
   it('reports when the rewritten tag cannot complete previous-identifier cleanup', async () => {
     const api = client()
-    api.resolveIdentifier.mockRejectedValue(new Error('Network unavailable'))
+    api.resolveIdentifier
+      .mockResolvedValueOnce({ identifier: { id: 'new-id', medium: 'nfc' } })
+      .mockRejectedValueOnce(new Error('Network unavailable'))
     vi.mocked(writeNfcIdentifier).mockResolvedValue({ previousPayload: oldPayload })
 
     await expect(assignNfcTag(api, 'item', 'item-1')).rejects.toThrow(/rewritten.*could not be checked or revoked/)
 
     expect(api.activateIdentifier).toHaveBeenCalledWith('new-id')
+    expect(api.revokeIdentifier).not.toHaveBeenCalled()
+  })
+
+  it('does not revoke the previous identifier unless the new identifier resolves', async () => {
+    const api = client()
+    api.resolveIdentifier.mockRejectedValue(new ApiError('Identifier not found', 404))
+    vi.mocked(writeNfcIdentifier).mockResolvedValue({ previousPayload: oldPayload })
+
+    await expect(assignNfcTag(api, 'item', 'item-1')).rejects.toThrow(/new identifier is not active/)
+
     expect(api.revokeIdentifier).not.toHaveBeenCalled()
   })
 })
