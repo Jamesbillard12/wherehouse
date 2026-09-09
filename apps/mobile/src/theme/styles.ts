@@ -136,6 +136,8 @@ export const styles = StyleSheet.create({
   notesInput: { minHeight: 88, paddingTop: 12, textAlignVertical: 'top' },
   addItemFooter: { borderTopWidth: 1, borderTopColor: '#e4e7ec', padding: 12, backgroundColor: '#fff', shadowColor: '#101828', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 10 },
   saveButton: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 12, backgroundColor: '#4f46e5' },
+  nfcFooterButton: { marginTop: 10, borderWidth: 1, borderColor: '#c7d2fe', backgroundColor: '#fff' },
+  nfcFooterButtonText: { color: '#4f46e5', fontSize: 15, fontWeight: '800' },
   archiveButton: { marginTop: 10, backgroundColor: '#b42318' },
   saveButtonText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   saveSuccess: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },

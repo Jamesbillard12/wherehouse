@@ -190,15 +190,6 @@ export function EditItemScreen({
               </Pressable>
             ))}
           </View>
-          <Pressable
-            accessibilityLabel="Write NFC tag for this item"
-            disabled={saving}
-            onPress={() => void writeNfc()}
-            style={styles.secondaryButton}
-          >
-            <Radio color="#4f46e5" size={18} />
-            <Text style={styles.secondaryButtonText}>Write or replace NFC tag</Text>
-          </Pressable>
           <TextInput
             onChangeText={(manufacturer) => update({ manufacturer })}
             placeholder="Brand"
@@ -253,6 +244,15 @@ export function EditItemScreen({
               <Text style={styles.saveButtonText}>Update item</Text>
             </>
           )}
+        </Pressable>
+        <Pressable
+          accessibilityLabel="Write or replace NFC tag for this item"
+          disabled={saving}
+          onPress={() => void writeNfc()}
+          style={[styles.saveButton, styles.nfcFooterButton, saving && styles.buttonDisabled]}
+        >
+          <Radio color="#4f46e5" size={20} />
+          <Text style={styles.nfcFooterButtonText}>Write or replace NFC tag</Text>
         </Pressable>
         <Pressable
           accessibilityLabel="Archive item"
