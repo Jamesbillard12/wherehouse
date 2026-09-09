@@ -12,6 +12,7 @@ from app.application.identifiers.capabilities import (
     InvalidIdentifierTransition,
     RegisterIdentifier,
     activate_identifier,
+    activate_pending_nfc_identifier,
     create_identifier,
     identifier_payload,
     resolve_identifier,
@@ -83,6 +84,20 @@ async def resolve(public_id: str, principal: PrincipalDep, session: SessionDep):
     return {"identifier": identifier_read(identifier), "item": target if isinstance(target, Item) else None, "container": target if isinstance(target, Container) else None}
 
 
+@router.get("/workspaces/{workspace_id}/identifiers", response_model=list[IdentifierRead])
+async def list_workspace_identifiers(
+    workspace_id: UUID, principal: PrincipalDep, session: SessionDep
+) -> list[dict]:
+    await require_workspace_access(workspace_id, principal, session)
+    identifiers = await session.scalars(
+        select(PhysicalIdentifier).where(
+            PhysicalIdentifier.workspace_id == workspace_id,
+            PhysicalIdentifier.status == IdentifierStatus.ACTIVE,
+        ).order_by(PhysicalIdentifier.created_at)
+    )
+    return [identifier_read(value) for value in identifiers]
+
+
 @router.get("/{target_type}/{target_id}/identifiers", response_model=list[IdentifierRead])
 async def list_identifiers(target_type: str, target_id: UUID, principal: PrincipalDep, session: SessionDep):
     if target_type not in {"items", "containers"}:
@@ -121,6 +136,15 @@ async def revoke(identifier_id: UUID, principal: PrincipalDep, session: SessionD
 async def activate(identifier_id: UUID, principal: PrincipalDep, session: SessionDep):
     try:
         identifier = await activate_identifier(session, actor_for(principal), identifier_id)
+    except (IdentifierAccessDenied, IdentifierNotFound, InvalidIdentifierTransition) as error:
+        raise map_identifier_error(error) from error
+    return identifier_read(identifier)
+
+
+@router.post("/identifiers/{public_id}/activate-pending-nfc", response_model=IdentifierRead)
+async def activate_pending_nfc(public_id: str, principal: PrincipalDep, session: SessionDep):
+    try:
+        identifier = await activate_pending_nfc_identifier(session, actor_for(principal), public_id)
     except (IdentifierAccessDenied, IdentifierNotFound, InvalidIdentifierTransition) as error:
         raise map_identifier_error(error) from error
     return identifier_read(identifier)

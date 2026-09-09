@@ -11,7 +11,10 @@ export function createRemoteClient(baseUrl: string, token: string) {
     getBackupStatus: () => authenticatedRequest<BackupStatus>('/backups/status'),
     createIdentifier: (targetType: IdentifierTargetType, targetId: string, medium: IdentifierMedium) => authenticatedRequest<PhysicalIdentifier>('/identifiers', { method: 'POST', body: { target_type: targetType, target_id: targetId, medium } }),
     activateIdentifier: (identifierId: string) => authenticatedRequest<PhysicalIdentifier>(`/identifiers/${identifierId}/activate`, { method: 'POST' }),
+    activatePendingNfcIdentifier: (publicId: string) => authenticatedRequest<PhysicalIdentifier>(`/identifiers/${encodeURIComponent(publicId)}/activate-pending-nfc`, { method: 'POST' }),
+    revokeIdentifier: (identifierId: string) => authenticatedRequest<void>(`/identifiers/${encodeURIComponent(identifierId)}`, { method: 'DELETE' }),
     resolveIdentifier: (publicId: string) => authenticatedRequest<IdentifierResolution>(`/identifiers/${encodeURIComponent(publicId)}/resolve`),
+    listWorkspaceIdentifiers: (workspaceId: string) => authenticatedRequest<PhysicalIdentifier[]>(`/workspaces/${encodeURIComponent(workspaceId)}/identifiers`),
     listAreas: (workspaceId: string) =>
       authenticatedRequest<Area[]>(`/workspaces/${workspaceId}/areas`),
     listZones: (areaId: string) => authenticatedRequest<Zone[]>(`/areas/${areaId}/zones`),

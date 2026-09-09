@@ -42,10 +42,12 @@ import { ScanSessionScreen } from './src/screens/ScanSessionScreen'
 import { failedItemCount, pendingItemCount, quarantinePendingItemsAfterCredentialRemoval, queueItem, recentLocations, syncPendingItems } from './src/services/itemQueue'
 import type { ItemDraft, ItemLocationChoice, ItemUpdateDraft } from './src/types/itemDraft'
 import { containerLocationChoice, itemLocationChoices, placementLocationChoice } from './src/utils/itemLocations'
-import { EmptyNfcTagError, readNfcIdentifier, writeNfcIdentifier } from './src/services/nfc'
+import { EmptyNfcTagError, readNfcIdentifier } from './src/services/nfc'
+import { assignNfcTag } from './src/services/nfcAssignment'
 import { cacheItemImage } from './src/services/itemImages'
 import { SettingsScreen } from './src/features/settings/SettingsScreen'
 import { isRevocationForConnection } from './src/services/connectionPolicy'
+import { resolveIdentifier } from './src/services/identifierResolution'
 
 const EMPTY_INVENTORY: CachedInventory = {
   areas: [],
@@ -53,6 +55,7 @@ const EMPTY_INVENTORY: CachedInventory = {
   containers: [],
   placements: [],
   items: [],
+  identifiers: [],
   itemPlacements: [],
   syncedAt: null,
 }
@@ -438,7 +441,7 @@ export default function App() {
     }
   }
 
-  async function identify(value: string) {
+  async function identify(value: string, recoverPendingNfc = false) {
     if (!pairedServer) return
     if (isPairingUri(value)) {
       setBusy(true)
@@ -452,7 +455,8 @@ export default function App() {
     setBusy(true)
     setError(null)
     try {
-      const result = await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).resolveIdentifier(parsed.publicId)
+      const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
+      const result = await resolveIdentifier(client, parsed.publicId, recoverPendingNfc)
       if (result.container) { setSelectedLocation(containerLocationChoice(result.container, inventory)); setActiveTab('containers') }
       else if (result.item) { setEditingItem(result.item); setActiveTab('items') }
     } catch (reason) {
@@ -460,7 +464,7 @@ export default function App() {
     } finally { setBusy(false) }
   }
 
-  async function resolveForScanSession(value: string) {
+  async function resolveForScanSession(value: string, recoverPendingNfc = false) {
     if (!pairedServer) return
     if (isPairingUri(value)) {
       await pairFromScan(value)
@@ -468,7 +472,8 @@ export default function App() {
     }
     const parsed = parseIdentifierPayload(value)
     if (!parsed || parsed.version !== 1) throw new Error('That is not a supported WhereHouse identifier.')
-    const result = await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).resolveIdentifier(parsed.publicId)
+    const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
+    const result = await resolveIdentifier(client, parsed.publicId, recoverPendingNfc)
     setScanSessionEntries((current) => current.some((entry) => entry.identifier.target_type === result.identifier.target_type && entry.identifier.target_id === result.identifier.target_id) ? current : [...current, result])
   }
 
@@ -490,7 +495,7 @@ export default function App() {
 
   async function readNfc() {
     setError(null)
-    try { await identify(await readNfcIdentifier()) }
+    try { await identify(await readNfcIdentifier(), true) }
     catch (reason) {
       if (reason instanceof EmptyNfcTagError) setEmptyNfcPromptOpen(true)
       else setError(reason instanceof Error ? reason.message : 'NFC read failed.')
@@ -498,7 +503,7 @@ export default function App() {
   }
 
   async function addNfcToScanSession() {
-    try { await resolveForScanSession(await readNfcIdentifier()) }
+    try { await resolveForScanSession(await readNfcIdentifier(), true) }
     catch (reason) {
       if (!(reason instanceof EmptyNfcTagError)) throw reason
       setScanSessionOpen(false)
@@ -508,9 +513,9 @@ export default function App() {
 
   async function writeItemNfc(item: Item | string) {
     if (!pairedServer) return
-    const identifier = await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).createIdentifier('item', typeof item === 'string' ? item : item.id, 'nfc')
-    await writeNfcIdentifier(identifier.payload)
-    await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).activateIdentifier(identifier.id)
+    const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
+    await assignNfcTag(client, 'item', typeof item === 'string' ? item : item.id)
+    setInventory(await syncInventory(pairedServer))
   }
 
   async function writeContainerNfc(container: StorageContainer) {
@@ -518,9 +523,8 @@ export default function App() {
     setError(null)
     try {
       const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
-      const identifier = await client.createIdentifier('container', container.id, 'nfc')
-      await writeNfcIdentifier(identifier.payload)
-      await client.activateIdentifier(identifier.id)
+      await assignNfcTag(client, 'container', container.id)
+      setInventory(await syncInventory(pairedServer))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not write NFC tag.')
     }
@@ -545,7 +549,7 @@ export default function App() {
 
   if (pairedServer && activeTab === 'add-item') return <SafeAreaView style={styles.safeArea}><AddItemScreen choices={locationChoices} initialLocation={addItemLocation} linkNfc={linkNewItemToNfc} onCancel={() => { setLinkNewItemToNfc(false); setActiveTab('home') }} onSave={saveItem} onScanLocation={() => void openScanner('item-location')} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
 
-  if (pairedServer && editingItem) return <SafeAreaView style={styles.safeArea}><EditItemScreen choices={locationChoices} imageUri={editingItemImageUri} item={editingItem} location={editItemLocation ?? placementLocationChoice(inventory.itemPlacements.find((entry) => entry.item_id === editingItem.id), inventory)} onArchive={() => archiveItem(editingItem)} onCancel={() => { setEditingItem(null); setEditItemLocation(undefined) }} onSave={updateItem} onScanLocation={() => void openScanner('item-location')} onWriteNfc={() => writeItemNfc(editingItem)} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
+  if (pairedServer && editingItem) return <SafeAreaView style={styles.safeArea}><EditItemScreen choices={locationChoices} identifierMedia={inventory.identifiers.filter((identifier) => identifier.target_type === 'item' && identifier.target_id === editingItem.id).map((identifier) => identifier.medium)} imageUri={editingItemImageUri} item={editingItem} location={editItemLocation ?? placementLocationChoice(inventory.itemPlacements.find((entry) => entry.item_id === editingItem.id), inventory)} onArchive={() => archiveItem(editingItem)} onCancel={() => { setEditingItem(null); setEditItemLocation(undefined) }} onSave={updateItem} onScanLocation={() => void openScanner('item-location')} onWriteNfc={() => writeItemNfc(editingItem)} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
 
   return (
     <SafeAreaView style={styles.safeArea}>

@@ -50,4 +50,10 @@ This is generic output validation, not certification for a printer model.
   and must be recorded from hardware.
 - A failed or cancelled NFC write leaves the reusable identifier pending. Retrying registration
   returns that same pending identifier; the backend does not claim the tag is active until verified.
+- Rewriting a writable NDEF tag reads its existing WhereHouse payload first. The replacement is
+  written, verified, and activated before the previous active NFC identifier is revoked. A failed or
+  read-only-tag write keeps the previous identifier active; foreign or already-inactive payloads do
+  not block the verified replacement.
+- Mobile item rows and item editing show QR and NFC badges from active identifier records, including
+  the offline cache. They do not infer active physical media from the item's configured preference.
 - No physical support claim is made until the corresponding matrix row is completed.

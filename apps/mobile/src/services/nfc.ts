@@ -33,17 +33,37 @@ export async function readNfcIdentifier(): Promise<string> {
   }
 }
 
-export async function writeNfcIdentifier(payload: string): Promise<void> {
+export type NfcWriteResult = {
+  previousPayload?: string
+}
+
+function uriPayload(message: Awaited<ReturnType<typeof NfcManager.ndefHandler.getNdefMessage>>): string | undefined {
+  const record = message?.ndefMessage?.find((entry) => Ndef.isType(entry, Ndef.TNF_WELL_KNOWN, Ndef.RTD_URI))
+  return record ? Ndef.uri.decodePayload(Uint8Array.from(record.payload)) : undefined
+}
+
+export async function writeNfcIdentifier(payload: string): Promise<NfcWriteResult> {
   await start()
   const message = Ndef.encodeMessage([Ndef.uriRecord(payload)])
   if (!message) throw new Error('Could not encode the NFC payload.')
+  let previousPayload: string | undefined
   try {
     await NfcManager.requestTechnology(NfcTech.Ndef, { alertMessage: 'Hold your phone near the NFC tag to write it.' })
+    previousPayload = uriPayload(await NfcManager.ndefHandler.getNdefMessage())
     await NfcManager.ndefHandler.writeNdefMessage(message)
+    await NfcManager.setAlertMessageIOS('Tag written. Remove it, then tap it again to verify.')
+  } finally {
+    await NfcManager.cancelTechnologyRequest().catch(() => undefined)
+  }
+
+  try {
+    await NfcManager.requestTechnology(NfcTech.Ndef, { alertMessage: 'Tap the NFC tag again to verify the new item link.' })
     const verified = await NfcManager.ndefHandler.getNdefMessage()
-    const record = verified?.ndefMessage?.find((entry) => Ndef.isType(entry, Ndef.TNF_WELL_KNOWN, Ndef.RTD_URI))
-    if (!record || Ndef.uri.decodePayload(Uint8Array.from(record.payload)) !== payload) throw new Error('The tag was written but could not be verified.')
+    if (uriPayload(verified) !== payload) {
+      throw new Error('The NFC tag did not retain the new WhereHouse link. Try writing it again or use another tag.')
+    }
     await NfcManager.setAlertMessageIOS('WhereHouse tag written and verified.')
+    return { previousPayload }
   } finally {
     await NfcManager.cancelTechnologyRequest().catch(() => undefined)
   }
