@@ -25,7 +25,13 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.wherehouse.companion"
+      "bundleIdentifier": "app.wherehouse.companion",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Allow WhereHouse to connect to your household inventory server on your local network.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
