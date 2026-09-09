@@ -12,6 +12,9 @@ import {
   migrateStorage,
   enableNetworkStorage,
   disableNetworkStorage,
+  getRemoteAdministrationStatus,
+  enableRemoteAdministration,
+  disableRemoteAdministration,
   listDevices,
   revokeDevice,
   runRemoteBackup,
@@ -23,6 +26,7 @@ import {
   type PairingSession,
   type SystemStatus,
   type ApplianceStorageStatus,
+  type RemoteAdministrationStatus,
 } from "@wherehouse/api-client";
 import {
   CircleUserRound,
@@ -124,7 +128,7 @@ export function SettingsView({
           ) : section === "network-storage" ? (
             <NetworkStorageSettings isOwner={isOwner} token={token} />
           ) : section === "system" ? (
-            <SoftwareUpdate isOwner={isOwner} token={token} />
+            <SystemSettings isOwner={isOwner} token={token} />
           ) : section === "preferences" ? (
             <Preferences />
           ) : section === "privacy" ? (
@@ -213,6 +217,41 @@ function NetworkStorageSettings({ isOwner, token }: { isOwner: boolean; token: s
     </div>{error && !confirmingDisable ? <div className="alert">{error}</div> : null}
     <ConfirmDialog busy={busy} confirmLabel="Disable sharing" description="Devices will immediately lose access to the Shared folder. WhereHouse application data and backups are not affected." destructive error={error} onCancel={() => { setConfirmingDisable(false); setError(null); }} onConfirm={disable} open={confirmingDisable} title="Disable Network Storage?" />
   </>;
+}
+
+function SystemSettings({ isOwner, token }: { isOwner: boolean; token: string }) {
+  return <><SoftwareUpdate isOwner={isOwner} token={token} /><RemoteAdministration isOwner={isOwner} token={token} /></>;
+}
+
+function RemoteAdministration({ isOwner, token }: { isOwner: boolean; token: string }) {
+  const [status, setStatus] = useState<RemoteAdministrationStatus | null>(null);
+  const [publicKey, setPublicKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const refresh = () => getRemoteAdministrationStatus(token).then(setStatus).catch((reason) => setError(message(reason)));
+  useEffect(() => { if (isOwner) void refresh(); }, [isOwner, token]);
+  async function enable() {
+    setBusy(true); setError(null);
+    try { setStatus(await enableRemoteAdministration(token, publicKey)); setPublicKey(""); }
+    catch (reason) { setError(message(reason)); } finally { setBusy(false); }
+  }
+  async function disable() {
+    setBusy(true); setError(null);
+    try { setStatus(await disableRemoteAdministration(token)); }
+    catch (reason) { setError(message(reason)); } finally { setBusy(false); }
+  }
+  return <div className="settings-card">
+    <h3>Remote Administration</h3>
+    <p className="muted">SSH is off by default and is not needed for setup, updates, backup, storage, or normal use. Enabling it installs one owner-supplied public key; password login remains disabled.</p>
+    {!isOwner ? <p>Only a household owner can manage Remote Administration.</p> : status?.enabled ? <>
+      <p><strong>Enabled</strong>{status.keyFingerprint ? ` · ${status.keyFingerprint}` : ""}</p>
+      <Button disabled={busy} onClick={() => void disable()} variant="destructive">Disable Remote Administration</Button>
+    </> : <>
+      <label>Owner SSH public key<Input autoComplete="off" onChange={(event) => setPublicKey(event.target.value)} placeholder="ssh-ed25519 AAAA…" value={publicKey} /></label>
+      <Button disabled={busy || publicKey.trim().length < 32} onClick={() => void enable()}>Enable Remote Administration</Button>
+    </>}
+    {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
+  </div>;
 }
 
 export function SoftwareUpdate({ isOwner, token }: { isOwner: boolean; token: string }) {

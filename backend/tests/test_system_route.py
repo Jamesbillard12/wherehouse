@@ -62,3 +62,17 @@ def test_unavailable_update_status_uses_stable_application_metadata() -> None:
         payload = system.unavailable_update_status()
     assert payload["currentVersion"] == "0.1.1"
     assert payload["serviceAvailable"] is False
+
+
+def test_remote_administration_is_owner_guarded_and_key_is_only_forwarded_to_host_boundary() -> None:
+    from app.api.v1.routes import system
+
+    body = system.EnableRemoteAdminRequest(public_key="ssh-ed25519 " + "A" * 40)
+    with patch.object(system, "require_appliance_owner") as require_owner, patch.object(
+        system, "appliance_request", return_value={"enabled": True, "authentication": "public_key",
+                                                    "keyFingerprint": "SHA256:test"}
+    ) as request:
+        payload = asyncio.run(system.enable_remote_administration(body, MagicMock(), MagicMock()))
+    require_owner.assert_awaited_once()
+    request.assert_awaited_once_with("remote_admin.enable", {"publicKey": body.public_key})
+    assert "publicKey" not in payload

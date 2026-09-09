@@ -22,6 +22,8 @@ def write_release_files(
     generator_version: str,
     build_date: str,
     checksum_only: bool = False,
+    image_profile: str = "production",
+    ssh_mode: str = "disabled",
 ) -> None:
     digest = checksum(artifact)
     artifact.with_suffix(artifact.suffix + ".sha256").write_text(f"{digest}  {artifact.name}\n")
@@ -38,6 +40,8 @@ def write_release_files(
         "buildDate": build_date,
         "imageGenerator": "rpi-image-gen",
         "imageGeneratorVersion": generator_version,
+        "imageProfile": image_profile,
+        "sshMode": ssh_mode,
     }
     artifact.with_suffix(artifact.suffix + ".json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n"
@@ -52,8 +56,11 @@ def main() -> None:
     parser.add_argument("generator_version")
     parser.add_argument("build_date")
     parser.add_argument("--checksum-only", action="store_true")
+    parser.add_argument("--image-profile", choices=("production", "development"), default="production")
+    parser.add_argument("--ssh-mode", choices=("disabled", "key"), default="disabled")
     args = parser.parse_args()
-    write_release_files(args.artifact, args.version, args.device, args.generator_version, args.build_date, args.checksum_only)
+    write_release_files(args.artifact, args.version, args.device, args.generator_version, args.build_date,
+                        args.checksum_only, args.image_profile, args.ssh_mode)
 
 
 if __name__ == "__main__":

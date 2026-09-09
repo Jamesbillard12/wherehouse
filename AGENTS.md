@@ -37,6 +37,10 @@ and post-MVP implementations are distinct; do not turn future adapters into curr
   UUID, never `/dev/sdX`. Root/boot protection and destructive confirmation must be enforced by the
   privileged host boundary. Missing primary storage fails closed. SMB is opt-in and may expose only
   allowlisted share roots that are separate from application data, PostgreSQL, secrets, and backups.
+- Public appliance images must keep SSH disabled by default and contain no developer key, private key,
+  or universal password. Developer key injection requires an explicit development build profile.
+  Consumer Remote Administration is owner-controlled, public-key-only, and implemented through fixed
+  privileged host operations; application containers must not manage arbitrary host SSH state.
 - Use migrations, additive evolution and explicit repository boundaries. Treat inventory as private:
   validate untrusted input, authorize every capability and avoid logging household contents.
 - Do not create empty future abstractions, microservices, workflow systems or brokers without a real

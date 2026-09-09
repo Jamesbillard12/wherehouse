@@ -1,5 +1,5 @@
 import { apiRequest } from '../client'
-import type { ApplianceStorageStatus, ApplianceUpdateStatus, SystemStatus } from '../types'
+import type { ApplianceStorageStatus, ApplianceUpdateStatus, RemoteAdministrationStatus, SystemStatus } from '../types'
 
 export function getSystemStatus(baseUrl?: string): Promise<SystemStatus> {
   return apiRequest('/system/status', { baseUrl })
@@ -42,4 +42,20 @@ export function enableNetworkStorage(token: string, username: string, password: 
 
 export function disableNetworkStorage(token: string, baseUrl?: string) {
   return apiRequest<ApplianceStorageStatus>('/system/nas/disable', { baseUrl, token, method: 'POST' })
+}
+
+export function getRemoteAdministrationStatus(token: string, baseUrl?: string) {
+  return apiRequest<RemoteAdministrationStatus>('/system/remote-administration', { baseUrl, token })
+}
+
+export function enableRemoteAdministration(token: string, publicKey: string, baseUrl?: string) {
+  return apiRequest<RemoteAdministrationStatus>('/system/remote-administration/enable', {
+    baseUrl, token, method: 'POST', body: { public_key: publicKey },
+  })
+}
+
+export function disableRemoteAdministration(token: string, baseUrl?: string) {
+  return apiRequest<RemoteAdministrationStatus>('/system/remote-administration/disable', {
+    baseUrl, token, method: 'POST',
+  })
 }

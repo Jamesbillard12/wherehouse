@@ -69,6 +69,11 @@ fi
 ssh_public_key_file=${WHEREHOUSE_SSH_PUBLIC_KEY_FILE:-}
 ssh_public_key=${WHEREHOUSE_SSH_PUBLIC_KEY:-}
 ssh_mode=${WHEREHOUSE_SSH_MODE:-}
+image_profile=${WHEREHOUSE_IMAGE_PROFILE:-production}
+case "$image_profile" in
+  production|development) ;;
+  *) echo "WHEREHOUSE_IMAGE_PROFILE must be 'production' or 'development'" >&2; exit 1 ;;
+esac
 if [ -n "$ssh_public_key_file" ] && [ -n "$ssh_public_key" ]; then
   echo "Set only one of WHEREHOUSE_SSH_PUBLIC_KEY or WHEREHOUSE_SSH_PUBLIC_KEY_FILE" >&2
   exit 1
@@ -83,6 +88,10 @@ if [ -z "$ssh_mode" ]; then
 fi
 case "$ssh_mode" in
   key)
+    if [ "$image_profile" != development ]; then
+      echo "SSH key injection is development-only; set WHEREHOUSE_IMAGE_PROFILE=development explicitly" >&2
+      exit 1
+    fi
     if [ -z "$ssh_public_key_file" ]; then
       echo "WHEREHOUSE_SSH_MODE=key requires WHEREHOUSE_SSH_PUBLIC_KEY or WHEREHOUSE_SSH_PUBLIC_KEY_FILE" >&2
       exit 1
@@ -169,6 +178,7 @@ done
 echo "WhereHouse Raspberry Pi Image Builder"
 echo "Version: $version"
 echo "Board: $device ($(board_description "$device"))"
+echo "Image profile: $image_profile"
 echo "Host: $host_os $host_arch"
 echo "Builder platform: linux/arm64"
 echo "rpi-image-gen: $RPI_IMAGE_GEN_VERSION ($RPI_IMAGE_GEN_COMMIT)"
@@ -205,6 +215,7 @@ set -- run --rm --privileged --platform linux/arm64 \
   -e "RPI_IMAGE_GEN_COMMIT=$RPI_IMAGE_GEN_COMMIT" \
   -e "WHEREHOUSE_UPDATE_MANIFEST_URL=$update_manifest_url" \
   -e "WHEREHOUSE_SSH_MODE=$ssh_mode" \
+  -e "WHEREHOUSE_IMAGE_PROFILE=$image_profile" \
   -e "WHEREHOUSE_UPDATE_MODE=$update_mode" \
   -v "$repository:/workspace" \
   -v "$output:/output" \

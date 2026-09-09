@@ -17,11 +17,17 @@ all architecture-specific application artifacts inside Linux rather than copying
 The upstream v2.6.0 tag is verified against its expected commit. Its dependency manifest is installed
 explicitly in one APT layer; upstream dependency installation is not invoked in a later layer.
 
-Administrative SSH is an explicit image-build policy: `key` provisions one supplied public key for
+Image builds default to a `production` profile with SSH disabled, no login account, and no embedded
+key. Administrative SSH is development-only: an explicit `development` profile plus `key` provisions one supplied public key for
 the `wherehouse` account, while `disabled` provisions no login account. The account receives an
 unknown, discarded random password hash so sshd does not classify it as OS-locked, while per-user
 sshd policy disables password and keyboard-interactive authentication. The generated root filesystem
 is validated before compression.
+
+Consumer Remote Administration is separate from developer injection. An instance owner may enable or
+disable it through Settings; the API invokes only fixed operations over the existing privileged host
+socket. The host installs one owner public key and persists only its fingerprint. See
+[Remote Administration security](../remote-administration.md).
 
 System status is an instance-level, transport-neutral read capability. It may expose nonsensitive
 readiness, versions, device model, hostname, counts, and coarse storage health, but never credentials

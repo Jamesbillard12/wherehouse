@@ -195,7 +195,8 @@ trap 'rm -rf "$stage"' EXIT INT TERM
 artifact="$output/wherehouse-$device-$version.img.xz"
 xz -T0 -9 -c "$image" > "$artifact"
 python3 "$repository/deploy/raspberry-pi/image/release_metadata.py" \
-  "$artifact" "$version" "$device" "$RPI_IMAGE_GEN_VERSION" "$build_date"
+  "$artifact" "$version" "$device" "$RPI_IMAGE_GEN_VERSION" "$build_date" \
+  --image-profile "${WHEREHOUSE_IMAGE_PROFILE:-production}" --ssh-mode "${WHEREHOUSE_SSH_MODE:-disabled}"
 cp "$stage/container-images/wherehouse-runtime.tar" "$output/wherehouse-runtime-$version.tar"
 python3 "$repository/deploy/raspberry-pi/image/release_metadata.py" \
   "$output/wherehouse-runtime-$version.tar" "$version" runtime "$RPI_IMAGE_GEN_VERSION" "$build_date" --checksum-only
