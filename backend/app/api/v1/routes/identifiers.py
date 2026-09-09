@@ -83,6 +83,20 @@ async def resolve(public_id: str, principal: PrincipalDep, session: SessionDep):
     return {"identifier": identifier_read(identifier), "item": target if isinstance(target, Item) else None, "container": target if isinstance(target, Container) else None}
 
 
+@router.get("/workspaces/{workspace_id}/identifiers", response_model=list[IdentifierRead])
+async def list_workspace_identifiers(
+    workspace_id: UUID, principal: PrincipalDep, session: SessionDep
+) -> list[dict]:
+    await require_workspace_access(workspace_id, principal, session)
+    identifiers = await session.scalars(
+        select(PhysicalIdentifier).where(
+            PhysicalIdentifier.workspace_id == workspace_id,
+            PhysicalIdentifier.status == IdentifierStatus.ACTIVE,
+        ).order_by(PhysicalIdentifier.created_at)
+    )
+    return [identifier_read(value) for value in identifiers]
+
+
 @router.get("/{target_type}/{target_id}/identifiers", response_model=list[IdentifierRead])
 async def list_identifiers(target_type: str, target_id: UUID, principal: PrincipalDep, session: SessionDep):
     if target_type not in {"items", "containers"}:

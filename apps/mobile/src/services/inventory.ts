@@ -4,6 +4,7 @@ import {
   type ContainerPlacement,
   type Item,
   type ItemPlacement,
+  type PhysicalIdentifier,
   type StorageContainer,
   type Zone,
 } from '@wherehouse/api-client'
@@ -15,6 +16,7 @@ export type CachedInventory = {
   containers: StorageContainer[]
   placements: ContainerPlacement[]
   items: Item[]
+  identifiers: PhysicalIdentifier[]
   itemPlacements: ItemPlacement[]
   syncedAt: string | null
   zones: Zone[]
@@ -32,7 +34,7 @@ export function syncInventory(server: PairedServer): Promise<CachedInventory> {
 
 async function syncInventoryOnce(server: PairedServer): Promise<CachedInventory> {
   const client = createRemoteClient(server.baseUrl, server.accessToken)
-  const [areas, items, itemPlacements] = await Promise.all([client.listAreas(server.workspaceId), client.listItems(server.workspaceId), client.listItemPlacements(server.workspaceId)])
+  const [areas, items, itemPlacements, identifiers] = await Promise.all([client.listAreas(server.workspaceId), client.listItems(server.workspaceId), client.listItemPlacements(server.workspaceId), client.listWorkspaceIdentifiers(server.workspaceId)])
   const details = await Promise.all(
     areas.map(async (area) => {
       const [zones, containers, placements] = await Promise.all([
@@ -58,6 +60,7 @@ async function syncInventoryOnce(server: PairedServer): Promise<CachedInventory>
     containers: details.flatMap((detail) => detail.containers),
     placements: details.flatMap((detail) => detail.placements),
     items: [...items, ...localRows.filter((row) => row.entity_type === 'item').map((row) => JSON.parse(row.payload) as Item)],
+    identifiers,
     itemPlacements: [...itemPlacements, ...localRows.filter((row) => row.entity_type === 'item-placement').map((row) => JSON.parse(row.payload) as ItemPlacement)],
     syncedAt: new Date().toISOString(),
   }
@@ -69,6 +72,7 @@ async function syncInventoryOnce(server: PairedServer): Promise<CachedInventory>
       ['container', inventory.containers],
       ['placement', inventory.placements],
       ['item', inventory.items],
+      ['identifier', inventory.identifiers],
       ['item-placement', inventory.itemPlacements],
     ] as const) {
       for (const entry of entries) {
@@ -106,6 +110,7 @@ export async function loadCachedInventory(workspaceId: string): Promise<CachedIn
     containers: rows.filter((row) => row.entity_type === 'container').map((row) => JSON.parse(row.payload) as StorageContainer),
     placements: rows.filter((row) => row.entity_type === 'placement').map((row) => JSON.parse(row.payload) as ContainerPlacement),
     items: rows.filter((row) => row.entity_type === 'item').map((row) => JSON.parse(row.payload) as Item),
+    identifiers: rows.filter((row) => row.entity_type === 'identifier').map((row) => JSON.parse(row.payload) as PhysicalIdentifier),
     itemPlacements: rows.filter((row) => row.entity_type === 'item-placement').map((row) => JSON.parse(row.payload) as ItemPlacement),
     syncedAt: metadata?.synced_at ?? null,
   }

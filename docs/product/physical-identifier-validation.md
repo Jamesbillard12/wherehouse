@@ -54,4 +54,6 @@ This is generic output validation, not certification for a printer model.
   written, verified, and activated before the previous active NFC identifier is revoked. A failed or
   read-only-tag write keeps the previous identifier active; foreign or already-inactive payloads do
   not block the verified replacement.
+- Mobile item rows and item editing show QR and NFC badges from active identifier records, including
+  the offline cache. They do not infer active physical media from the item's configured preference.
 - No physical support claim is made until the corresponding matrix row is completed.

@@ -1,8 +1,11 @@
+from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
+from app.api.v1.routes import identifiers as identifier_routes
 from app.application.context import ActorContext
 from app.application.identifiers.capabilities import (
     IdentifierAccessDenied,
@@ -98,3 +101,23 @@ async def test_identifier_target_must_remain_in_same_workspace() -> None:
     session = IdentifierSession(value, membership=SimpleNamespace(), target=target)
     with pytest.raises(IdentifierNotFound, match="target"):
         await resolve_identifier(session, actor(), value.public_id)
+
+
+async def test_workspace_identifier_list_returns_active_records_after_access_check(monkeypatch) -> None:
+    workspace_id = uuid4()
+    value = identifier(IdentifierStatus.ACTIVE)
+    value.workspace_id = workspace_id
+    value.created_at = datetime.now(UTC)
+    value.updated_at = value.created_at
+    require_access = AsyncMock()
+    monkeypatch.setattr(identifier_routes, "require_workspace_access", require_access)
+    session = SimpleNamespace(scalars=AsyncMock(return_value=[value]))
+    principal = SimpleNamespace()
+
+    result = await identifier_routes.list_workspace_identifiers(
+        workspace_id, principal, session
+    )
+
+    require_access.assert_awaited_once_with(workspace_id, principal, session)
+    assert result[0]["id"] == value.id
+    assert result[0]["medium"] is IdentifierMedium.NFC

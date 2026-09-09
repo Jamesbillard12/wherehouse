@@ -54,6 +54,7 @@ const EMPTY_INVENTORY: CachedInventory = {
   containers: [],
   placements: [],
   items: [],
+  identifiers: [],
   itemPlacements: [],
   syncedAt: null,
 }
@@ -511,6 +512,7 @@ export default function App() {
     if (!pairedServer) return
     const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
     await assignNfcTag(client, 'item', typeof item === 'string' ? item : item.id)
+    setInventory(await syncInventory(pairedServer))
   }
 
   async function writeContainerNfc(container: StorageContainer) {
@@ -519,6 +521,7 @@ export default function App() {
     try {
       const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
       await assignNfcTag(client, 'container', container.id)
+      setInventory(await syncInventory(pairedServer))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not write NFC tag.')
     }
@@ -543,7 +546,7 @@ export default function App() {
 
   if (pairedServer && activeTab === 'add-item') return <SafeAreaView style={styles.safeArea}><AddItemScreen choices={locationChoices} initialLocation={addItemLocation} linkNfc={linkNewItemToNfc} onCancel={() => { setLinkNewItemToNfc(false); setActiveTab('home') }} onSave={saveItem} onScanLocation={() => void openScanner('item-location')} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
 
-  if (pairedServer && editingItem) return <SafeAreaView style={styles.safeArea}><EditItemScreen choices={locationChoices} imageUri={editingItemImageUri} item={editingItem} location={editItemLocation ?? placementLocationChoice(inventory.itemPlacements.find((entry) => entry.item_id === editingItem.id), inventory)} onArchive={() => archiveItem(editingItem)} onCancel={() => { setEditingItem(null); setEditItemLocation(undefined) }} onSave={updateItem} onScanLocation={() => void openScanner('item-location')} onWriteNfc={() => writeItemNfc(editingItem)} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
+  if (pairedServer && editingItem) return <SafeAreaView style={styles.safeArea}><EditItemScreen choices={locationChoices} identifierMedia={inventory.identifiers.filter((identifier) => identifier.target_type === 'item' && identifier.target_id === editingItem.id).map((identifier) => identifier.medium)} imageUri={editingItemImageUri} item={editingItem} location={editItemLocation ?? placementLocationChoice(inventory.itemPlacements.find((entry) => entry.item_id === editingItem.id), inventory)} onArchive={() => archiveItem(editingItem)} onCancel={() => { setEditingItem(null); setEditItemLocation(undefined) }} onSave={updateItem} onScanLocation={() => void openScanner('item-location')} onWriteNfc={() => writeItemNfc(editingItem)} recent={recentItemLocations} /><StatusBar style="auto" /></SafeAreaView>
 
   return (
     <SafeAreaView style={styles.safeArea}>

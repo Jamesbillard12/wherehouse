@@ -1,4 +1,4 @@
-import type { Item } from "@wherehouse/api-client";
+import type { IdentifierMedium, Item } from "@wherehouse/api-client";
 import {
   Check,
   Radio,
@@ -25,6 +25,7 @@ import { useItemEdit } from "../hooks/useItemEdit";
 import { styles } from "../theme/styles";
 import type { ItemLocationChoice, ItemUpdateDraft } from "../types/itemDraft";
 import { ItemPhotoField } from "../features/items/ItemPhotoField";
+import { PhysicalIdentifierStatus } from "../components/wherehouse/PhysicalIdentifierStatus";
 
 const IDENTIFIERS: { label: string; value: Item["identifier_type"] }[] = [
   { label: "Neither", value: "none" },
@@ -36,6 +37,7 @@ const IDENTIFIERS: { label: string; value: Item["identifier_type"] }[] = [
 export function EditItemScreen({
   choices,
   imageUri,
+  identifierMedia,
   item,
   location,
   onCancel,
@@ -47,6 +49,7 @@ export function EditItemScreen({
 }: {
   choices: ItemLocationChoice[];
   imageUri?: string;
+  identifierMedia: IdentifierMedium[];
   item: Item;
   location?: ItemLocationChoice;
   onCancel: () => void;
@@ -163,6 +166,7 @@ export function EditItemScreen({
             value={draft.location}
           />
           <Text style={styles.fieldLabel}>Physical identifier</Text>
+          <PhysicalIdentifierStatus media={identifierMedia} />
           <View style={styles.identifierChoices}>
             {IDENTIFIERS.map((choice) => (
               <Pressable

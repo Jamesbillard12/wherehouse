@@ -13,6 +13,7 @@ export function createRemoteClient(baseUrl: string, token: string) {
     activateIdentifier: (identifierId: string) => authenticatedRequest<PhysicalIdentifier>(`/identifiers/${identifierId}/activate`, { method: 'POST' }),
     revokeIdentifier: (identifierId: string) => authenticatedRequest<void>(`/identifiers/${encodeURIComponent(identifierId)}`, { method: 'DELETE' }),
     resolveIdentifier: (publicId: string) => authenticatedRequest<IdentifierResolution>(`/identifiers/${encodeURIComponent(publicId)}/resolve`),
+    listWorkspaceIdentifiers: (workspaceId: string) => authenticatedRequest<PhysicalIdentifier[]>(`/workspaces/${encodeURIComponent(workspaceId)}/identifiers`),
     listAreas: (workspaceId: string) =>
       authenticatedRequest<Area[]>(`/workspaces/${workspaceId}/areas`),
     listZones: (areaId: string) => authenticatedRequest<Zone[]>(`/areas/${areaId}/zones`),
