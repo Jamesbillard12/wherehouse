@@ -12,6 +12,7 @@ from app.application.identifiers.capabilities import (
     InvalidIdentifierTransition,
     RegisterIdentifier,
     activate_identifier,
+    activate_pending_nfc_identifier,
     create_identifier,
     identifier_payload,
     resolve_identifier,
@@ -135,6 +136,15 @@ async def revoke(identifier_id: UUID, principal: PrincipalDep, session: SessionD
 async def activate(identifier_id: UUID, principal: PrincipalDep, session: SessionDep):
     try:
         identifier = await activate_identifier(session, actor_for(principal), identifier_id)
+    except (IdentifierAccessDenied, IdentifierNotFound, InvalidIdentifierTransition) as error:
+        raise map_identifier_error(error) from error
+    return identifier_read(identifier)
+
+
+@router.post("/identifiers/{public_id}/activate-pending-nfc", response_model=IdentifierRead)
+async def activate_pending_nfc(public_id: str, principal: PrincipalDep, session: SessionDep):
+    try:
+        identifier = await activate_pending_nfc_identifier(session, actor_for(principal), public_id)
     except (IdentifierAccessDenied, IdentifierNotFound, InvalidIdentifierTransition) as error:
         raise map_identifier_error(error) from error
     return identifier_read(identifier)

@@ -14,6 +14,7 @@ from app.application.identifiers.capabilities import (
     InvalidIdentifierTransition,
     RegisterIdentifier,
     activate_identifier,
+    activate_pending_nfc_identifier,
     create_identifier,
     identifier_payload,
     resolve_identifier,
@@ -123,6 +124,25 @@ async def test_activation_revokes_previous_identifier_for_same_target_and_medium
     assert previous.status is IdentifierStatus.REVOKED
     assert session.flushes == 1
     assert session.commits == 1
+
+
+async def test_pending_nfc_identifier_can_be_recovered_by_public_id() -> None:
+    value = identifier(IdentifierStatus.PENDING)
+    session = IdentifierSession(value)
+    session.scalar = AsyncMock(side_effect=[value, session.membership, None])
+
+    assert await activate_pending_nfc_identifier(session, actor(), value.public_id) is value
+
+    assert value.status is IdentifierStatus.ACTIVE
+    assert session.commits == 1
+
+
+async def test_non_pending_identifier_cannot_be_recovered_by_public_id() -> None:
+    session = IdentifierSession()
+    session.scalar = AsyncMock(return_value=None)
+
+    with pytest.raises(IdentifierNotFound, match="Pending NFC"):
+        await activate_pending_nfc_identifier(session, actor(), "idn_missing")
 
 
 async def test_revoke_is_idempotent() -> None:

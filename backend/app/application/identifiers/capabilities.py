@@ -144,6 +144,17 @@ async def activate_identifier(session: AsyncSession, actor: ActorContext, identi
     return identifier
 
 
+async def activate_pending_nfc_identifier(session: AsyncSession, actor: ActorContext, public_id: str):
+    identifier = await session.scalar(select(PhysicalIdentifier).where(
+        PhysicalIdentifier.public_id == public_id,
+        PhysicalIdentifier.medium == IdentifierMedium.NFC,
+        PhysicalIdentifier.status == IdentifierStatus.PENDING,
+    ))
+    if identifier is None:
+        raise IdentifierNotFound("Pending NFC identifier not found")
+    return await activate_identifier(session, actor, identifier.id)
+
+
 async def revoke_identifier(session: AsyncSession, actor: ActorContext, identifier_id: UUID):
     identifier = await session.get(PhysicalIdentifier, identifier_id)
     if identifier is None:

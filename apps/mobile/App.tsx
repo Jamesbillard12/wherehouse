@@ -47,6 +47,7 @@ import { assignNfcTag } from './src/services/nfcAssignment'
 import { cacheItemImage } from './src/services/itemImages'
 import { SettingsScreen } from './src/features/settings/SettingsScreen'
 import { isRevocationForConnection } from './src/services/connectionPolicy'
+import { resolveIdentifier } from './src/services/identifierResolution'
 
 const EMPTY_INVENTORY: CachedInventory = {
   areas: [],
@@ -440,7 +441,7 @@ export default function App() {
     }
   }
 
-  async function identify(value: string) {
+  async function identify(value: string, recoverPendingNfc = false) {
     if (!pairedServer) return
     if (isPairingUri(value)) {
       setBusy(true)
@@ -454,7 +455,8 @@ export default function App() {
     setBusy(true)
     setError(null)
     try {
-      const result = await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).resolveIdentifier(parsed.publicId)
+      const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
+      const result = await resolveIdentifier(client, parsed.publicId, recoverPendingNfc)
       if (result.container) { setSelectedLocation(containerLocationChoice(result.container, inventory)); setActiveTab('containers') }
       else if (result.item) { setEditingItem(result.item); setActiveTab('items') }
     } catch (reason) {
@@ -462,7 +464,7 @@ export default function App() {
     } finally { setBusy(false) }
   }
 
-  async function resolveForScanSession(value: string) {
+  async function resolveForScanSession(value: string, recoverPendingNfc = false) {
     if (!pairedServer) return
     if (isPairingUri(value)) {
       await pairFromScan(value)
@@ -470,7 +472,8 @@ export default function App() {
     }
     const parsed = parseIdentifierPayload(value)
     if (!parsed || parsed.version !== 1) throw new Error('That is not a supported WhereHouse identifier.')
-    const result = await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).resolveIdentifier(parsed.publicId)
+    const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
+    const result = await resolveIdentifier(client, parsed.publicId, recoverPendingNfc)
     setScanSessionEntries((current) => current.some((entry) => entry.identifier.target_type === result.identifier.target_type && entry.identifier.target_id === result.identifier.target_id) ? current : [...current, result])
   }
 
@@ -492,7 +495,7 @@ export default function App() {
 
   async function readNfc() {
     setError(null)
-    try { await identify(await readNfcIdentifier()) }
+    try { await identify(await readNfcIdentifier(), true) }
     catch (reason) {
       if (reason instanceof EmptyNfcTagError) setEmptyNfcPromptOpen(true)
       else setError(reason instanceof Error ? reason.message : 'NFC read failed.')
@@ -500,7 +503,7 @@ export default function App() {
   }
 
   async function addNfcToScanSession() {
-    try { await resolveForScanSession(await readNfcIdentifier()) }
+    try { await resolveForScanSession(await readNfcIdentifier(), true) }
     catch (reason) {
       if (!(reason instanceof EmptyNfcTagError)) throw reason
       setScanSessionOpen(false)
