@@ -42,7 +42,8 @@ import { ScanSessionScreen } from './src/screens/ScanSessionScreen'
 import { failedItemCount, pendingItemCount, quarantinePendingItemsAfterCredentialRemoval, queueItem, recentLocations, syncPendingItems } from './src/services/itemQueue'
 import type { ItemDraft, ItemLocationChoice, ItemUpdateDraft } from './src/types/itemDraft'
 import { containerLocationChoice, itemLocationChoices, placementLocationChoice } from './src/utils/itemLocations'
-import { EmptyNfcTagError, readNfcIdentifier, writeNfcIdentifier } from './src/services/nfc'
+import { EmptyNfcTagError, readNfcIdentifier } from './src/services/nfc'
+import { assignNfcTag } from './src/services/nfcAssignment'
 import { cacheItemImage } from './src/services/itemImages'
 import { SettingsScreen } from './src/features/settings/SettingsScreen'
 import { isRevocationForConnection } from './src/services/connectionPolicy'
@@ -508,9 +509,8 @@ export default function App() {
 
   async function writeItemNfc(item: Item | string) {
     if (!pairedServer) return
-    const identifier = await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).createIdentifier('item', typeof item === 'string' ? item : item.id, 'nfc')
-    await writeNfcIdentifier(identifier.payload)
-    await createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken).activateIdentifier(identifier.id)
+    const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
+    await assignNfcTag(client, 'item', typeof item === 'string' ? item : item.id)
   }
 
   async function writeContainerNfc(container: StorageContainer) {
@@ -518,9 +518,7 @@ export default function App() {
     setError(null)
     try {
       const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
-      const identifier = await client.createIdentifier('container', container.id, 'nfc')
-      await writeNfcIdentifier(identifier.payload)
-      await client.activateIdentifier(identifier.id)
+      await assignNfcTag(client, 'container', container.id)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not write NFC tag.')
     }

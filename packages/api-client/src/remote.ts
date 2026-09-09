@@ -11,6 +11,7 @@ export function createRemoteClient(baseUrl: string, token: string) {
     getBackupStatus: () => authenticatedRequest<BackupStatus>('/backups/status'),
     createIdentifier: (targetType: IdentifierTargetType, targetId: string, medium: IdentifierMedium) => authenticatedRequest<PhysicalIdentifier>('/identifiers', { method: 'POST', body: { target_type: targetType, target_id: targetId, medium } }),
     activateIdentifier: (identifierId: string) => authenticatedRequest<PhysicalIdentifier>(`/identifiers/${identifierId}/activate`, { method: 'POST' }),
+    revokeIdentifier: (identifierId: string) => authenticatedRequest<void>(`/identifiers/${encodeURIComponent(identifierId)}`, { method: 'DELETE' }),
     resolveIdentifier: (publicId: string) => authenticatedRequest<IdentifierResolution>(`/identifiers/${encodeURIComponent(publicId)}/resolve`),
     listAreas: (workspaceId: string) =>
       authenticatedRequest<Area[]>(`/workspaces/${workspaceId}/areas`),

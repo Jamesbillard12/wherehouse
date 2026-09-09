@@ -193,7 +193,7 @@ export function EditItemScreen({
             style={styles.secondaryButton}
           >
             <Radio color="#4f46e5" size={18} />
-            <Text style={styles.secondaryButtonText}>Write and verify NFC tag</Text>
+            <Text style={styles.secondaryButtonText}>Write or replace NFC tag</Text>
           </Pressable>
           <TextInput
             onChangeText={(manufacturer) => update({ manufacturer })}
