@@ -71,8 +71,15 @@ async def create_identifier(session: AsyncSession, actor: ActorContext, command:
         PhysicalIdentifier.target_type == command.target_type,
         PhysicalIdentifier.target_id == command.target_id,
         PhysicalIdentifier.medium == command.medium,
-        PhysicalIdentifier.status.in_([IdentifierStatus.PENDING, IdentifierStatus.ACTIVE]),
+        PhysicalIdentifier.status == IdentifierStatus.PENDING,
     ))
+    if existing is None and command.medium is IdentifierMedium.QR:
+        existing = await session.scalar(select(PhysicalIdentifier).where(
+            PhysicalIdentifier.target_type == command.target_type,
+            PhysicalIdentifier.target_id == command.target_id,
+            PhysicalIdentifier.medium == command.medium,
+            PhysicalIdentifier.status == IdentifierStatus.ACTIVE,
+        ))
     if existing is not None:
         return existing, target
     identifier = PhysicalIdentifier(
@@ -90,7 +97,7 @@ async def create_identifier(session: AsyncSession, actor: ActorContext, command:
             PhysicalIdentifier.target_type == command.target_type,
             PhysicalIdentifier.target_id == command.target_id,
             PhysicalIdentifier.medium == command.medium,
-            PhysicalIdentifier.status.in_([IdentifierStatus.PENDING, IdentifierStatus.ACTIVE]),
+            PhysicalIdentifier.status == IdentifierStatus.PENDING,
         ))
         if existing is not None:
             return existing, target
@@ -121,6 +128,16 @@ async def activate_identifier(session: AsyncSession, actor: ActorContext, identi
         raise InvalidIdentifierTransition("Revoked identifiers cannot be activated")
     if identifier.status is IdentifierStatus.ACTIVE:
         return identifier
+    previous = await session.scalar(select(PhysicalIdentifier).where(
+        PhysicalIdentifier.target_type == identifier.target_type,
+        PhysicalIdentifier.target_id == identifier.target_id,
+        PhysicalIdentifier.medium == identifier.medium,
+        PhysicalIdentifier.status == IdentifierStatus.ACTIVE,
+        PhysicalIdentifier.id != identifier.id,
+    ))
+    if previous is not None:
+        previous.status = IdentifierStatus.REVOKED
+        await session.flush()
     identifier.status = IdentifierStatus.ACTIVE
     await session.commit()
     await session.refresh(identifier)
