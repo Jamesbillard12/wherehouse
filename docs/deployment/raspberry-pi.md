@@ -36,3 +36,10 @@ at `/var/lib/wherehouse/config/update-state.json` and exposes only a local Unix 
 Settings → System can check and install; the host operation continues while web/API containers restart.
 
 See [Application OTA operations](application-ota.md) for building, publishing, recovery, and validation.
+
+## SSH and Remote Administration
+
+Public images default to SSH disabled and contain no developer credentials or universal password.
+Explicit development builds may inject one public key. Appliance owners can later opt into key-only
+Remote Administration in Settings without granting the application container arbitrary host access.
+See [Remote Administration security](../architecture/remote-administration.md).

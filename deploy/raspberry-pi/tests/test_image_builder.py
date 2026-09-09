@@ -35,12 +35,28 @@ class ImageBuilderTests(unittest.TestCase):
         result = subprocess.run(
             [str(SCRIPT), "0.1.2", "pi4"], cwd=ROOT,
             env={**os.environ, "WHEREHOUSE_SSH_MODE": "key",
+                 "WHEREHOUSE_IMAGE_PROFILE": "development",
                  "WHEREHOUSE_SSH_PUBLIC_KEY": "", "WHEREHOUSE_SSH_PUBLIC_KEY_FILE": "",
                  "WHEREHOUSE_ALLOW_DIRTY": "1"},
             text=True, capture_output=True, check=False,
         )
         self.assertEqual(1, result.returncode)
         self.assertIn("requires WHEREHOUSE_SSH_PUBLIC_KEY", result.stderr)
+
+    def test_production_profile_rejects_development_key_injection(self):
+        result = subprocess.run(
+            [str(SCRIPT), "0.1.2", "pi4"], cwd=ROOT,
+            env={**os.environ, "WHEREHOUSE_IMAGE_PROFILE": "production",
+                 "WHEREHOUSE_SSH_MODE": "key",
+                 "WHEREHOUSE_SSH_PUBLIC_KEY": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestOnlyKey",
+                 "WHEREHOUSE_ALLOW_DIRTY": "1"}, text=True, capture_output=True, check=False)
+        self.assertEqual(1, result.returncode)
+        self.assertIn("development-only", result.stderr)
+
+    def test_development_key_still_requires_explicit_profile_and_key(self):
+        script = SCRIPT.read_text()
+        self.assertIn('image_profile=${WHEREHOUSE_IMAGE_PROFILE:-production}', script)
+        self.assertIn('"$image_profile" != development', script)
 
     def test_enabled_updater_requires_both_trust_inputs(self):
         result = subprocess.run(
@@ -92,6 +108,8 @@ class ImageBuilderTests(unittest.TestCase):
             calls = log.read_text()
             self.assertIn("build --platform linux/arm64", calls)
             self.assertIn("run --rm --privileged --platform linux/arm64", calls)
+            self.assertIn("WHEREHOUSE_IMAGE_PROFILE=production", calls)
+            self.assertIn("WHEREHOUSE_SSH_MODE=disabled", calls)
             self.assertTrue(calls.rstrip().endswith("0.1.0 pi5"))
             self.assertIn("Builder platform: linux/arm64", result.stdout)
             self.assertIn("Image complete:", result.stdout)
@@ -181,6 +199,7 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertIn('PubkeyAuthentication yes', hook)
         self.assertIn('PasswordAuthentication no', hook)
         self.assertIn('sshd -t', hook)
+        self.assertIn('rm -f /etc/ssh/ssh_host_*', hook)
 
     def test_appliance_uses_upstream_wired_networking_and_remote_diagnostics(self):
         layer = (
@@ -198,8 +217,8 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertIn("    - iproute2\n", layer)
         self.assertIn("    - nftables\n", layer)
         self.assertIn("systemctl enable systemd-networkd.service", hook)
+        self.assertIn("systemctl disable ssh.service", hook)
         self.assertIn("systemctl enable ssh.service", hook)
-        self.assertNotIn("systemctl disable ssh.service", hook)
         self.assertNotIn("05-wherehouse-wired.network", entrypoint)
         self.assertNotIn("Type=ether", entrypoint)
         self.assertNotIn("DHCP=yes", entrypoint)
@@ -245,6 +264,8 @@ class ImageBuilderTests(unittest.TestCase):
             self.assertEqual("pi4", manifest["device"])
             self.assertEqual("arm64", manifest["architecture"])
             self.assertEqual("v2.6.0", manifest["imageGeneratorVersion"])
+            self.assertEqual("production", manifest["imageProfile"])
+            self.assertEqual("disabled", manifest["sshMode"])
 
 
 if __name__ == "__main__":

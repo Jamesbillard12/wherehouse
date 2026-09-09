@@ -104,6 +104,12 @@ export type ApplianceStorageStatus = {
   nas: { enabled: boolean; available: boolean; share: 'Shared'; username: string | null; server: string; address: string }
 }
 
+export type RemoteAdministrationStatus = {
+  enabled: boolean
+  authentication: 'public_key'
+  keyFingerprint: string | null
+}
+
 export type UpdatePhase = 'idle' | 'checking' | 'available' | 'downloading' | 'verifying' |
   'backing_up' | 'installing' | 'migrating' | 'restarting' | 'health_check' |
   'completed' | 'failed' | 'rollback'

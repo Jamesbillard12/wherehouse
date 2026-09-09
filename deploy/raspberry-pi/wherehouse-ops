@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import fcntl
 import hashlib
 import json
@@ -39,6 +40,14 @@ STORAGE_CONFIRMATION = "ERASE AND USE THIS DRIVE"
 NAS_SHARE = "Shared"
 NAS_USER_RE = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
 UUID_RE = re.compile(r"^[A-Fa-f0-9-]{4,64}$")
+SSH_KEY_TYPES = {"ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521"}
+SSH_ACCOUNT = "wherehouse"
+SSH_CONFIG = Path("/etc/ssh/sshd_config.d/90-wherehouse-admin.conf")
+SSH_HOME = Path("/home/wherehouse")
+SSH_SUDOERS = Path("/etc/sudoers.d/90-wherehouse-admin")
+SSH_RUNTIME_DIR = Path("/run/sshd")
+SSH_HOST_KEY_DIR = Path("/etc/ssh")
+REMOTE_ADMIN_STATE_NAME = "remote-admin-state.json"
 
 
 def utc_now() -> str:
@@ -83,6 +92,78 @@ def write_state(root: Path, **changes) -> dict:
     state["updatedAt"] = utc_now()
     atomic_write(state_path(root), json.dumps(state, indent=2, sort_keys=True) + "\n")
     return state
+
+
+def validate_ssh_public_key(value: object) -> tuple[str, str]:
+    if not isinstance(value, str) or "\n" in value or "\r" in value or len(value) > 8192:
+        raise RuntimeError("Remote Administration requires one OpenSSH public key")
+    parts = value.strip().split()
+    if len(parts) < 2 or parts[0] not in SSH_KEY_TYPES:
+        raise RuntimeError("Remote Administration requires a supported OpenSSH public key")
+    try:
+        decoded = base64.b64decode(parts[1], validate=True)
+    except (ValueError, base64.binascii.Error) as exc:
+        raise RuntimeError("Remote Administration public key is invalid") from exc
+    if len(decoded) < 8:
+        raise RuntimeError("Remote Administration public key is invalid")
+    key_type_length = int.from_bytes(decoded[:4], "big")
+    embedded_type = decoded[4:4 + key_type_length].decode("ascii", errors="ignore")
+    if embedded_type != parts[0] or 4 + key_type_length >= len(decoded):
+        raise RuntimeError("Remote Administration public key type does not match its key data")
+    normalized = f"{parts[0]} {parts[1]}"
+    fingerprint = "SHA256:" + base64.b64encode(hashlib.sha256(decoded).digest()).decode().rstrip("=")
+    return normalized + "\n", fingerprint
+
+
+def remote_admin_status(root: Path) -> dict:
+    path = root / "config" / REMOTE_ADMIN_STATE_NAME
+    if not path.exists():
+        return {"enabled": False, "authentication": "public_key", "keyFingerprint": None}
+    state = json.loads(path.read_text())
+    return {"enabled": bool(state.get("enabled")), "authentication": "public_key",
+            "keyFingerprint": state.get("keyFingerprint") if state.get("enabled") else None}
+
+
+def configure_remote_admin(root: Path, enabled: bool, public_key: object = None) -> dict:
+    with LifecycleLock(root):
+        if enabled:
+            normalized_key, fingerprint = validate_ssh_public_key(public_key)
+            if subprocess.run(["id", SSH_ACCOUNT], check=False, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL).returncode:
+                subprocess.run(["useradd", "--create-home", "--shell", "/bin/bash", SSH_ACCOUNT], check=True)
+            random_password = secrets.token_urlsafe(64)
+            password_hash = subprocess.run(
+                ["openssl", "passwd", "-6", "-stdin"], input=random_password, text=True,
+                check=True, capture_output=True).stdout.strip()
+            subprocess.run(["usermod", "--password", password_hash, SSH_ACCOUNT], check=True)
+            subprocess.run(["usermod", "-aG", "sudo,docker", SSH_ACCOUNT], check=True)
+            ssh_dir = SSH_HOME / ".ssh"
+            ssh_dir.mkdir(parents=True, exist_ok=True)
+            shutil.chown(ssh_dir, user=SSH_ACCOUNT, group=SSH_ACCOUNT)
+            os.chmod(ssh_dir, 0o700)
+            atomic_write(ssh_dir / "authorized_keys", normalized_key, 0o600)
+            shutil.chown(ssh_dir / "authorized_keys", user=SSH_ACCOUNT, group=SSH_ACCOUNT)
+            atomic_write(SSH_CONFIG, "PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\nPubkeyAuthentication yes\nAllowUsers wherehouse\n", 0o644)
+            atomic_write(SSH_SUDOERS, "wherehouse ALL=(ALL:ALL) NOPASSWD: ALL\n", 0o440)
+            SSH_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["sshd", "-t"], check=True)
+            subprocess.run(["systemctl", "enable", "--now", "ssh.service"], check=True)
+            state = {"enabled": True, "authentication": "public_key", "keyFingerprint": fingerprint}
+        else:
+            subprocess.run(["systemctl", "disable", "--now", "ssh.service"], check=False)
+            (SSH_HOME / ".ssh" / "authorized_keys").unlink(missing_ok=True)
+            SSH_CONFIG.unlink(missing_ok=True)
+            SSH_SUDOERS.unlink(missing_ok=True)
+            state = {"enabled": False, "authentication": "public_key", "keyFingerprint": None}
+        atomic_write(root / "config" / REMOTE_ADMIN_STATE_NAME,
+                     json.dumps(state, indent=2, sort_keys=True) + "\n", 0o600)
+        return state
+
+
+def ensure_ssh_host_keys() -> None:
+    if not any(SSH_HOST_KEY_DIR.glob("ssh_host_*_key")):
+        subprocess.run(["ssh-keygen", "-A"], check=True, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL)
 
 
 def current_version(root: Path) -> str:
@@ -505,6 +586,7 @@ def configure_nas(root: Path, enabled: bool, username: str | None = None, passwo
 
 
 def initialize(root: Path, hostname: Optional[str], image_version: str, build_date: str) -> bool:
+    ensure_ssh_host_keys()
     env_file = root / "config/appliance.env"
     existing = parse_env(env_file)
     required = {"INSTANCE_ID", "POSTGRES_PASSWORD", "APP_SECRET"}
@@ -832,6 +914,13 @@ def serve(root: Path, socket_path: Path, public_key: Path) -> None:
                         root, True, payload.get("username"), payload.get("password"))}
                 elif command == "nas.disable":
                     response = {"ok": True, "status": configure_nas(root, False)}
+                elif command == "remote_admin.status":
+                    response = {"ok": True, "status": remote_admin_status(root)}
+                elif command == "remote_admin.enable":
+                    response = {"ok": True, "status": configure_remote_admin(
+                        root, True, payload.get("publicKey"))}
+                elif command == "remote_admin.disable":
+                    response = {"ok": True, "status": configure_remote_admin(root, False)}
                 else:
                     response = {"ok": False, "error": "Unsupported operation"}
             except Exception as exc:

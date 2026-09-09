@@ -24,6 +24,8 @@ key-only `wherehouse` SSH administrator. The key must be supplied explicitly; no
 embed a maintainer key or shared password:
 
 ```sh
+WHEREHOUSE_IMAGE_PROFILE=development \
+WHEREHOUSE_SSH_MODE=key \
 WHEREHOUSE_SSH_PUBLIC_KEY_FILE="$HOME/.ssh/id_ed25519.pub" \
   ./deploy/raspberry-pi/image/build-image.sh 0.1.4 pi4
 ```
@@ -32,6 +34,7 @@ The public key may also be passed directly. This complete macOS example enables 
 
 ```sh
 WHEREHOUSE_SSH_MODE=key \
+WHEREHOUSE_IMAGE_PROFILE=development \
 WHEREHOUSE_SSH_PUBLIC_KEY="$(cat "$HOME/.ssh/id_ed25519.pub")" \
 WHEREHOUSE_UPDATE_MODE=enabled \
 WHEREHOUSE_UPDATE_MANIFEST_URL=https://github.com/Jamesbillard12/wherehouse/releases/latest/download/release.json \
@@ -39,9 +42,9 @@ WHEREHOUSE_UPDATE_PUBLIC_KEY_FILE=/secure/wherehouse-release-public.pem \
   ./deploy/raspberry-pi/image/build-image.sh 0.1.2 pi5
 ```
 
-Use `WHEREHOUSE_SSH_MODE=disabled` or `WHEREHOUSE_UPDATE_MODE=disabled` only for an intentionally
-unmanaged/offline image. Key mode fails without one valid public key. Enabled OTA mode fails unless
-both trust inputs are supplied. Never pass an SSH private key or release-signing private key.
+Production is the default image profile and rejects SSH key injection. Key mode requires an explicit
+`WHEREHOUSE_IMAGE_PROFILE=development` plus one valid public key. Enabled OTA mode fails unless both
+trust inputs are supplied. Never pass an SSH private key or release-signing private key.
 
 When this option is used the image creates `wherehouse`, installs only the supplied public key in
 `authorized_keys`, disables password and keyboard-interactive authentication for that account, and
@@ -140,9 +143,10 @@ When a key-enabled diagnostic image is flashed, connect with:
 ssh wherehouse@wherehouse.local
 ```
 
-`openssh-server` is installed and the SSH service is enabled, but normal builds do not create a
-universal login username/password. Never ship shared credentials or an unintended maintainer key in a
-release image.
+`openssh-server` is installed so an owner can later opt in, but production images disable the SSH
+service and create no SSH login account. Settings → System provides owner-only Remote Administration;
+it installs one owner public key and keeps password login disabled. Never ship shared credentials or
+an unintended maintainer key. See [Remote Administration](../../docs/architecture/remote-administration.md).
 
 ### Raspberry Pi Imager customization limitation
 
@@ -154,8 +158,8 @@ open. Imager 1.x may display customization but applies the wrong mechanism to Tr
 respects the OS hostname if a supported provisioning method sets it, but the release must not claim
 Imager customization until the dedicated physical follow-up passes.
 
-SSH being enabled at the service level does not make unsupported Raspberry Pi Imager user/password
-customization reliable. Use the explicit public-key build option for diagnostic SSH access until a
+SSH availability does not make unsupported Raspberry Pi Imager user/password customization reliable.
+Use the explicit development-profile public-key build option for diagnostic SSH access until a
 first-boot provisioning mechanism is implemented.
 
 ## Data, external storage, and backup

@@ -23,6 +23,32 @@ Confirm `whoami` is `wherehouse`, SSH never prompts for a password, no units are
 are healthy, Settings → System shows the installed version, and Check for Updates completes cleanly.
 After an update and reboot, repeat the SSH and status checks to prove the key and services remain intact.
 
+## Public-image SSH security procedure
+
+Build one clean artifact with `WHEREHOUSE_IMAGE_PROFILE=production` and
+`WHEREHOUSE_SSH_MODE=disabled`. Mount its root filesystem before flashing and record:
+
+```sh
+sudo chroot /path/to/rootfs systemctl is-enabled ssh.service   # expected: disabled
+sudo awk -F: '$1 == "wherehouse" {print}' /path/to/rootfs/etc/passwd  # expected: no output
+sudo find /path/to/rootfs -name authorized_keys -o -name 'id_*' # inspect; expected: no keys
+sudo find /path/to/rootfs/etc/ssh -name 'ssh_host_*_key'          # expected: no output
+sudo grep -R "James\|james.billard" /path/to/rootfs/home /path/to/rootfs/etc/ssh 2>/dev/null # no output
+```
+
+Flash that exact checksum. From another LAN host, confirm TCP port 22 is closed and SSH cannot
+connect. Complete browser setup, create and move an item, configure storage/backup as applicable, and
+install a signed OTA without SSH. Confirm `/etc/shadow` has no documented/shared credential (hashes
+cannot prove a known password absent, so also audit build inputs and provisioning logs).
+
+As an instance owner, enable Settings → System → Remote Administration with a newly generated test
+public key. Confirm only that key appears in `/home/wherehouse/.ssh/authorized_keys`, directory/file
+modes are `0700`/`0600`, ownership is `wherehouse`, password authentication fails, and the matching
+key succeeds. Confirm a non-owner is rejected. Install an ordinary OTA and reboot; verify the same
+fingerprint and access remain. Disable Remote Administration; verify port 22 closes, the service is
+disabled, and `authorized_keys` is removed. Record all output as physical evidence; these rows are not
+completed by automated tests.
+
 ## Fresh install (repeat on Pi 4 and Pi 5)
 
 - [ ] Verify SHA-256; flash the model-specific `.img.xz` with Raspberry Pi Imager.

@@ -30,8 +30,10 @@ for unit in wherehouse.service wherehouse-update.service wherehouse-avahi.servic
   require_enabled "$unit"
 done
 require_enabled docker.service
-require_enabled ssh.service
 require_file /usr/sbin/sshd
+if find "$rootfs/etc/ssh" -maxdepth 1 -type f -name 'ssh_host_*_key' -print -quit | grep -q .; then
+  fail "image contains an SSH host private key"
+fi
 grep -q '^RuntimeDirectoryPreserve=yes$' "$rootfs/etc/systemd/system/wherehouse-update.service" ||
   fail "updater runtime directory is not restart-stable"
 grep -q 'Requires=.*wherehouse-update.service' "$rootfs/etc/systemd/system/wherehouse.service" ||
@@ -39,6 +41,8 @@ grep -q 'Requires=.*wherehouse-update.service' "$rootfs/etc/systemd/system/where
 
 case "$ssh_mode" in
   key)
+    require_enabled ssh.service
+    require_file /etc/systemd/system/ssh.service.d/wherehouse-host-keys.conf
     [ -n "$expected_key_file" ] || fail "key SSH mode has no expected public key"
     grep -q '^wherehouse:' "$rootfs/etc/passwd" || fail "wherehouse user is missing"
     home="$rootfs/home/wherehouse"
@@ -55,8 +59,16 @@ case "$ssh_mode" in
     require_file /etc/ssh/sshd_config.d/90-wherehouse-admin.conf
     grep -q '^[[:space:]]*PubkeyAuthentication yes$' "$rootfs/etc/ssh/sshd_config.d/90-wherehouse-admin.conf" ||
       fail "public-key authentication is not enabled for wherehouse"
+    grep -q '^PasswordAuthentication no$' "$rootfs/etc/ssh/sshd_config.d/90-wherehouse-admin.conf" || fail "password authentication is enabled"
+    grep -q '^KbdInteractiveAuthentication no$' "$rootfs/etc/ssh/sshd_config.d/90-wherehouse-admin.conf" || fail "interactive authentication is enabled"
+    grep -q '^PermitRootLogin no$' "$rootfs/etc/ssh/sshd_config.d/90-wherehouse-admin.conf" || fail "root SSH login is enabled"
+    grep -q '^AllowUsers wherehouse$' "$rootfs/etc/ssh/sshd_config.d/90-wherehouse-admin.conf" || fail "SSH users are not allowlisted"
     ;;
   disabled)
+    if find "$rootfs/etc/systemd/system" -type l -name ssh.service -print -quit | grep -q .; then
+      fail "ssh.service is enabled in disabled mode"
+    fi
+    grep -q '^wherehouse:' "$rootfs/etc/passwd" && fail "development SSH account present in disabled mode"
     [ ! -e "$rootfs/home/wherehouse/.ssh/authorized_keys" ] || fail "SSH key present in disabled mode"
     ;;
   *) fail "unknown SSH mode $ssh_mode" ;;

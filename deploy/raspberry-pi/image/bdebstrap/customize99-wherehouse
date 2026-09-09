@@ -37,7 +37,7 @@ systemctl enable wherehouse.service
 systemctl enable wherehouse-update.service
 systemctl enable wherehouse-avahi.service
 systemctl disable smbd.service nmbd.service 2>/dev/null || true
-systemctl enable ssh.service
+systemctl disable ssh.service
 mkdir -p -m 0700 /var/lib/wherehouse
 mkdir -p -m 0750 /mnt/wherehouse-storage
 install -d -m 0755 /etc/systemd/system/smbd.service.d
@@ -67,13 +67,23 @@ SUDOEOF
   chmod 0440 /etc/sudoers.d/90-wherehouse-admin
   install -d -m 0755 /etc/ssh/sshd_config.d
   cat > /etc/ssh/sshd_config.d/90-wherehouse-admin.conf <<'SSHEOF'
-Match User wherehouse
-    PasswordAuthentication no
-    KbdInteractiveAuthentication no
-    PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+PubkeyAuthentication yes
+AllowUsers wherehouse
 SSHEOF
   install -d -m 0755 /run/sshd
   sshd -t
+  systemctl enable ssh.service
   rm -rf /etc/wherehouse-build
 fi
+# Never clone image-build host identity across appliances. First boot generates
+# unique sshd host keys before an enabled development SSH service may start.
+rm -f /etc/ssh/ssh_host_*
+install -d -m 0755 /etc/systemd/system/ssh.service.d
+cat > /etc/systemd/system/ssh.service.d/wherehouse-host-keys.conf <<'SSHUNIT'
+[Unit]
+After=wherehouse.service
+SSHUNIT
 EOF

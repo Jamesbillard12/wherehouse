@@ -66,7 +66,7 @@ async def appliance_request(operation: str, payload: dict | None = None) -> dict
             raise HTTPException(status_code=409, detail="An appliance operation is already running") from exc
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=503, detail="Appliance storage service is unavailable") from exc
+        raise HTTPException(status_code=503, detail="Appliance operation service is unavailable") from exc
 
 
 async def require_appliance_owner(principal: PrincipalDep, session: SessionDep) -> None:
@@ -90,6 +90,10 @@ class MigrateStorageRequest(BaseModel):
 class EnableNasRequest(BaseModel):
     username: str = Field(min_length=1, max_length=31)
     password: str = Field(min_length=12, max_length=128)
+
+
+class EnableRemoteAdminRequest(BaseModel):
+    public_key: str = Field(min_length=32, max_length=8192)
 
 
 @router.get("/system/update")
@@ -144,3 +148,23 @@ async def enable_nas(body: EnableNasRequest, principal: PrincipalDep, session: S
 async def disable_nas(principal: PrincipalDep, session: SessionDep) -> dict:
     await require_appliance_owner(principal, session)
     return await appliance_request("nas.disable")
+
+
+@router.get("/system/remote-administration")
+async def remote_administration_status(principal: PrincipalDep, session: SessionDep) -> dict:
+    await require_appliance_owner(principal, session)
+    return await appliance_request("remote_admin.status")
+
+
+@router.post("/system/remote-administration/enable")
+async def enable_remote_administration(
+    body: EnableRemoteAdminRequest, principal: PrincipalDep, session: SessionDep
+) -> dict:
+    await require_appliance_owner(principal, session)
+    return await appliance_request("remote_admin.enable", {"publicKey": body.public_key})
+
+
+@router.post("/system/remote-administration/disable")
+async def disable_remote_administration(principal: PrincipalDep, session: SessionDep) -> dict:
+    await require_appliance_owner(principal, session)
+    return await appliance_request("remote_admin.disable")

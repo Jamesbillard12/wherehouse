@@ -1,4 +1,5 @@
 import importlib.util
+import base64
 import os
 import tempfile
 import unittest
@@ -62,8 +63,37 @@ class FirstBootTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "external primary storage"):
                 ops.configure_nas(root, True, "valid_user", "long-enough-password")
 
-    def test_initialization_is_idempotent_and_persists_secrets(self):
+    def test_remote_administration_installs_only_public_key_with_secure_permissions(self):
         with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory); root = base / "data"; (root / "config").mkdir(parents=True)
+            home = base / "home"; config = base / "sshd.conf"; sudoers = base / "sudoers"
+            key_type = b"ssh-ed25519"
+            key = "ssh-ed25519 " + base64.b64encode(len(key_type).to_bytes(4, "big") + key_type + b"test-public-key-data").decode()
+            def command(args, **_kwargs):
+                result = MagicMock(returncode=1 if args[0] == "id" else 0)
+                if args[:3] == ["openssl", "passwd", "-6"]: result.stdout = "$6$discarded$hash\n"
+                return result
+            with patch.object(ops, "SSH_HOME", home), patch.object(ops, "SSH_CONFIG", config), \
+                 patch.object(ops, "SSH_SUDOERS", sudoers), patch.object(ops, "SSH_RUNTIME_DIR", base / "run/sshd"), \
+                 patch.object(ops.subprocess, "run", side_effect=command), \
+                 patch.object(ops.shutil, "chown"):
+                status = ops.configure_remote_admin(root, True, key)
+            self.assertTrue(status["enabled"])
+            self.assertNotIn("publicKey", status)
+            self.assertEqual(key + "\n", (home / ".ssh/authorized_keys").read_text())
+            self.assertEqual(0o700, (home / ".ssh").stat().st_mode & 0o777)
+            self.assertEqual(0o600, (home / ".ssh/authorized_keys").stat().st_mode & 0o777)
+            self.assertNotIn(key, (root / "config/remote-admin-state.json").read_text())
+
+    def test_remote_administration_is_disabled_by_default_and_rejects_private_material(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertFalse(ops.remote_admin_status(root)["enabled"])
+            with self.assertRaisesRegex(RuntimeError, "public key"):
+                ops.validate_ssh_public_key("-----BEGIN OPENSSH PRIVATE KEY-----")
+
+    def test_initialization_is_idempotent_and_persists_secrets(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(ops, "ensure_ssh_host_keys"):
             root = Path(directory)
             self.assertTrue(ops.initialize(root, "wherehouse", "1.2.3", "2026-09-03"))
             original = (root / "config/appliance.env").read_text()
@@ -76,12 +106,20 @@ class FirstBootTests(unittest.TestCase):
             self.assertEqual(0o600, os.stat(root / "config/appliance.env").st_mode & 0o777)
 
     def test_partial_configuration_is_never_overwritten(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory() as directory, patch.object(ops, "ensure_ssh_host_keys"):
             root = Path(directory)
             (root / "config").mkdir()
             (root / "config/appliance.env").write_text("INSTANCE_ID=existing\n")
             with self.assertRaisesRegex(RuntimeError, "Incomplete"):
                 ops.initialize(root, "wherehouse", "1", "today")
+
+    def test_first_boot_generates_unique_ssh_host_keys_when_image_has_none(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            ops, "SSH_HOST_KEY_DIR", Path(directory)
+        ), patch.object(ops.subprocess, "run") as run:
+            ops.ensure_ssh_host_keys()
+        run.assert_called_once_with(["ssh-keygen", "-A"], check=True,
+                                    stdout=ops.subprocess.DEVNULL, stderr=ops.subprocess.DEVNULL)
 
     def test_low_space_fails_before_startup(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(
