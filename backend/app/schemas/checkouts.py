@@ -92,3 +92,53 @@ class CheckoutRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     overdue: bool
+
+
+class CheckoutSessionUpdate(BaseModel):
+    borrower_profile_id: UUID | None = None
+    due_at: datetime | None = None
+    note: str | None = Field(default=None, max_length=4000)
+    expected_revision: int = Field(ge=1)
+
+
+class CheckoutSessionItemAdd(BaseModel):
+    item_id: UUID
+
+
+class CheckoutSessionFinalize(BaseModel):
+    expected_revision: int = Field(ge=1)
+
+
+class CheckoutSessionItemRead(BaseModel):
+    id: UUID
+    item_id: UUID
+    item_name: str
+    item_code: str
+    image_path: str | None
+    manufacturer: str | None
+    model: str | None
+    availability: str
+    also_in_sessions: list[str]
+    added_at: datetime
+
+
+class CheckoutSessionRead(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    actor_user_id: UUID
+    actor_name: str
+    borrower_profile_id: UUID | None
+    borrower_name: str | None
+    due_at: datetime | None
+    note: str | None
+    status: str
+    revision: int
+    editable: bool
+    items: list[CheckoutSessionItemRead]
+    created_at: datetime
+    updated_at: datetime
+
+
+class CheckoutSessionConflictResponse(BaseModel):
+    detail: str
+    conflicting_item_ids: list[UUID]

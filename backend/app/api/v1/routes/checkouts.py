@@ -11,10 +11,18 @@ from app.application.checkouts.capabilities import (
     CheckoutAccessDenied,
     CheckoutConflict,
     CheckoutError,
+    CheckoutItemsConflict,
     CheckoutNotFound,
+    CheckoutRevisionConflict,
     CreateCheckout,
+    abandon_session,
+    add_session_item,
     create_checkout,
+    finalize_session,
+    get_or_create_active_session,
+    remove_session_item,
     return_checkout,
+    update_active_session,
 )
 from app.application.context import ActorContext
 from app.core.config import get_settings
@@ -23,6 +31,9 @@ from app.models import (
     BorrowerInvitation,
     BorrowerProfile,
     Checkout,
+    CheckoutSession,
+    CheckoutSessionItem,
+    CheckoutSessionStatus,
     Device,
     Item,
     User,
@@ -37,6 +48,11 @@ from app.schemas.checkouts import (
     CheckoutCreate,
     CheckoutRead,
     CheckoutReturn,
+    CheckoutSessionFinalize,
+    CheckoutSessionItemAdd,
+    CheckoutSessionItemRead,
+    CheckoutSessionRead,
+    CheckoutSessionUpdate,
     InvitationClaim,
     InvitationClaimResult,
     InvitationRead,
@@ -334,6 +350,287 @@ def checkout_read(checkout: Checkout, item: Item, borrower: BorrowerProfile) -> 
         and checkout.due_at is not None
         and checkout.due_at < now,
     )
+
+
+async def checkout_session_read(
+    current: CheckoutSession, principal: PrincipalDep, session: SessionDep
+) -> CheckoutSessionRead:
+    viewer_membership = await session.scalar(
+        select(WorkspaceMembership).where(
+            WorkspaceMembership.workspace_id == current.workspace_id,
+            WorkspaceMembership.user_id == principal.user.id,
+        )
+    )
+    actor_user = await session.get(User, current.actor_user_id)
+    borrower = (
+        await session.get(BorrowerProfile, current.borrower_profile_id)
+        if current.borrower_profile_id
+        else None
+    )
+    rows = (
+        await session.execute(
+            select(CheckoutSessionItem, Item)
+            .join(Item, Item.id == CheckoutSessionItem.item_id)
+            .where(CheckoutSessionItem.checkout_session_id == current.id)
+            .order_by(CheckoutSessionItem.added_at)
+        )
+    ).all()
+    active_checkout_ids = (
+        set(
+            await session.scalars(
+                select(Checkout.item_id).where(
+                    Checkout.item_id.in_([item.id for _, item in rows]),
+                    Checkout.returned_at.is_(None),
+                )
+            )
+        )
+        if rows
+        else set()
+    )
+    result_items = []
+    for entry, item in rows:
+        other_names = list(
+            await session.scalars(
+                select(User.display_name)
+                .join(CheckoutSession, CheckoutSession.actor_user_id == User.id)
+                .join(
+                    CheckoutSessionItem,
+                    CheckoutSessionItem.checkout_session_id == CheckoutSession.id,
+                )
+                .where(
+                    CheckoutSession.workspace_id == current.workspace_id,
+                    CheckoutSession.status == CheckoutSessionStatus.ACTIVE,
+                    CheckoutSession.id != current.id,
+                    CheckoutSessionItem.item_id == item.id,
+                )
+            )
+        )
+        if viewer_membership is not None and viewer_membership.role is WorkspaceRole.BORROWER:
+            other_names = ["another person"] if other_names else []
+        result_items.append(
+            CheckoutSessionItemRead(
+                id=entry.id,
+                item_id=item.id,
+                item_name=item.name,
+                item_code=item.code,
+                image_path=item.image_path,
+                manufacturer=item.manufacturer,
+                model=item.model,
+                availability="checked_out"
+                if item.id in active_checkout_ids
+                else "in_another_session"
+                if other_names
+                else "available",
+                also_in_sessions=other_names,
+                added_at=entry.added_at,
+            )
+        )
+    return CheckoutSessionRead(
+        id=current.id,
+        workspace_id=current.workspace_id,
+        actor_user_id=current.actor_user_id,
+        actor_name=actor_user.display_name if actor_user else "Unknown user",
+        borrower_profile_id=current.borrower_profile_id,
+        borrower_name=borrower.display_name if borrower else None,
+        due_at=current.due_at,
+        note=current.note,
+        status=current.status.value,
+        revision=current.revision,
+        editable=current.actor_user_id == principal.user.id,
+        items=result_items,
+        created_at=current.created_at,
+        updated_at=current.updated_at,
+    )
+
+
+async def publish_session(current: CheckoutSession, principal: PrincipalDep, action: str) -> None:
+    await realtime_hub.publish_checkout_session(
+        current.workspace_id,
+        actor_user_id=current.actor_user_id,
+        event={
+            "type": f"checkout_session.{action}",
+            "entity": "checkout-session",
+            "action": action,
+            "entity_id": str(current.id),
+            "source": principal.method,
+            "actor_user_id": str(current.actor_user_id),
+            "revision": str(current.revision),
+        },
+    )
+
+
+async def publish_item_awareness(
+    workspace_id: UUID, item_ids: list[UUID], session: SessionDep, *, action: str
+) -> None:
+    if not item_ids:
+        return
+    affected = (
+        await session.execute(
+            select(CheckoutSession.id, CheckoutSession.actor_user_id)
+            .join(
+                CheckoutSessionItem,
+                CheckoutSessionItem.checkout_session_id == CheckoutSession.id,
+            )
+            .where(
+                CheckoutSession.workspace_id == workspace_id,
+                CheckoutSession.status == CheckoutSessionStatus.ACTIVE,
+                CheckoutSessionItem.item_id.in_(item_ids),
+            )
+            .distinct()
+        )
+    ).all()
+    for affected_session_id, affected_actor_id in affected:
+        await realtime_hub.publish_checkout_session(
+            workspace_id,
+            actor_user_id=affected_actor_id,
+            event={
+                "type": f"checkout_session.{action}",
+                "entity": "checkout-session",
+                "action": action,
+                "entity_id": str(affected_session_id),
+                "source": "server",
+            },
+        )
+
+
+@router.post(
+    "/workspaces/{workspace_id}/checkout-sessions/current", response_model=CheckoutSessionRead
+)
+async def current_checkout_session(
+    workspace_id: UUID, principal: PrincipalDep, session: SessionDep
+):
+    current = await get_or_create_active_session(
+        session, actor(principal, workspace_id), workspace_id
+    )
+    return await checkout_session_read(current, principal, session)
+
+
+@router.get(
+    "/workspaces/{workspace_id}/checkout-sessions", response_model=list[CheckoutSessionRead]
+)
+async def list_checkout_sessions(workspace_id: UUID, principal: PrincipalDep, session: SessionDep):
+    membership = await require_workspace_access(workspace_id, principal, session)
+    query = select(CheckoutSession).where(
+        CheckoutSession.workspace_id == workspace_id,
+        CheckoutSession.status == CheckoutSessionStatus.ACTIVE,
+    )
+    if membership.role is WorkspaceRole.BORROWER:
+        query = query.where(CheckoutSession.actor_user_id == principal.user.id)
+    currents = list(await session.scalars(query.order_by(CheckoutSession.updated_at.desc())))
+    return [await checkout_session_read(current, principal, session) for current in currents]
+
+
+@router.patch("/checkout-sessions/{session_id}", response_model=CheckoutSessionRead)
+async def edit_checkout_session(
+    session_id: UUID, payload: CheckoutSessionUpdate, principal: PrincipalDep, session: SessionDep
+):
+    try:
+        current = await update_active_session(
+            session,
+            actor(principal),
+            session_id,
+            borrower_profile_id=payload.borrower_profile_id,
+            due_at=payload.due_at,
+            note=payload.note,
+            expected_revision=payload.expected_revision,
+        )
+    except CheckoutRevisionConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except CheckoutAccessDenied as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except CheckoutNotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+    await publish_session(current, principal, "updated")
+    return await checkout_session_read(current, principal, session)
+
+
+@router.post("/checkout-sessions/{session_id}/items", response_model=CheckoutSessionRead)
+async def add_checkout_session_item(
+    session_id: UUID, payload: CheckoutSessionItemAdd, principal: PrincipalDep, session: SessionDep
+):
+    try:
+        current = await add_session_item(session, actor(principal), session_id, payload.item_id)
+    except CheckoutAccessDenied as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except CheckoutNotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except CheckoutConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    await publish_session(current, principal, "item_added")
+    await publish_item_awareness(current.workspace_id, [payload.item_id], session, action="updated")
+    return await checkout_session_read(current, principal, session)
+
+
+@router.delete(
+    "/checkout-sessions/{session_id}/items/{item_id}", response_model=CheckoutSessionRead
+)
+async def delete_checkout_session_item(
+    session_id: UUID, item_id: UUID, principal: PrincipalDep, session: SessionDep
+):
+    try:
+        current = await remove_session_item(session, actor(principal), session_id, item_id)
+    except CheckoutAccessDenied as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except CheckoutNotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+    await publish_session(current, principal, "item_removed")
+    await publish_item_awareness(current.workspace_id, [item_id], session, action="updated")
+    return await checkout_session_read(current, principal, session)
+
+
+@router.post("/checkout-sessions/{session_id}/complete", response_model=list[CheckoutRead])
+async def complete_checkout_session(
+    session_id: UUID, payload: CheckoutSessionFinalize, principal: PrincipalDep, session: SessionDep
+):
+    try:
+        current, checkouts = await finalize_session(
+            session, actor(principal), session_id, payload.expected_revision
+        )
+    except CheckoutItemsConflict as exc:
+        raise HTTPException(
+            409,
+            {"message": str(exc), "conflicting_item_ids": [str(value) for value in exc.item_ids]},
+        ) from exc
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(409, "One or more items were checked out concurrently") from exc
+    except CheckoutRevisionConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except CheckoutAccessDenied as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except CheckoutNotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except CheckoutError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    await publish_session(current, principal, "completed")
+    await publish_item_awareness(
+        current.workspace_id,
+        [checkout.item_id for checkout in checkouts],
+        session,
+        action="item_conflicted",
+    )
+    result = []
+    for checkout in checkouts:
+        result.append(
+            checkout_read(
+                checkout,
+                await session.get(Item, checkout.item_id),
+                await session.get(BorrowerProfile, checkout.borrower_profile_id),
+            )
+        )
+    return result
+
+
+@router.delete("/checkout-sessions/{session_id}", response_model=CheckoutSessionRead)
+async def abandon_checkout_session(session_id: UUID, principal: PrincipalDep, session: SessionDep):
+    try:
+        current = await abandon_session(session, actor(principal), session_id)
+    except CheckoutAccessDenied as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except CheckoutNotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+    await publish_session(current, principal, "abandoned")
+    return await checkout_session_read(current, principal, session)
 
 
 @router.get("/workspaces/{workspace_id}/checkouts", response_model=list[CheckoutRead])

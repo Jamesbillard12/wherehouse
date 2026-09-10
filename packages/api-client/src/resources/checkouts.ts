@@ -1,5 +1,5 @@
 import { apiRequest } from '../client'
-import type { Borrower, BorrowerInvitation, Checkout, CheckoutStatus, Device, InvitationClaimResult } from '../types'
+import type { Borrower, BorrowerInvitation, Checkout, CheckoutSession, CheckoutStatus, Device, InvitationClaimResult } from '../types'
 
 export const listBorrowers = (token: string, workspaceId: string) => apiRequest<Borrower[]>(`/workspaces/${workspaceId}/borrowers`, { token })
 export const createBorrower = (token: string, workspaceId: string, input: { display_name: string; email?: string | null }) => apiRequest<Borrower>(`/workspaces/${workspaceId}/borrowers`, { method: 'POST', token, body: input })
@@ -12,3 +12,10 @@ export const claimBorrowerInvitation = (input: { token: string; password: string
 export const listCheckouts = (token: string, workspaceId: string, status: CheckoutStatus = 'active', baseUrl?: string) => apiRequest<Checkout[]>(`/workspaces/${workspaceId}/checkouts?status_filter=${status}`, { token, baseUrl })
 export const checkoutItem = (token: string, workspaceId: string, input: { item_id: string; borrower_profile_id?: string; due_at?: string | null; notes?: string | null }, baseUrl?: string) => apiRequest<Checkout>(`/workspaces/${workspaceId}/checkouts`, { method: 'POST', token, body: input, baseUrl })
 export const returnCheckout = (token: string, checkoutId: string, notes?: string | null, baseUrl?: string) => apiRequest<Checkout>(`/checkouts/${checkoutId}/return`, { method: 'POST', token, body: { notes }, baseUrl })
+export const getCurrentCheckoutSession = (token: string, workspaceId: string, baseUrl?: string) => apiRequest<CheckoutSession>(`/workspaces/${workspaceId}/checkout-sessions/current`, { method: 'POST', token, baseUrl })
+export const listCheckoutSessions = (token: string, workspaceId: string, baseUrl?: string) => apiRequest<CheckoutSession[]>(`/workspaces/${workspaceId}/checkout-sessions`, { token, baseUrl })
+export const updateCheckoutSession = (token: string, sessionId: string, input: { borrower_profile_id: string | null; due_at: string | null; note: string | null; expected_revision: number }, baseUrl?: string) => apiRequest<CheckoutSession>(`/checkout-sessions/${sessionId}`, { method: 'PATCH', token, body: input, baseUrl })
+export const addCheckoutSessionItem = (token: string, sessionId: string, itemId: string, baseUrl?: string) => apiRequest<CheckoutSession>(`/checkout-sessions/${sessionId}/items`, { method: 'POST', token, body: { item_id: itemId }, baseUrl })
+export const removeCheckoutSessionItem = (token: string, sessionId: string, itemId: string, baseUrl?: string) => apiRequest<CheckoutSession>(`/checkout-sessions/${sessionId}/items/${itemId}`, { method: 'DELETE', token, baseUrl })
+export const completeCheckoutSession = (token: string, sessionId: string, expectedRevision: number, baseUrl?: string) => apiRequest<Checkout[]>(`/checkout-sessions/${sessionId}/complete`, { method: 'POST', token, body: { expected_revision: expectedRevision }, baseUrl })
+export const abandonCheckoutSession = (token: string, sessionId: string, baseUrl?: string) => apiRequest<CheckoutSession>(`/checkout-sessions/${sessionId}`, { method: 'DELETE', token, baseUrl })

@@ -208,6 +208,22 @@ export type Checkout = {
   returned_by_user_id: string | null; created_at: string; updated_at: string; overdue: boolean
 }
 
+export type CheckoutSessionItem = {
+  id: string; item_id: string; item_name: string; item_code: string
+  image_path: string | null; manufacturer: string | null; model: string | null
+  availability: 'available' | 'in_another_session' | 'checked_out'
+  also_in_sessions: string[]; added_at: string
+}
+
+export type CheckoutSession = {
+  id: string; workspace_id: string; actor_user_id: string; actor_name: string
+  borrower_profile_id: string | null; borrower_name: string | null
+  due_at: string | null; note: string | null
+  status: 'active' | 'completed' | 'abandoned'; revision: number
+  editable: boolean; items: CheckoutSessionItem[]
+  created_at: string; updated_at: string
+}
+
 export type Area = {
   id: string
   workspace_id: string

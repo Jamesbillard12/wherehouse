@@ -1,7 +1,9 @@
 import {
   createItem,
+  addCheckoutSessionItem,
   deleteItem,
   getItemImage,
+  getCurrentCheckoutSession,
   listAreas,
   listContainerPlacements,
   listContainers,
@@ -18,7 +20,7 @@ import {
   type StorageContainer,
   type Zone,
 } from '@wherehouse/api-client'
-import { Box, Camera, Image as ImageIcon, MapPin, PackagePlus, Pencil, Plus, Printer, Trash2, X } from 'lucide-react'
+import { Box, Camera, Image as ImageIcon, MapPin, PackagePlus, Pencil, Plus, Printer, ShoppingCart, Trash2, X } from 'lucide-react'
 import { type FormEvent, type MouseEvent, type RefObject, useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -151,6 +153,23 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
     }
   }
 
+  async function addToCheckout(openCheckout: boolean) {
+    setSaving(true)
+    try {
+      const checkoutSession = await getCurrentCheckoutSession(token, item.workspace_id)
+      await addCheckoutSessionItem(token, checkoutSession.id, item.id)
+      if (openCheckout) {
+        onClose()
+        history.pushState({}, '', '/checkouts')
+        window.dispatchEvent(new PopStateEvent('popstate'))
+      }
+    } catch (reason) {
+      setImageError(message(reason))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !saving && !deleting && !imageBusy) onClose() }}>
       <DialogContent className="location-dialog item-details-dialog block max-w-[calc(100%-3rem)] overflow-y-auto p-0 sm:max-w-[620px]" showCloseButton={false}>
@@ -187,7 +206,7 @@ export function ItemDetailsModal({ areas, containerPlacements, containers, image
         </dl>
         {item.description ? <div className="item-detail-copy"><strong>Description</strong><p>{item.description}</p></div> : null}
         {item.notes ? <div className="item-detail-copy"><strong>Notes</strong><p>{item.notes}</p></div> : null}
-        <div className="dialog-actions item-details-actions"><Button aria-label={`Archive ${item.name}`} onClick={() => setConfirmingDelete(true)} size="icon" title={`Archive ${item.name}`} variant="destructive"><Trash2 aria-hidden="true" /></Button><span className="dialog-action-spacer" /><DialogClose render={<Button variant="outline" />}>Close</DialogClose><Button onClick={() => setEditing(true)}><Pencil aria-hidden="true" /> Edit item</Button></div></>}
+        <div className="dialog-actions item-details-actions"><Button aria-label={`Archive ${item.name}`} onClick={() => setConfirmingDelete(true)} size="icon" title={`Archive ${item.name}`} variant="destructive"><Trash2 aria-hidden="true" /></Button><span className="dialog-action-spacer" /><Button onClick={() => void addToCheckout(false)} variant="outline"><Plus aria-hidden="true" /> Add to checkout</Button><Button onClick={() => void addToCheckout(true)}><ShoppingCart aria-hidden="true" /> Check out now</Button><Button onClick={() => setEditing(true)} variant="outline"><Pencil aria-hidden="true" /> Edit item</Button></div></>}
       <ConfirmDialog busy={deleting} confirmLabel="Archive item" description="This removes the item from active inventory while retaining its archived record." destructive error={imageError} onCancel={() => { setConfirmingDelete(false); setImageError(null) }} onConfirm={removeItem} open={confirmingDelete} title={`Archive ${item.name}?`} />
       <ImageCropDialog file={imageToCrop} onCancel={() => setImageToCrop(null)} onConfirm={(file) => { setImageToCrop(null); void changeImage(file) }} />
       {showLabel ? <ItemLabelModal item={item} onClose={() => setShowLabel(false)} token={token} /> : null}

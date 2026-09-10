@@ -58,3 +58,8 @@ consumed under a row lock. The claimant must authenticate the existing invited a
 exact invited account. Claiming atomically links the existing `BorrowerProfile`, adds a borrower
 membership, consumes the invitation, and creates a device whose user is the claimant and whose
 workspace is the invitation workspace. Clients cannot supply either identity.
+
+Checkout-session realtime events use server-side audience filtering. Workspace owners receive all
+active session activity. A borrower receives only events for the session whose actor matches their
+authenticated identity. Clients reconcile canonical state after events and reconnects; sockets are
+never checkout concurrency control.

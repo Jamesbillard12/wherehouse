@@ -7,12 +7,21 @@ import pytest
 from app.application.checkouts.capabilities import (
     CheckoutAccessDenied,
     CheckoutConflict,
+    CheckoutItemsConflict,
     CreateCheckout,
     create_checkout,
+    finalize_session,
     return_checkout,
 )
 from app.application.context import ActorContext
-from app.models import BorrowerProfile, Checkout, Item, WorkspaceRole
+from app.models import (
+    BorrowerProfile,
+    Checkout,
+    CheckoutSession,
+    CheckoutSessionStatus,
+    Item,
+    WorkspaceRole,
+)
 
 
 class Session:
@@ -119,3 +128,84 @@ async def test_linked_borrower_may_return_own_checkout_but_not_anothers() -> Non
     )
     with pytest.raises(CheckoutAccessDenied):
         await return_checkout(denied, actor(uuid4()), another.id, None)
+
+
+class FinalizeSession:
+    def __init__(self, current, membership, borrower, item_ids, items, active_ids=()):
+        self.scalar_values = [current, membership]
+        self.scalars_values = [item_ids, items, active_ids]
+        self.borrower = borrower
+        self.added = []
+        self.commit = AsyncMock()
+        self.refresh = AsyncMock()
+
+    async def scalar(self, _query):
+        return self.scalar_values.pop(0)
+
+    async def scalars(self, _query):
+        return self.scalars_values.pop(0)
+
+    async def get(self, model, _identifier):
+        return self.borrower if model is BorrowerProfile else None
+
+    def add_all(self, values):
+        self.added.extend(values)
+
+
+async def test_multi_item_finalize_is_all_or_none_and_preserves_actor_attribution() -> None:
+    workspace_id, owner_id, borrower_id = uuid4(), uuid4(), uuid4()
+    item_ids = [uuid4(), uuid4()]
+    current = CheckoutSession(
+        workspace_id=workspace_id,
+        actor_user_id=owner_id,
+        borrower_profile_id=borrower_id,
+        status=CheckoutSessionStatus.ACTIVE,
+        revision=4,
+    )
+    current.id = uuid4()
+    borrower = SimpleNamespace(id=borrower_id, workspace_id=workspace_id)
+    items = [
+        SimpleNamespace(id=value, workspace_id=workspace_id, is_archived=False)
+        for value in item_ids
+    ]
+    session = FinalizeSession(
+        current, SimpleNamespace(role=WorkspaceRole.OWNER), borrower, item_ids, items
+    )
+
+    completed, checkouts = await finalize_session(session, actor(owner_id), current.id, 4)
+
+    assert len(checkouts) == 2
+    assert {entry.item_id for entry in checkouts} == set(item_ids)
+    assert all(entry.borrower_profile_id == borrower_id for entry in checkouts)
+    assert all(entry.checked_out_by_user_id == owner_id for entry in checkouts)
+    assert completed.status is CheckoutSessionStatus.COMPLETED
+    session.commit.assert_awaited_once()
+
+
+async def test_multi_item_finalize_keeps_session_intact_on_conflict() -> None:
+    workspace_id, owner_id, borrower_id = uuid4(), uuid4(), uuid4()
+    item_ids = [uuid4(), uuid4()]
+    current = CheckoutSession(
+        workspace_id=workspace_id,
+        actor_user_id=owner_id,
+        borrower_profile_id=borrower_id,
+        status=CheckoutSessionStatus.ACTIVE,
+        revision=2,
+    )
+    current.id = uuid4()
+    borrower = SimpleNamespace(id=borrower_id, workspace_id=workspace_id)
+    items = [
+        SimpleNamespace(id=value, workspace_id=workspace_id, is_archived=False)
+        for value in item_ids
+    ]
+    session = FinalizeSession(
+        current, SimpleNamespace(role=WorkspaceRole.OWNER), borrower, item_ids, items, [item_ids[1]]
+    )
+
+    with pytest.raises(CheckoutItemsConflict) as error:
+        await finalize_session(session, actor(owner_id), current.id, 2)
+
+    assert error.value.item_ids == [item_ids[1]]
+    assert current.status is CheckoutSessionStatus.ACTIVE
+    assert session.added == []
+    session.commit.assert_not_awaited()

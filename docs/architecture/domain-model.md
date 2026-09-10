@@ -219,6 +219,18 @@ The borrower identifies who has the item; actor IDs identify who performed each 
 differ. Owners may act for every borrower. Linked borrowers may act only on their own loans. No
 `isCheckedOut` boolean is stored on Item. A database constraint permits only one active checkout per item.
 
+### CheckoutSession
+
+A server-persisted checkout draft owned by one acting user in one workspace. Each user has at most
+one active session per workspace, shared across that user's devices. Owners may view every active
+workspace session but edit only their own; Self-Service Borrowers see and edit only their own.
+Each session has one borrower, due date, note, revision, and multiple `CheckoutSessionItem` rows.
+
+Adding an item is not a reservation, so the same item may appear in concurrent sessions. That is a
+derived soft warning. Completing a session locks and validates its full item set, creates every
+authoritative `Checkout` in one transaction, and completes the session. If any item is unavailable,
+no checkout is created and the session remains intact. Revisions prevent stale device submission.
+
 ## Transfers
 
 Transfers represent actual physical movement between locations.

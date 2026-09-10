@@ -90,6 +90,12 @@ class IdentifierStatus(str, enum.Enum):
     REVOKED = "revoked"
 
 
+class CheckoutSessionStatus(str, enum.Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"
+
+
 class Workspace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "workspaces"
 
@@ -427,4 +433,72 @@ class Checkout(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     returned_by_user_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+
+
+class CheckoutSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "checkout_sessions"
+    __table_args__ = (
+        Index(
+            "uq_checkout_session_active_actor",
+            "workspace_id",
+            "actor_user_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+        ),
+    )
+
+    workspace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    actor_user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    borrower_profile_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("borrower_profiles.id", ondelete="RESTRICT"), nullable=True
+    )
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[CheckoutSessionStatus] = mapped_column(
+        Enum(CheckoutSessionStatus, name="checkout_session_status", values_callable=enum_values),
+        nullable=False,
+        default=CheckoutSessionStatus.ACTIVE,
+    )
+    revision: Mapped[int] = mapped_column(nullable=False, default=1)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    abandoned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CheckoutSessionItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "checkout_session_items"
+    __table_args__ = (
+        UniqueConstraint("checkout_session_id", "item_id", name="uq_checkout_session_item"),
+    )
+
+    checkout_session_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("checkout_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    item_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("items.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    added_by_user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    added_by_device_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("devices.id", ondelete="SET NULL"), nullable=True
+    )
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )

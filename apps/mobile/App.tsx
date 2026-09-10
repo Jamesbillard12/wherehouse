@@ -1,6 +1,6 @@
 import { useCameraPermissions } from 'expo-camera'
 import { StatusBar } from 'expo-status-bar'
-import { ApiError, createRemoteClient, listWorkspaces, parseIdentifierPayload, subscribeToWorkspace, type Workspace, type IdentifierResolution, type Item, type StorageContainer } from '@wherehouse/api-client'
+import { addCheckoutSessionItem, ApiError, createRemoteClient, getCurrentCheckoutSession, listWorkspaces, parseIdentifierPayload, subscribeToWorkspace, type Workspace, type IdentifierResolution, type Item, type StorageContainer } from '@wherehouse/api-client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
@@ -69,7 +69,7 @@ export default function App() {
   const [revokedConnection, setRevokedConnection] = useState<PairedServer | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(true)
-  const [scannerMode, setScannerMode] = useState<'pairing' | 'identify' | 'item-location' | null>(null)
+  const [scannerMode, setScannerMode] = useState<'pairing' | 'identify' | 'item-location' | 'checkout-item' | null>(null)
   const [activeTab, setActiveTab] = useState<MobileTab>('home')
   const [inventory, setInventory] = useState<CachedInventory>(EMPTY_INVENTORY)
   const [syncing, setSyncing] = useState(false)
@@ -313,7 +313,7 @@ export default function App() {
     setActiveTab('home')
   }
 
-  async function openScanner(mode: 'pairing' | 'identify' | 'item-location') {
+  async function openScanner(mode: 'pairing' | 'identify' | 'item-location' | 'checkout-item') {
     setError(null)
     if (!cameraPermission?.granted) {
       const permission = await requestCameraPermission()
@@ -467,6 +467,17 @@ export default function App() {
     } finally { setBusy(false) }
   }
 
+  async function addScannedCheckoutItem(value: string) {
+    if (!pairedServer) return
+    const parsed = parseIdentifierPayload(value)
+    if (!parsed || parsed.version !== 1) throw new Error('That is not a supported WhereHouse item code.')
+    const client = createRemoteClient(pairedServer.baseUrl, pairedServer.accessToken)
+    const resolved = await resolveIdentifier(client, parsed.publicId)
+    if (!resolved.item) throw new Error('Only items can be added to a checkout.')
+    const checkoutSession = await getCurrentCheckoutSession(pairedServer.accessToken, pairedServer.workspaceId, pairedServer.baseUrl)
+    await addCheckoutSessionItem(pairedServer.accessToken, checkoutSession.id, resolved.item.id, pairedServer.baseUrl)
+  }
+
   async function resolveForScanSession(value: string, recoverPendingNfc = false) {
     if (!pairedServer) return
     if (isPairingUri(value)) {
@@ -544,7 +555,7 @@ export default function App() {
   }
 
   if (scannerMode) {
-    return <ScannerScreen mode={scannerMode} onCancel={() => setScannerMode(null)} onScan={(data) => { setError(null); if (scannerMode === 'pairing') void pairFromScan(data); else { setScannerMode(null); if (scannerMode === 'item-location') void selectItemLocationCode(data); else void identify(data) } }} />
+    return <ScannerScreen continuous={scannerMode === 'checkout-item'} mode={scannerMode} onCancel={() => { setScannerMode(null); if (scannerMode === 'checkout-item') setActiveTab('checkouts') }} onScan={(data) => { setError(null); if (scannerMode === 'pairing') void pairFromScan(data); else if (scannerMode === 'checkout-item') void addScannedCheckoutItem(data).catch((reason) => { const detail = reason instanceof Error ? reason.message : 'Item could not be added.'; setError(detail); if (detail.includes('already checked out')) { setScannerMode(null); setActiveTab('checkouts') } }); else { setScannerMode(null); if (scannerMode === 'item-location') void selectItemLocationCode(data); else void identify(data) } }} />
   }
 
 
@@ -571,7 +582,7 @@ export default function App() {
             <ActivityIndicator style={styles.activity} color="#166534" size="large" />
           ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} failedCount={failedCount} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={openLocations} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanSession()} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
             : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} workspaceId={pairedServer.workspaceId} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onOpenContainer={(container) => { setSelectedLocation(containerLocationChoice(container, inventory)); setActiveTab('containers') }} onRefresh={() => void refreshInventory()} search={searchInventory} syncing={syncing} />
-            : pairedServer && activeTab === 'checkouts' ? <CheckoutsScreen inventory={inventory} server={pairedServer} />
+            : pairedServer && activeTab === 'checkouts' ? <CheckoutsScreen onNfc={() => void readNfcIdentifier().then(addScannedCheckoutItem).catch((reason) => setError(reason instanceof Error ? reason.message : 'NFC item could not be added.'))} onScan={() => void openScanner('checkout-item')} server={pairedServer} />
             : pairedServer && activeTab === 'more' ? <SettingsScreen onForget={() => void forget()} onSwitch={switchWorkspace} server={pairedServer} />
             : pairedServer ? <LocationsScreen error={error} inventory={inventory} onAddItem={(location) => { setAddItemLocation(location); setActiveTab('add-item') }} onChangeLocation={openLocations} onOpenItem={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} onSelect={setSelectedLocation} onWriteNfc={async (containerId) => { const container = inventory.containers.find((entry) => entry.id === containerId); if (container) await writeContainerNfc(container) }} selected={selectedLocation} syncing={syncing} />
               : <PairingScreen error={error ?? (revokedConnection ? 'This device no longer has access to its household. Pair it again to reconnect.' : null)} onChange={setPairingUri} onPair={(password, displayName) => void pair(password, displayName)} onScan={() => void openScanner('pairing')} value={pairingUri} />}

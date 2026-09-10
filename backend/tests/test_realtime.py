@@ -28,7 +28,9 @@ async def test_hub_scopes_inventory_events_to_workspace() -> None:
     await hub.connect(second_workspace, cast(WebSocket, second))
 
     item_id = uuid4()
-    await hub.publish(first_workspace, entity="item", action="updated", entity_id=item_id, source="device")
+    await hub.publish(
+        first_workspace, entity="item", action="updated", entity_id=item_id, source="device"
+    )
 
     assert len(first.messages) == 1
     assert first.messages[0]["workspace_id"] == str(first_workspace)
@@ -44,7 +46,9 @@ async def test_hub_stops_delivery_after_disconnect() -> None:
     await hub.connect(workspace_id, typed_websocket)
     await hub.disconnect(workspace_id, typed_websocket)
 
-    await hub.publish(workspace_id, entity="area", action="deleted", entity_id=uuid4(), source="user_session")
+    await hub.publish(
+        workspace_id, entity="area", action="deleted", entity_id=uuid4(), source="user_session"
+    )
 
     assert websocket.messages == []
 
@@ -79,9 +83,7 @@ async def test_hub_targets_and_closes_only_the_revoked_device() -> None:
     other_device_id = uuid4()
     revoked = RecordingWebSocket()
     other = RecordingWebSocket()
-    await hub.connect(
-        workspace_id, cast(WebSocket, revoked), device_id=revoked_device_id
-    )
+    await hub.connect(workspace_id, cast(WebSocket, revoked), device_id=revoked_device_id)
     await hub.connect(workspace_id, cast(WebSocket, other), device_id=other_device_id)
 
     from datetime import UTC, datetime
@@ -93,3 +95,24 @@ async def test_hub_targets_and_closes_only_the_revoked_device() -> None:
     assert revoked.closed == (4403, "Device access revoked")
     assert other.messages == []
     assert other.closed is None
+
+
+async def test_checkout_session_events_reach_actor_and_owners_only() -> None:
+    hub = RealtimeHub()
+    workspace_id, actor_id = uuid4(), uuid4()
+    actor, owner, other_borrower = RecordingWebSocket(), RecordingWebSocket(), RecordingWebSocket()
+    await hub.connect(workspace_id, cast(WebSocket, actor), user_id=actor_id, role="borrower")
+    await hub.connect(workspace_id, cast(WebSocket, owner), user_id=uuid4(), role="owner")
+    await hub.connect(
+        workspace_id, cast(WebSocket, other_borrower), user_id=uuid4(), role="borrower"
+    )
+
+    await hub.publish_checkout_session(
+        workspace_id,
+        actor_user_id=actor_id,
+        event={"type": "checkout_session.item_added", "entity_id": str(uuid4())},
+    )
+
+    assert actor.messages[0]["type"] == "checkout_session.item_added"
+    assert owner.messages[0]["type"] == "checkout_session.item_added"
+    assert other_borrower.messages == []

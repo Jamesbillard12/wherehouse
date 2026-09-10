@@ -13,9 +13,7 @@ router = APIRouter()
 class RealtimeAuthentication(BaseModel):
     type: str
     token: str
-    workspace_id: UUID = Field(
-        validation_alias=AliasChoices("workspace_id", "household_id")
-    )
+    workspace_id: UUID = Field(validation_alias=AliasChoices("workspace_id", "household_id"))
 
 
 @router.websocket("/realtime")
@@ -29,9 +27,15 @@ async def realtime(websocket: WebSocket, session: SessionDep) -> None:
             await websocket.close(code=4401, reason="Authentication required")
             return
         principal = await authenticate_token(authentication.token, session)
-        await require_workspace_access(authentication.workspace_id, principal, session)
+        membership = await require_workspace_access(authentication.workspace_id, principal, session)
         workspace_id = authentication.workspace_id
-        await realtime_hub.connect(workspace_id, websocket, device_id=principal.device_id)
+        await realtime_hub.connect(
+            workspace_id,
+            websocket,
+            device_id=principal.device_id,
+            user_id=principal.user.id,
+            role=membership.role.value,
+        )
         await websocket.send_json({"type": "realtime.ready", "workspace_id": str(workspace_id)})
         while True:
             message = await websocket.receive_json()
