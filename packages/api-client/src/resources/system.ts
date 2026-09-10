@@ -1,5 +1,5 @@
 import { apiRequest } from '../client'
-import type { ApplianceStorageStatus, ApplianceUpdateStatus, RemoteAdministrationStatus, SystemStatus } from '../types'
+import type { ApplianceStorageStatus, ApplianceUpdateStatus, AutomaticUpdatePolicy, RemoteAdministrationStatus, SystemStatus } from '../types'
 
 export function getSystemStatus(baseUrl?: string): Promise<SystemStatus> {
   return apiRequest('/system/status', { baseUrl })
@@ -18,6 +18,16 @@ export function checkForUpdate(token: string, baseUrl?: string) {
 export function installUpdate(token: string, baseUrl?: string) {
   return apiRequest<ApplianceUpdateStatus>('/system/update/install', {
     baseUrl, token, method: 'POST',
+  })
+}
+
+export function getAutomaticUpdatePolicy(token: string, baseUrl?: string) {
+  return apiRequest<AutomaticUpdatePolicy>('/system/update/policy', { baseUrl, token })
+}
+
+export function setAutomaticUpdatePolicy(token: string, policy: AutomaticUpdatePolicy['policy'], baseUrl?: string) {
+  return apiRequest<AutomaticUpdatePolicy>('/system/update/policy', {
+    baseUrl, token, method: 'PUT', body: { policy },
   })
 }
 

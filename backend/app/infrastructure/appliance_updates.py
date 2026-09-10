@@ -14,7 +14,8 @@ class ApplianceUpdateClient:
     def request(self, operation: str, payload: dict | None = None) -> dict:
         allowed = {"status", "check", "install", "storage.status", "storage.prepare",
                    "storage.migrate", "nas.enable", "nas.disable", "remote_admin.status",
-                   "remote_admin.enable", "remote_admin.disable"}
+                   "remote_admin.enable", "remote_admin.disable", "update_policy.status",
+                   "update_policy.set"}
         if operation not in allowed:
             raise ValueError("Unsupported appliance update operation")
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:

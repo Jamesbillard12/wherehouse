@@ -124,5 +124,16 @@ migration with the image-rollback drill.
 - [ ] Inject failed health/migration; verify container recovery where schema-compatible and clean
   restore where it is not.
 - [ ] Reboot after successful OTA; verify N+1 images/version/data/realtime and a non-stuck update state.
+- [ ] Start an update, close the browser, and interrupt the API connection while downloading. Reopen
+  Settings and verify the same operation ID reaches a terminal state without restarting the updater.
+- [ ] Install a release containing a newer updater, restart the updater after application success, and
+  verify `updaterVersion`; corrupt the updater payload and confirm rejection before installation.
+- [ ] Verify every failed phase reports backup result, rollback result, restored HTTP health, and a useful
+  next action without secrets or host paths.
+- [ ] Set automatic policy to Off, Security only, and All; reboot after each. Confirm Off does nothing,
+  Security only remains visibly paused, All performs one signed startup attempt, and manual actions work.
+- [ ] Record workspace/users, appliance settings, storage UUID, SMB, backup/Dropbox configuration, update
+  policy, Remote Administration fingerprint, and paired devices before N→N+1; verify them after success
+  and the rollback drill.
 - [ ] Exercise delayed/unavailable PostgreSQL, unavailable/full storage, corrupt backup, unavailable
   network/mDNS, and unavailable Dropbox; confirm visible diagnostics and no state recreation.

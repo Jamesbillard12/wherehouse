@@ -26,6 +26,17 @@ the application and preserves its runtime directory across restarts so the API b
 retain an orphaned socket directory. Persistent installed-version metadata remains authoritative
 independently of updater liveness.
 
+Starting with the OTA-hardening release, the signed manifest may also describe one checksum-bound
+host-updater tar containing exactly `wherehouse-ops`. It is activated only after application health
+validation by fsyncing and atomically replacing the executable. The accepted update continues in the
+already-running old process; systemd uses the new inode on its next start. Images predating this
+capability require one new image or an authenticated support bridge as a one-time transition.
+
+Operations persist an ID, timestamps, phase, safe support detail, backup/rollback results, and health.
+Disconnects do not cancel accepted work. Root-owned automatic policy is `off` (default), `security`, or
+`all`; `all` checks at updater startup, while `security` stays paused until releases provide trustworthy
+signed classification metadata. Manual actions remain available.
+
 Production artifacts are immutable GitHub Release assets produced from an existing `vX.Y.Z` tag on a
 GitHub-hosted Ubuntu 24.04 ARM64 runner; no Raspberry Pi or self-hosted Actions runner is required.
 The signing private key exists only as a protected release-environment secret and is materialized in

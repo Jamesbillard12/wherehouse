@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urljoin
@@ -32,6 +33,14 @@ def next_version(output: Path) -> str:
 
 def run(command: list[str], cwd: Path) -> None:
     subprocess.run(command, cwd=cwd, check=True)
+
+
+def file_sha256(path: Path) -> str:
+    checksum = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            checksum.update(chunk)
+    return checksum.hexdigest()
 
 
 def version_from_ref(value: str) -> str:
@@ -66,12 +75,14 @@ def main() -> None:
          "-f", "deploy/docker/Dockerfile.web", "."], repository)
     runtime = release_dir / f"wherehouse-runtime-{version}.tar"
     run(["docker", "save", "--output", str(runtime), api_image, web_image], repository)
-    checksum = hashlib.sha256()
-    with runtime.open("rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            checksum.update(chunk)
-    digest = checksum.hexdigest()
+    digest = file_sha256(runtime)
     (release_dir / f"{runtime.name}.sha256").write_text(f"{digest}  {runtime.name}\n")
+    updater = release_dir / f"wherehouse-updater-{version}.tar"
+    updater_source = repository / "deploy/raspberry-pi/wherehouse-ops"
+    with tarfile.open(updater, "w") as bundle:
+        bundle.add(updater_source, arcname="wherehouse-ops", recursive=False)
+    updater_digest = file_sha256(updater)
+    (release_dir / f"{updater.name}.sha256").write_text(f"{updater_digest}  {updater.name}\n")
     manifest = {
         "schemaVersion": 1, "product": "WhereHouse", "version": version,
         "channel": "stable", "architecture": "arm64",
@@ -83,6 +94,8 @@ def main() -> None:
         "validationScenario": os.environ.get("WHEREHOUSE_RELEASE_VALIDATION_SCENARIO", "normal"),
         "runtimeUrl": urljoin(base_url.rstrip("/") + "/", runtime.name),
         "runtimeSha256": digest, "runtimeSize": runtime.stat().st_size,
+        "updaterVersion": version, "updaterUrl": urljoin(base_url.rstrip("/") + "/", updater.name),
+        "updaterSha256": updater_digest, "updaterSize": updater.stat().st_size,
         "publishedAt": datetime.now(timezone.utc).isoformat(),
         "releaseNotes": os.environ.get("WHEREHOUSE_RELEASE_NOTES", "WhereHouse application update."),
         "requiresReboot": False, "signatureAlgorithm": "rsa-sha256",
@@ -98,8 +111,8 @@ def main() -> None:
     run(["openssl", "dgst", "-sha256", "-verify", str(public_key), "-signature",
          str(release_dir / "release.json.sig"), str(manifest_path)], repository)
     public_key.unlink()
-    expected = [manifest_path, release_dir / "release.json.sig", runtime,
-                release_dir / f"{runtime.name}.sha256"]
+    expected = [manifest_path, release_dir / "release.json.sig", runtime, updater,
+                release_dir / f"{runtime.name}.sha256", release_dir / f"{updater.name}.sha256"]
     if not all(path.is_file() and path.stat().st_size for path in expected):
         raise SystemExit("Release build completed without every expected artifact")
     print(f"Application release complete: {release_dir}")

@@ -60,9 +60,16 @@ signature, and checksum, creates a verified backup, loads expected images, migra
 API and web HTTP health, records the application version, and retains recent releases.
 
 State phases are `idle`, `checking`, `available`, `downloading`, `verifying`, `backing_up`,
-`installing`, `migrating`, `restarting`, `health_check`, `completed`, and `failed`. On host-service
+`installing`, `migrating`, `restarting`, `validating`, `rolling_back`, `completed`, and `failed`.
+Older `health_check` and `rollback` values remain accepted for reconnect compatibility. On host-service
 restart, partial files are discarded and an unfinished state becomes `failed`; success is never
 inferred from reboot alone.
+
+Once install is accepted, a daemon-owned worker persists its operation ID and progress. Browser closure,
+proxy cancellation, broken pipe, or connection reset cannot cancel it; reconnect to Settings to read the
+same operation. Automatic policy is Off (default), Security only, or All updates. All performs one
+check/install at updater startup. Security only is persisted but visibly paused because manifest v1 has
+no trustworthy signed security classification. Manual actions always remain available.
 
 Emergency console checks use the same host implementation as the UI:
 
@@ -85,14 +92,21 @@ Restarting `wherehouse-update.service` runs interruption recovery, removes parti
 preserves a visible failed state for diagnosis/retry. Database recovery deliberately reuses the
 documented verified-backup restore flow rather than attempting an unsafe automatic downgrade.
 
+New releases contain a separately checksummed updater tar referenced by the signed manifest. It may
+contain only `wherehouse-ops`. After application validation, the running controller fsyncs and atomically
+activates it for the next systemd start; it never restarts itself mid-update. Images older than the first
+release with this capability need a one-time reimage or authenticated support bridge.
+
 ## Failure and recovery
 
 Invalid manifests, signatures, architecture, channel, appliance compatibility, size, and checksum are
 rejected before install. A migration/startup/health failure restores previous application image tags
 and restarts them. This does not reverse database migrations. Preserve the pre-update backup and, when
 schema compatibility prevents startup, follow the clean restore procedure in
-[Backup and restore](backup-and-restore.md). Host logs contain diagnostics; clients receive a sanitized
-service-unavailable error.
+[Backup and restore](backup-and-restore.md). Settings persists the failed phase, safe summary, backup
+result, rollback result, current-health result, and bounded support detail containing only phase,
+executable name, and exit status. It never returns command arguments, environment, headers, tokens,
+keys, credentials, or host paths.
 
 Application OTA replaces only the API/web container images. PostgreSQL, uploads/media, instance
 configuration and secrets, workspace/user/session/pairing state, primary-storage and SMB settings,

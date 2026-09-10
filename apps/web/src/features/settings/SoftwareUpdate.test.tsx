@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getUpdateStatus, checkForUpdate, installUpdate } = vi.hoisted(() => ({
+const { getUpdateStatus, checkForUpdate, installUpdate, getAutomaticUpdatePolicy, setAutomaticUpdatePolicy } = vi.hoisted(() => ({
   getUpdateStatus: vi.fn(), checkForUpdate: vi.fn(), installUpdate: vi.fn(),
+  getAutomaticUpdatePolicy: vi.fn(), setAutomaticUpdatePolicy: vi.fn(),
 }));
 
 vi.mock("@wherehouse/api-client", async (original) => ({
@@ -10,6 +11,8 @@ vi.mock("@wherehouse/api-client", async (original) => ({
   getUpdateStatus,
   checkForUpdate,
   installUpdate,
+  getAutomaticUpdatePolicy,
+  setAutomaticUpdatePolicy,
 }));
 
 import { SoftwareUpdate } from "./SettingsView";
@@ -29,6 +32,8 @@ describe("SoftwareUpdate", () => {
     getUpdateStatus.mockReset().mockResolvedValue(available);
     checkForUpdate.mockReset().mockResolvedValue(available);
     installUpdate.mockReset().mockResolvedValue({ ...available, phase: "checking" });
+    getAutomaticUpdatePolicy.mockReset().mockResolvedValue({ policy: "off", securityClassificationAvailable: false, message: "Automatic updates are off" });
+    setAutomaticUpdatePolicy.mockReset().mockResolvedValue({ policy: "all", securityClassificationAvailable: false, message: "All signed application updates install automatically" });
   });
 
   it("shows versions and lets an owner start the durable update", async () => {
@@ -46,6 +51,7 @@ describe("SoftwareUpdate", () => {
     fireEvent.click(screen.getByRole("button", { name: "Install update" }));
     await waitFor(() => expect(installUpdate).toHaveBeenCalledWith("token"));
     expect(screen.getByText(/continues if this browser disconnects/i)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Automatic updates" })).toBeInTheDocument();
   });
 
   it("does not offer update controls to non-owners", async () => {
