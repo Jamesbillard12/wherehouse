@@ -27,26 +27,32 @@ not require reflashing Raspberry Pi OS, follow `docs/deployment/application-ota.
 1. Inspect `git status --short --branch`, the current branch, and the relevant commits. The workflow
    always checks out remote `main`; uncommitted changes and commits not present on remote `main` will
    not be included. State this clearly and do not push, merge, or switch branches unless requested.
-2. Use the requested semantic version. If none is given, use `next`; the checked-in builder owns
-   version resolution. Never guess a release number from memory.
-3. Confirm `gh auth status` succeeds and that `.github/workflows/pi-image.yml` exists. The protected
+2. Use the requested semantic version. If none is given, inspect non-draft, non-prerelease GitHub Releases
+   and increment the greatest semantic patch version. The checked-in builder also resolves local `next`
+   from image artifacts and fetched GitHub release tags. Never guess a release number from memory.
+3. A production image publication requires the matching `vX.Y.Z` signed application release with
+   `release.json`. If it does not exist, publish it first through the documented tag-driven application
+   release process and verify that workflow succeeded. Do not create an image-only release because making
+   it `latest` would break appliance OTA discovery.
+4. Confirm `gh auth status` succeeds and that `.github/workflows/pi-image.yml` exists. The protected
    `appliance-release` environment must provide `WHEREHOUSE_RELEASE_PUBLIC_KEY_PEM`; never request,
    print, download, or materialize the private signing key for an image build.
-4. Dispatch and watch with `pnpm pi:build:remote:watch -- <version>`. Starting the workflow is an
+5. Dispatch and watch with `pnpm pi:build:remote:watch <version>`. Use the explicit resolved semantic
+   version; the command requests verified GitHub Release publication. Starting the workflow is an
    external mutation, so do it only when the user has asked to create/build the image. If GitHub
    authentication or environment approval blocks the run, report the precise remediation and stop;
    do not fall back to a local production build without the user's direction.
-5. Identify the dispatched run by URL/ID and verify its conclusion rather than treating successful
+6. Identify the dispatched run by URL/ID and verify its conclusion rather than treating successful
    dispatch as a successful build. If the wrapper cannot reliably identify the run, use `gh run list`
    and correlate workflow, branch, event, creation time, and requested version before watching it.
-6. On failure, inspect the failed step with `gh run view <run-id> --log-failed`, summarize the concrete
+7. On failure, inspect the failed step with `gh run view <run-id> --log-failed`, summarize the concrete
    cause, and make no success claim. Do not repeatedly dispatch equivalent runs without correcting a
    transient or code/configuration cause.
-7. On success, inspect the run's artifacts with `gh run view <run-id>` or the GitHub API. Report the
-   run URL, source commit, resolved version, and separate Pi 4/Pi 5 artifact names. Download artifacts
+8. On success, inspect the run's artifacts and matching GitHub Release. Report the run URL, release URL,
+   source commit, resolved version, and separate Pi 4/Pi 5 asset names. Download artifacts
    only when the user asks for local copies; use `gh run download <run-id> --dir dist/pi/remote-<run-id>`
    so existing local outputs are not overwritten.
-8. For downloaded images, verify every `.img.xz` against its adjacent `.sha256` and inspect the JSON
+9. For downloaded images, verify every `.img.xz` against its adjacent `.sha256` and inspect the JSON
    metadata. Report paths and checksum results. Do not modify generated artifacts.
 
 ## Local build
@@ -59,8 +65,9 @@ key or the release-signing private key.
 
 ## Completion and evidence
 
-A completed GitHub Actions run proves only that image construction and automated root-filesystem
-checks passed. It does not prove that the image was flashed, booted, or validated on Pi 4/Pi 5
+A completed GitHub Actions run and published assets prove only that image construction, checksum and
+metadata verification, and automated root-filesystem checks passed. They do not prove that the image was
+flashed, booted, or validated on Pi 4/Pi 5 hardware.
 hardware. Keep those claims separate and use `docs/product/raspberry-pi-validation.md` for physical
 evidence. Do not update validation status documents unless the requested validation was actually run
 and its date, commit, artifacts, hardware, commands, and results were recorded.

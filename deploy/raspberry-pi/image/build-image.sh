@@ -21,13 +21,22 @@ output=${WHEREHOUSE_PI_OUTPUT_DIR:-$repository/dist/pi}
 mkdir -p "$output"
 
 next_patch_version() {
-  find "$output" -maxdepth 1 -type f -name 'wherehouse-pi[45]-*.img.xz' -print 2>/dev/null | \
+  if [ "${WHEREHOUSE_PI_GIT_TAGS+x}" = x ]; then
+    git_tags=$WHEREHOUSE_PI_GIT_TAGS
+  else
+    git_tags=$(git -C "$repository" tag --list 'v*')
+  fi
+  {
+    find "$output" -maxdepth 1 -type f -name 'wherehouse-pi[45]-*.img.xz' -print 2>/dev/null
+    printf '%s\n' "$git_tags"
+  } | \
     awk '
       BEGIN { found = 0; major = 0; minor = 1; patch = -1 }
       {
         name = $0
         sub(/^.*\/wherehouse-pi[45]-/, "", name)
         sub(/\.img\.xz$/, "", name)
+        sub(/^v/, "", name)
         count = split(name, parts, ".")
         if (count != 3 || parts[1] !~ /^[0-9]+$/ || parts[2] !~ /^[0-9]+$/ || parts[3] !~ /^[0-9]+$/) next
         candidate_major = parts[1] + 0

@@ -192,6 +192,19 @@ class ImageBuilderTests(unittest.TestCase):
                          "WHEREHOUSE_IMAGE_VERSION", "RuntimeDirectoryPreserve=yes"):
             self.assertIn(expected, validator)
 
+    def test_remote_workflow_publishes_verified_images_to_signed_release(self):
+        workflow = (ROOT / ".github/workflows/pi-image.yml").read_text()
+        package = (ROOT / "package.json").read_text()
+
+        self.assertIn("publish:\n        description: Attach verified images", workflow)
+        self.assertIn("uses: actions/download-artifact@v4", workflow)
+        self.assertIn("sha256sum -c", workflow)
+        self.assertIn("has no signed release.json", workflow)
+        self.assertIn("already exists; refusing overwrite", workflow)
+        self.assertIn('gh release upload "$RELEASE_TAG"', workflow)
+        self.assertIn('-f publish=true', package)
+        self.assertIn("Explicit release version required", package)
+
     def test_ssh_account_is_key_only_but_not_os_locked(self):
         hook = (ROOT / "deploy/raspberry-pi/image/bdebstrap/customize99-wherehouse").read_text()
         self.assertIn('openssl passwd -6', hook)

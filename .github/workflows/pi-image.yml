@@ -6,6 +6,11 @@ on:
       version:
         description: Version placed in image metadata
         required: true
+      publish:
+        description: Attach verified images to an existing signed GitHub Release
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -20,6 +25,8 @@ jobs:
       WHEREHOUSE_UPDATE_MANIFEST_URL: https://github.com/${{ github.repository }}/releases/latest/download/release.json
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Materialize appliance update verification key
         env:
           RELEASE_PUBLIC_KEY_PEM: ${{ secrets.WHEREHOUSE_RELEASE_PUBLIC_KEY_PEM }}
@@ -47,3 +54,73 @@ jobs:
         with:
           name: wherehouse-${{ matrix.model }}-${{ inputs.version }}
           path: dist/pi/*
+
+  publish:
+    if: ${{ inputs.publish }}
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: appliance-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wherehouse-pi*-${{ inputs.version }}
+          path: dist/pi-artifacts
+      - name: Verify image release assets
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t images < <(find dist/pi-artifacts -type f -name 'wherehouse-pi[45]-*.img.xz' | sort)
+          test "${#images[@]}" -eq 2 || { echo "Expected exactly one Pi 4 and one Pi 5 image" >&2; exit 1; }
+          test "$(printf '%s\n' "${images[@]}" | grep -c '/wherehouse-pi4-')" -eq 1
+          test "$(printf '%s\n' "${images[@]}" | grep -c '/wherehouse-pi5-')" -eq 1
+          assets=()
+          versions=()
+          for image in "${images[@]}"; do
+            checksum="$image.sha256"
+            metadata="$image.json"
+            test -s "$checksum"
+            test -s "$metadata"
+            (cd "$(dirname "$image")" && sha256sum -c "$(basename "$checksum")")
+            version=$(jq -er '.version | select(test("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"))' "$metadata")
+            device=$(jq -er '.device | select(. == "pi4" or . == "pi5")' "$metadata")
+            test "$(basename "$image")" = "wherehouse-$device-$version.img.xz"
+            test "$(jq -r '.imageProfile' "$metadata")" = production
+            versions+=("$version")
+            assets+=("$image" "$checksum" "$metadata")
+          done
+          mapfile -t unique_versions < <(printf '%s\n' "${versions[@]}" | sort -u)
+          test "${#unique_versions[@]}" -eq 1 || { echo "Pi images resolved to different versions" >&2; exit 1; }
+          test "$REQUESTED_VERSION" = "${unique_versions[0]}" || {
+            echo "Published image builds require an explicit version matching their metadata" >&2
+            exit 1
+          }
+          printf 'RELEASE_TAG=v%s\n' "${unique_versions[0]}" >> "$GITHUB_ENV"
+          printf '%s\n' "${assets[@]}" > "$RUNNER_TEMP/pi-release-assets"
+      - name: Publish immutable Pi image assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || {
+            echo "Signed application release $RELEASE_TAG must exist before publishing Pi images" >&2
+            exit 1
+          }
+          release_assets=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
+          printf '%s\n' "$release_assets" | grep -Fxq release.json || {
+            echo "Release $RELEASE_TAG has no signed release.json; refusing to make it the appliance update target" >&2
+            exit 1
+          }
+          mapfile -t assets < "$RUNNER_TEMP/pi-release-assets"
+          for asset in "${assets[@]}"; do
+            name=$(basename "$asset")
+            if printf '%s\n' "$release_assets" | grep -Fxq "$name"; then
+              echo "Release asset $name already exists; refusing overwrite" >&2
+              exit 1
+            fi
+          done
+          gh release upload "$RELEASE_TAG" "${assets[@]}"

@@ -41,6 +41,7 @@ class ImageVersioningTests(unittest.TestCase):
                 "FAKE_DOCKER_LOG": str(log),
                 "FAKE_OUTPUT": directory,
                 "WHEREHOUSE_PI_OUTPUT_DIR": directory,
+                "WHEREHOUSE_PI_GIT_TAGS": "",
                 "WHEREHOUSE_ALLOW_DIRTY": "1",
                 "WHEREHOUSE_TEST_HOST_OS": "Darwin",
                 "WHEREHOUSE_TEST_HOST_ARCH": "arm64",
@@ -82,6 +83,7 @@ class ImageVersioningTests(unittest.TestCase):
                 "DOCKER_BIN": str(docker),
                 "FAKE_OUTPUT": directory,
                 "WHEREHOUSE_PI_OUTPUT_DIR": directory,
+                "WHEREHOUSE_PI_GIT_TAGS": "",
                 "WHEREHOUSE_ALLOW_DIRTY": "1",
                 "WHEREHOUSE_TEST_HOST_OS": "Darwin",
                 "WHEREHOUSE_TEST_HOST_ARCH": "arm64",
@@ -97,6 +99,46 @@ class ImageVersioningTests(unittest.TestCase):
 
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertIn("Auto-selected next version: 0.1.0", result.stdout)
+
+    def test_next_increments_highest_published_git_tag(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            docker = output / "docker"
+            docker.write_text(
+                '#!/bin/sh\n'
+                'if [ "$1" = run ]; then\n'
+                '  previous=""\n'
+                '  last=""\n'
+                '  for argument in "$@"; do previous="$last"; last="$argument"; done\n'
+                '  touch "$FAKE_OUTPUT/wherehouse-$last-$previous.img.xz"\n'
+                '  touch "$FAKE_OUTPUT/wherehouse-$last-$previous.img.xz.sha256"\n'
+                '  touch "$FAKE_OUTPUT/wherehouse-$last-$previous.img.xz.json"\n'
+                'fi\n'
+                'exit 0\n'
+            )
+            docker.chmod(0o755)
+            env = {
+                **os.environ,
+                "DOCKER_BIN": str(docker),
+                "FAKE_OUTPUT": directory,
+                "WHEREHOUSE_PI_OUTPUT_DIR": directory,
+                "WHEREHOUSE_PI_GIT_TAGS": "v0.1.4\nv0.1.6\nv0.1.5",
+                "WHEREHOUSE_ALLOW_DIRTY": "1",
+                "WHEREHOUSE_TEST_HOST_OS": "Darwin",
+                "WHEREHOUSE_TEST_HOST_ARCH": "arm64",
+            }
+            result = subprocess.run(
+                [str(SCRIPT), "next", "pi5"],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn("Auto-selected next version: 0.1.7", result.stdout)
+            self.assertTrue((output / "wherehouse-pi5-0.1.7.img.xz").is_file())
 
 
 if __name__ == "__main__":
