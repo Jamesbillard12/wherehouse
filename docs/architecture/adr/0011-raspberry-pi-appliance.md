@@ -41,6 +41,11 @@ event. systemd owns host boot/shutdown while Compose owns application dependency
 There is no second deployment architecture, Pi-only domain API, Kubernetes, fleet manager, or
 web-accessible destructive reset.
 
+Production Pi images are published as immutable assets on an existing signed application release of
+the same version. The image workflow verifies both board checksums and metadata before upload and refuses
+asset replacement. It never creates an image-only GitHub Release because appliances discover OTA updates
+through `release.json` on the latest release.
+
 Physical boot, SSD, power, backup/restore, and upgrade claims remain unvalidated until recorded.
 Standalone-image Raspberry Pi Imager customization is also unvalidated and unsupported until an
 appropriate manifest/provisioning mechanism and physical Wi-Fi/hostname/SSH/locale tests exist.

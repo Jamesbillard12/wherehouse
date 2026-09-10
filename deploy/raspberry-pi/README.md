@@ -7,6 +7,20 @@ the upstream `rpi4` image layer.
 
 ## Build a release image
 
+The protected GitHub workflow is the production path. Published images must use an explicit semantic
+version whose signed application release already exists and contains `release.json`; this prevents an
+image-only release from becoming `latest` and breaking OTA discovery. It builds and verifies both boards,
+retains Actions artifacts, and attaches each `.img.xz`, `.sha256`, and `.json` file to the matching immutable
+GitHub Release without overwriting an existing asset:
+
+```sh
+pnpm pi:build:remote:watch 0.1.7
+```
+
+For a new version, publish and verify the signed application release first with the documented tag-driven
+release process. A direct manual workflow dispatch may set `publish` to false for diagnostic artifact-only
+builds.
+
 Apple Silicon macOS with Docker Desktop installed and running is a supported image build host. The
 script starts a privileged `linux/arm64` Debian Bookworm container, fetches pinned `rpi-image-gen`
 v2.6.0 at commit `3f2c916086ad70197945bfc50ef953c1f6035f10` in
