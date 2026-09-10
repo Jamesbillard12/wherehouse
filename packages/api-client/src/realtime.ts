@@ -1,16 +1,18 @@
 import { API_VERSION } from './types'
 
 export type RealtimeEvent = {
-  type: 'inventory.changed' | 'identifier.resolved'
+  type: 'inventory.changed' | 'identifier.resolved' | `checkout_session.${string}`
   workspace_id: string
   /** @deprecated Use workspace_id. */
   household_id?: string
-  entity: 'area' | 'zone' | 'container' | 'container-placement' | 'item' | 'item-placement'
+  entity: 'area' | 'zone' | 'container' | 'container-placement' | 'item' | 'item-placement' | 'checkout-session'
   action: string
   entity_id: string
-  source: 'device' | 'user_session'
+  source: 'device' | 'user_session' | 'server'
   occurred_at: string
   area_id?: string
+  actor_user_id?: string
+  revision?: string
 }
 
 export type DeviceRevokedEvent = {
@@ -59,7 +61,7 @@ export function subscribeToWorkspace(options: {
         active = false
         options.onDeviceRevoked?.(message)
         socket?.close()
-      } else if (message.type === 'inventory.changed' || message.type === 'identifier.resolved') {
+      } else if (message.type === 'inventory.changed' || message.type === 'identifier.resolved' || message.type.startsWith('checkout_session.')) {
         options.onEvent(message)
       }
     }

@@ -14,7 +14,8 @@ label. Users join through `WorkspaceMembership` and may belong to multiple works
 User ↔ WorkspaceMembership ↔ Workspace
                                 ├─ Area → Zone / Container → placements
                                 ├─ Item
-                                └─ Device / PairingSession / AppInstance
+                                ├─ Device / PairingSession / AppInstance
+                                └─ BorrowerProfile → Checkout
 ```
 
 ### Workspace
@@ -187,23 +188,48 @@ Placement suggestions may consider similar items, categories, tags, hierarchy, p
 
 ## Checkouts
 
-### ItemCheckout
-Tracks custody rather than physical location.
+### BorrowerProfile
+
+The stable workspace-scoped identity used by checkout history. A Managed Borrower has a display
+name, optional email, and no linked user. Enabling self-service links that same profile to a `User`
+and adds a borrower membership; it never replaces the profile or migrates history.
+
+### BorrowerInvitation
+
+An owner may create a short-lived, single-use, revocable invitation for a Managed Borrower with an
+email. Only the token hash is persisted. Claiming links the existing profile and creates a device
+owned by the borrower user.
+
+### Checkout
+Tracks whole-item custody rather than physical location. Partial-quantity loans are outside the current scope.
 
 - id: UUID
+- workspaceId: UUID
 - itemId: UUID
-- quantity
-- checkedOutToUserId: UUID
+- borrowerProfileId: UUID
 - checkedOutByUserId: UUID
-- sourceContainerId?: UUID
 - checkedOutAt
-- expectedReturnAt?
+- dueAt?
 - returnedAt?
-- checkedInByUserId?: UUID
-- returnContainerId?: UUID
-- notes?
+- returnedByUserId?: UUID
+- checkoutNotes?
+- returnNotes?
 
-No `isCheckedOut` boolean is stored on Item. An active checkout is one where `returnedAt` is null.
+The borrower identifies who has the item; actor IDs identify who performed each action, and may
+differ. Owners may act for every borrower. Linked borrowers may act only on their own loans. No
+`isCheckedOut` boolean is stored on Item. A database constraint permits only one active checkout per item.
+
+### CheckoutSession
+
+A server-persisted checkout draft owned by one acting user in one workspace. Each user has at most
+one active session per workspace, shared across that user's devices. Owners may view every active
+workspace session but edit only their own; Self-Service Borrowers see and edit only their own.
+Each session has one borrower, due date, note, revision, and multiple `CheckoutSessionItem` rows.
+
+Adding an item is not a reservation, so the same item may appear in concurrent sessions. That is a
+derived soft warning. Completing a session locks and validates its full item set, creates every
+authoritative `Checkout` in one transaction, and completes the session. If any item is unavailable,
+no checkout is created and the session remains intact. Revisions prevent stale device submission.
 
 ## Transfers
 

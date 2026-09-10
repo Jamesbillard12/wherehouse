@@ -4,11 +4,12 @@ import { Modal, Pressable, Text, View } from 'react-native'
 
 import { styles } from '../theme/styles'
 
-export type MobileTab = 'home' | 'containers' | 'add-item' | 'items' | 'more'
+export type MobileTab = 'home' | 'containers' | 'add-item' | 'items' | 'checkouts' | 'more'
 
-export function BottomNavigation({ activeTab, onAddItem, onLocations, onNfc, onScan, onSelect }: {
+export function BottomNavigation({ activeTab, onAddItem, onCheckouts, onLocations, onNfc, onScan, onSelect }: {
   activeTab: MobileTab
   onAddItem: () => void
+  onCheckouts: () => void
   onLocations: () => void
   onNfc: () => void
   onScan: () => void
@@ -30,6 +31,7 @@ export function BottomNavigation({ activeTab, onAddItem, onLocations, onNfc, onS
         <Pressable accessibilityRole="menu" onPress={(event) => event.stopPropagation()} style={styles.quickActionSheet}>
           <View style={styles.quickActionHeading}><View><Text style={styles.quickActionTitle}>What would you like to do?</Text><Text style={styles.quickActionSubtitle}>Add inventory or identify something nearby.</Text></View><Pressable accessibilityLabel="Close actions" onPress={() => setActionsOpen(false)}><X color="#667085" size={21} /></Pressable></View>
           <Pressable accessibilityRole="menuitem" onPress={() => choose(onAddItem)} style={styles.quickActionOption}><PackagePlus color="#4f46e5" size={22} /><View><Text style={styles.quickActionOptionTitle}>Add item</Text><Text style={styles.quickActionOptionMeta}>Create a new inventory item</Text></View></Pressable>
+          <Pressable accessibilityRole="menuitem" onPress={() => choose(onCheckouts)} style={styles.quickActionOption}><Package color="#4f46e5" size={22} /><View><Text style={styles.quickActionOptionTitle}>Checkouts</Text><Text style={styles.quickActionOptionMeta}>Check out or return an item</Text></View></Pressable>
           <Pressable accessibilityRole="menuitem" onPress={() => choose(onScan)} style={styles.quickActionOption}><QrCode color="#239b56" size={22} /><View><Text style={styles.quickActionOptionTitle}>Scan QR</Text><Text style={styles.quickActionOptionMeta}>Start a multi-item scan session</Text></View></Pressable>
           <Pressable accessibilityRole="menuitem" onPress={() => choose(onNfc)} style={styles.quickActionOption}><Radio color="#239b56" size={22} /><View><Text style={styles.quickActionOptionTitle}>Tap NFC</Text><Text style={styles.quickActionOptionMeta}>Read a nearby WhereHouse tag</Text></View></Pressable>
         </Pressable>

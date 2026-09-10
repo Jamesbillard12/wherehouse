@@ -9,7 +9,7 @@ export type ApiOptions = Omit<RequestInit, 'body'> & {
 const REQUEST_TIMEOUT_MS = 15_000
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(message: string, readonly status: number, readonly detail?: unknown) {
     super(message)
     this.name = 'ApiError'
   }
@@ -34,8 +34,10 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
       body: body === undefined ? undefined : JSON.stringify(body),
     })
     if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as { detail?: string } | null
-      throw new ApiError(payload?.detail ?? `WhereHouse request failed (${response.status}).`, response.status)
+      const payload = (await response.json().catch(() => null)) as { detail?: unknown } | null
+      const detail = payload?.detail
+      const detailMessage = typeof detail === 'string' ? detail : detail && typeof detail === 'object' && 'message' in detail ? String(detail.message) : null
+      throw new ApiError(detailMessage ?? `WhereHouse request failed (${response.status}).`, response.status, detail)
     }
     return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
   } catch (reason) {

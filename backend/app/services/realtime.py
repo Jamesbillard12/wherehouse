@@ -13,16 +13,28 @@ class RealtimeHub:
         self._connections: dict[UUID, set[WebSocket]] = defaultdict(set)
         self._device_connections: dict[UUID, set[WebSocket]] = defaultdict(set)
         self._connection_devices: dict[WebSocket, UUID] = {}
+        self._connection_users: dict[WebSocket, UUID] = {}
+        self._connection_roles: dict[WebSocket, str] = {}
         self._lock = asyncio.Lock()
 
     async def connect(
-        self, workspace_id: UUID, websocket: WebSocket, *, device_id: UUID | None = None
+        self,
+        workspace_id: UUID,
+        websocket: WebSocket,
+        *,
+        device_id: UUID | None = None,
+        user_id: UUID | None = None,
+        role: str | None = None,
     ) -> None:
         async with self._lock:
             self._connections[workspace_id].add(websocket)
             if device_id is not None:
                 self._device_connections[device_id].add(websocket)
                 self._connection_devices[websocket] = device_id
+            if user_id is not None:
+                self._connection_users[websocket] = user_id
+            if role is not None:
+                self._connection_roles[websocket] = role
 
     async def disconnect(self, workspace_id: UUID, websocket: WebSocket) -> None:
         async with self._lock:
@@ -33,6 +45,8 @@ class RealtimeHub:
             if not connections:
                 self._connections.pop(workspace_id, None)
             device_id = self._connection_devices.pop(websocket, None)
+            self._connection_users.pop(websocket, None)
+            self._connection_roles.pop(websocket, None)
             if device_id is not None:
                 device_connections = self._device_connections.get(device_id)
                 if device_connections is not None:
@@ -61,8 +75,15 @@ class RealtimeHub:
                 pass
 
     async def publish(
-        self, workspace_id: UUID, *, entity: str, action: str, entity_id: UUID, source: str,
-        event_type: str = "inventory.changed", details: dict[str, str] | None = None,
+        self,
+        workspace_id: UUID,
+        *,
+        entity: str,
+        action: str,
+        entity_id: UUID,
+        source: str,
+        event_type: str = "inventory.changed",
+        details: dict[str, str] | None = None,
     ) -> None:
         event = {
             "type": event_type,
@@ -82,6 +103,32 @@ class RealtimeHub:
         for websocket in connections:
             try:
                 await websocket.send_json(event)
+            except (RuntimeError, WebSocketDisconnect):
+                stale.append(websocket)
+        for websocket in stale:
+            await self.disconnect(workspace_id, websocket)
+
+    async def publish_checkout_session(
+        self, workspace_id: UUID, *, actor_user_id: UUID, event: dict[str, str]
+    ) -> None:
+        """Deliver session detail only to its actor and workspace owners."""
+        payload = {
+            "workspace_id": str(workspace_id),
+            "occurred_at": datetime.now(UTC).isoformat(),
+            **event,
+        }
+        async with self._lock:
+            connections = tuple(self._connections.get(workspace_id, ()))
+            recipients = tuple(
+                websocket
+                for websocket in connections
+                if self._connection_users.get(websocket) == actor_user_id
+                or self._connection_roles.get(websocket) == "owner"
+            )
+        stale = []
+        for websocket in recipients:
+            try:
+                await websocket.send_json(payload)
             except (RuntimeError, WebSocketDisconnect):
                 stale.append(websocket)
         for websocket in stale:

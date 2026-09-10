@@ -182,6 +182,48 @@ export type PairingResult = AccessToken & {
   user_id: string
 }
 
+export type Borrower = {
+  id: string; workspace_id: string; display_name: string; email: string | null
+  linked_user_id: string | null; access_type: 'managed' | 'self_service'
+  created_at: string; updated_at: string
+}
+
+export type BorrowerInvitation = {
+  id: string; borrower_profile_id: string; workspace_id: string; workspace_name: string
+  borrower_name: string; invited_email: string; expires_at: string; invite_uri: string | null
+}
+
+export type InvitationClaimResult = AccessToken & {
+  device_id: string; user_id: string; workspace_id: string
+  borrower_profile_id: string; base_url: string
+}
+
+export type CheckoutStatus = 'active' | 'overdue' | 'history'
+export type Checkout = {
+  id: string; workspace_id: string; item_id: string; item_name: string
+  borrower_profile_id: string; borrower_name: string
+  borrower_access_type: 'managed' | 'self_service'; checked_out_at: string
+  due_at: string | null; returned_at: string | null; checkout_notes: string | null
+  return_notes: string | null; checked_out_by_user_id: string
+  returned_by_user_id: string | null; created_at: string; updated_at: string; overdue: boolean
+}
+
+export type CheckoutSessionItem = {
+  id: string; item_id: string; item_name: string; item_code: string
+  image_path: string | null; manufacturer: string | null; model: string | null
+  availability: 'available' | 'in_another_session' | 'checked_out'
+  also_in_sessions: string[]; added_at: string
+}
+
+export type CheckoutSession = {
+  id: string; workspace_id: string; actor_user_id: string; actor_name: string
+  borrower_profile_id: string | null; borrower_name: string | null
+  due_at: string | null; note: string | null
+  status: 'active' | 'completed' | 'abandoned'; revision: number
+  editable: boolean; items: CheckoutSessionItem[]
+  created_at: string; updated_at: string
+}
+
 export type Area = {
   id: string
   workspace_id: string

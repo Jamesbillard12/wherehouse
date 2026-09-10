@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import enum
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    DateTime,
     Enum,
     ForeignKey,
+    Index,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -86,6 +90,12 @@ class IdentifierStatus(str, enum.Enum):
     REVOKED = "revoked"
 
 
+class CheckoutSessionStatus(str, enum.Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    ABANDONED = "abandoned"
+
+
 class Workspace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "workspaces"
 
@@ -112,9 +122,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class WorkspaceMembership(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "workspace_memberships"
-    __table_args__ = (
-        UniqueConstraint("workspace_id", "user_id", name="uq_workspace_membership"),
-    )
+    __table_args__ = (UniqueConstraint("workspace_id", "user_id", name="uq_workspace_membership"),)
 
     workspace_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
@@ -303,23 +311,194 @@ class ItemPlacement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class PhysicalIdentifier(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "physical_identifiers"
-    __table_args__ = (
-        UniqueConstraint("public_id", name="uq_physical_identifier_public_id"),
-    )
+    __table_args__ = (UniqueConstraint("public_id", name="uq_physical_identifier_public_id"),)
 
     workspace_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     public_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     target_type: Mapped[IdentifierTargetType] = mapped_column(
-        Enum(IdentifierTargetType, name="identifier_target_type", values_callable=enum_values), nullable=False
+        Enum(IdentifierTargetType, name="identifier_target_type", values_callable=enum_values),
+        nullable=False,
     )
     target_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
     medium: Mapped[IdentifierMedium] = mapped_column(
-        Enum(IdentifierMedium, name="identifier_medium", values_callable=enum_values), nullable=False
+        Enum(IdentifierMedium, name="identifier_medium", values_callable=enum_values),
+        nullable=False,
     )
     status: Mapped[IdentifierStatus] = mapped_column(
         Enum(IdentifierStatus, name="identifier_status", values_callable=enum_values),
-        nullable=False, default=IdentifierStatus.PENDING,
+        nullable=False,
+        default=IdentifierStatus.PENDING,
     )
     payload_version: Mapped[int] = mapped_column(nullable=False, default=1)
+
+
+class BorrowerProfile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "borrower_profiles"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "linked_user_id", name="uq_borrower_linked_user"),
+    )
+
+    workspace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    display_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    linked_user_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+
+
+class BorrowerInvitation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "borrower_invitations"
+    __table_args__ = (
+        Index(
+            "uq_borrower_invitation_open",
+            "borrower_profile_id",
+            unique=True,
+            postgresql_where=text("consumed_at IS NULL AND revoked_at IS NULL"),
+        ),
+    )
+
+    workspace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    borrower_profile_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("borrower_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    invited_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Checkout(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "checkouts"
+    __table_args__ = (
+        Index(
+            "uq_checkout_active_item",
+            "item_id",
+            unique=True,
+            postgresql_where=text("returned_at IS NULL"),
+        ),
+    )
+
+    workspace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    item_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("items.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    borrower_profile_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("borrower_profiles.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    checked_out_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    checkout_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    return_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    checked_out_by_user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    returned_by_user_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+
+
+class CheckoutSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "checkout_sessions"
+    __table_args__ = (
+        Index(
+            "uq_checkout_session_active_actor",
+            "workspace_id",
+            "actor_user_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+        ),
+    )
+
+    workspace_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    actor_user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    borrower_profile_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("borrower_profiles.id", ondelete="RESTRICT"), nullable=True
+    )
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[CheckoutSessionStatus] = mapped_column(
+        Enum(CheckoutSessionStatus, name="checkout_session_status", values_callable=enum_values),
+        nullable=False,
+        default=CheckoutSessionStatus.ACTIVE,
+    )
+    revision: Mapped[int] = mapped_column(nullable=False, default=1)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    abandoned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CheckoutSessionItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "checkout_session_items"
+    __table_args__ = (
+        UniqueConstraint("checkout_session_id", "item_id", name="uq_checkout_session_item"),
+    )
+
+    checkout_session_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("checkout_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    item_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("items.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    added_by_user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    added_by_device_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("devices.id", ondelete="SET NULL"), nullable=True
+    )
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )

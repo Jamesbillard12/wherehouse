@@ -1,4 +1,4 @@
-import { searchContainers, searchItems, type ContainerSearchResult, type Workspace, type Item, type ItemSearchResult, type MeResponse, subscribeToWorkspace, type RealtimeStatus } from '@wherehouse/api-client'
+import { listCheckouts, searchContainers, searchItems, type ContainerSearchResult, type Workspace, type Item, type ItemSearchResult, type MeResponse, subscribeToWorkspace, type RealtimeStatus } from '@wherehouse/api-client'
 import {
   Activity,
   ArrowRightLeft,
@@ -40,6 +40,7 @@ import { FeatureActionsProvider, useFeatureActions } from '../app/FeatureActions
 import { GlobalFeatureHost } from '../app/GlobalFeatureHost'
 import { settingsSectionFromLocation, type SettingsSection } from '../../shared/utils/navigation'
 import { LocationPath, locationPathSegments } from '../../components/wherehouse/LocationPath'
+import { CheckoutsView } from '../checkouts/CheckoutsView'
 
 const sectionsForMenu: { id: SettingsSection; label: string }[] = [
   { id: 'account', label: 'Account' }, { id: 'workspaces', label: 'Households' },
@@ -108,8 +109,11 @@ function DashboardContent({
   const [quickCreateOpen, setQuickCreateOpen] = useState(false)
   const [workspaceSelectOpen, setWorkspaceSelectOpen] = useState(false)
   const [selectedOverviewItem, setSelectedOverviewItem] = useState<Item | null>(null)
+  const [activeCheckoutCount, setActiveCheckoutCount] = useState(0)
   const overview = useOverviewInventory(workspace.id, token, realtimeRevision)
   const { actions: featureActions } = useFeatureActions()
+
+  useEffect(() => { void listCheckouts(token, workspace.id).then((entries) => setActiveCheckoutCount(entries.length)).catch(() => setActiveCheckoutCount(0)) }, [realtimeRevision, token, workspace.id])
 
   useEffect(() => {
     setSearchQuery('')
@@ -170,7 +174,7 @@ function DashboardContent({
   }
 
   useEffect(() => {
-    if (!['/overview', '/items', '/locations'].includes(location.pathname) && !location.pathname.startsWith('/settings')) {
+    if (!['/overview', '/items', '/locations', '/checkouts'].includes(location.pathname) && !location.pathname.startsWith('/settings')) {
       history.replaceState({}, '', `/${activeView}`)
     }
     const handleNavigation = () => { setActiveView(viewFromLocation()); setSettingsSection(settingsSectionFromLocation()) }
@@ -315,7 +319,7 @@ function DashboardContent({
           </Button>
         </div>
         <div className="sidebar-create" ref={quickCreateRef}>
-          <Button aria-expanded={quickCreateOpen} aria-haspopup="menu" aria-label="Create new" className="sidebar-create-button" onClick={() => setQuickCreateOpen((open) => !open)} title="Create new"><Plus aria-hidden="true" /></Button>
+          <Button aria-expanded={quickCreateOpen} aria-haspopup="menu" aria-label="Add new" className="sidebar-create-button" onClick={() => setQuickCreateOpen((open) => !open)} title="Add new"><Plus aria-hidden="true" /><span>Add new</span></Button>
           {quickCreateOpen ? <div className="sidebar-create-menu" role="menu">
             <Button onClick={() => createLocation('area')} role="menuitem"><MapPin aria-hidden="true" /><span><strong>Area</strong><small>Add a major location</small></span></Button>
             <Button disabled={!overview.areas.length} onClick={() => createLocation('zone')} role="menuitem"><Package aria-hidden="true" /><span><strong>Zone</strong><small>{overview.areas.length ? 'Add to the selected area' : 'Create an area first'}</small></span></Button>
@@ -328,9 +332,9 @@ function DashboardContent({
           <a aria-label="Overview" className={`nav-item ${activeView === 'overview' ? 'active' : ''}`} href="/overview" onClick={(event) => { event.preventDefault(); navigate('overview') }} title="Overview"><House aria-hidden="true" /><span>Overview</span></a>
           <a aria-label="Locations" className={`nav-item ${activeView === 'locations' ? 'active' : ''}`} href="/locations" onClick={(event) => { event.preventDefault(); navigate('locations') }} title="Locations"><MapPin aria-hidden="true" /><span>Locations</span></a>
           <a aria-label="Items" className={`nav-item ${activeView === 'items' ? 'active' : ''}`} href="/items" onClick={(event) => { event.preventDefault(); navigate('items') }} title="Items"><Box aria-hidden="true" /><span>Items</span></a>
-          <span aria-disabled="true" className="nav-item disabled" title="Activity"><Activity aria-hidden="true" /><span>Activity</span></span>
+          <a aria-label="Checkouts" className={`nav-item ${activeView === 'checkouts' ? 'active' : ''}`} href="/checkouts" onClick={(event) => { event.preventDefault(); navigate('checkouts') }} title="Checkouts"><Clock3 aria-hidden="true" /><span>Checkouts</span></a>
           <span aria-disabled="true" className="nav-item disabled" title="Transfers"><ArrowRightLeft aria-hidden="true" /><span>Transfers</span></span>
-          <span aria-disabled="true" className="nav-item disabled" title="Checkouts"><Clock3 aria-hidden="true" /><span>Checkouts</span></span>
+          <span aria-disabled="true" className="nav-item disabled" title="Activity"><Activity aria-hidden="true" /><span>Activity</span></span>
           <a aria-label="Settings" className={`nav-item ${activeView === 'settings' ? 'active' : ''}`} href="/settings/account" onClick={(event) => { event.preventDefault(); navigateSettings('account') }} title="Settings"><Settings aria-hidden="true" /><span>Settings</span></a>
         </nav>
         <div className="sidebar-footer">
@@ -343,6 +347,8 @@ function DashboardContent({
           <ItemsView workspace={workspace} onOpenLocation={(target) => { setLocationTarget(target); navigate('locations') }} onRevealConsumed={() => setResolvedTarget(null)} refreshKey={realtimeRevision} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.type === 'item' ? resolvedTarget.scanKey : undefined} token={token} />
         ) : activeView === 'locations' ? (
           <LocationsView workspace={workspace} onRevealConsumed={() => { setResolvedTarget(null); setLocationTarget(null) }} refreshKey={realtimeRevision} revealAreaId={locationTarget?.areaId ?? resolvedTarget?.areaId} revealContainerId={locationTarget?.containerId ?? (resolvedTarget?.type === 'container' ? resolvedTarget.id : resolvedTarget?.containerId)} revealItem={resolvedTarget?.type === 'item' ? resolvedTarget.item : undefined} revealItemId={resolvedTarget?.type === 'item' ? resolvedTarget.id : undefined} revealScanKey={resolvedTarget?.scanKey} revealZoneId={locationTarget?.zoneId ?? resolvedTarget?.zoneId} token={token} />
+        ) : activeView === 'checkouts' ? (
+          <CheckoutsView isOwner={isOwner} token={token} workspace={workspace} />
         ) : activeView === 'settings' ? (
           <SettingsView workspace={workspace} workspaces={workspaces} isOwner={isOwner} onCreateWorkspace={onCreateWorkspace} onNavigate={navigateSettings} onSelect={onSelect} section={settingsSection} token={token} user={user} />
         ) : (
@@ -353,7 +359,7 @@ function DashboardContent({
           <article><strong>{overview.loading ? '—' : overview.items.length}</strong><span>Items tracked</span></article>
           <article><strong>{overview.loading ? '—' : overview.containers.length}</strong><span>Containers</span></article>
           <article><strong>{overview.loading ? '—' : overview.areas.length}</strong><span>Areas</span></article>
-          <article><strong>0</strong><span>Checked out</span></article>
+          <article onClick={() => navigate('checkouts')} role="link"><strong>{activeCheckoutCount}</strong><span>Checked out</span></article>
         </div>
 
         <section className="overview-grid">

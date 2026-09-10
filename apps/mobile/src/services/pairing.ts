@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store'
-import { consumePairing } from '@wherehouse/api-client'
+import { claimBorrowerInvitation, consumePairing, inspectBorrowerInvitation } from '@wherehouse/api-client'
 
 const PAIRING_KEY = 'wherehouse.pairing.v1'
 const PAIRING_TYPE = 'wherehouse-pairing'
@@ -42,6 +42,30 @@ export function isPairingUri(value: string): boolean {
   } catch {
     return false
   }
+}
+
+export function isJoinUri(value: string): boolean {
+  try { parseJoinUri(value); return true } catch { return false }
+}
+
+export function parseJoinUri(value: string): { server: string; token: string } {
+  const url = new URL(value.trim())
+  if (url.protocol !== 'wherehouse:' || url.hostname !== 'join') throw new Error('This is not a WhereHouse self-service invitation.')
+  const server = url.searchParams.get('server')?.replace(/\/$/, '')
+  const token = url.searchParams.get('invite')
+  if (!server || !token) throw new Error('The invitation link is incomplete.')
+  const serverUrl = new URL(server)
+  if (!['http:', 'https:'].includes(serverUrl.protocol) || serverUrl.username || serverUrl.password) throw new Error('The invitation server is invalid.')
+  return { server, token }
+}
+
+export async function claimSelfService(pairingUri: string, password: string, displayName: string, deviceName: string): Promise<PairedServer> {
+  const { server, token } = parseJoinUri(pairingUri)
+  const invitation = await inspectBorrowerInvitation(token, server)
+  const result = await claimBorrowerInvitation({ token, password, display_name: displayName || undefined, device_name: deviceName, device_type: 'phone' }, server)
+  const paired: PairedServer = { accessToken: result.access_token, baseUrl: result.base_url, deviceId: result.device_id, workspaceId: result.workspace_id, pairedWorkspaceId: result.workspace_id, instanceId: result.workspace_id, instanceName: invitation.workspace_name, userId: result.user_id }
+  await savePairedServer(paired)
+  return paired
 }
 
 export function parsePairingUri(value: string): { server: string; token: string } {
