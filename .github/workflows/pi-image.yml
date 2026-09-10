@@ -20,6 +20,8 @@ jobs:
       WHEREHOUSE_UPDATE_MANIFEST_URL: https://github.com/${{ github.repository }}/releases/latest/download/release.json
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Materialize appliance update verification key
         env:
           RELEASE_PUBLIC_KEY_PEM: ${{ secrets.WHEREHOUSE_RELEASE_PUBLIC_KEY_PEM }}

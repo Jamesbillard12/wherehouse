@@ -54,6 +54,10 @@ use a personal maintainer key in a public release image.
 The build verifies Docker/host architecture and required configuration, refuses unsupported boards
 and dirty trees, embeds the committed snapshot, and builds every application dependency inside Linux
 ARM64. A named `rpi-image-gen` package cache speeds later builds without caching final images.
+When `next` is requested, the builder increments the highest semantic version found in existing local
+image artifacts or repository `vX.Y.Z` tags. The remote workflow fetches all GitHub tags before resolving
+the version, so an empty hosted runner continues after the latest published release instead of restarting
+at `0.1.0`.
 Set `RPI_IMAGE_GEN_VERSION` only when deliberately testing another pinned release; the supported
 default and expected commit are declared in `build-image.sh` and passed into the Docker build.
 

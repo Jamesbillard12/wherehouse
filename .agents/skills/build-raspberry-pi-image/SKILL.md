@@ -27,12 +27,12 @@ not require reflashing Raspberry Pi OS, follow `docs/deployment/application-ota.
 1. Inspect `git status --short --branch`, the current branch, and the relevant commits. The workflow
    always checks out remote `main`; uncommitted changes and commits not present on remote `main` will
    not be included. State this clearly and do not push, merge, or switch branches unless requested.
-2. Use the requested semantic version. If none is given, use `next`; the checked-in builder owns
-   version resolution. Never guess a release number from memory.
+2. Use the requested semantic version. If none is given, use `next`; the checked-in builder resolves it
+   from local image artifacts and fetched GitHub release tags. Never guess a release number from memory.
 3. Confirm `gh auth status` succeeds and that `.github/workflows/pi-image.yml` exists. The protected
    `appliance-release` environment must provide `WHEREHOUSE_RELEASE_PUBLIC_KEY_PEM`; never request,
    print, download, or materialize the private signing key for an image build.
-4. Dispatch and watch with `pnpm pi:build:remote:watch -- <version>`. Starting the workflow is an
+4. Dispatch and watch with `pnpm pi:build:remote:watch <version>`. Starting the workflow is an
    external mutation, so do it only when the user has asked to create/build the image. If GitHub
    authentication or environment approval blocks the run, report the precise remediation and stop;
    do not fall back to a local production build without the user's direction.
