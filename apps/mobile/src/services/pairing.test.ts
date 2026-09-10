@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store'
 import { consumePairing } from '@wherehouse/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { isPairingUri, pairDevice, parsePairingUri } from './pairing'
+import { isJoinUri, isPairingUri, pairDevice, parseJoinUri, parsePairingUri } from './pairing'
 
 vi.mock('expo-secure-store', () => ({ setItemAsync: vi.fn() }))
 vi.mock('@wherehouse/api-client', () => ({ consumePairing: vi.fn() }))
@@ -18,6 +18,13 @@ describe('pairing QR payloads', () => {
       token: 'pair_secret',
     })
     expect(isPairingUri(validUri)).toBe(true)
+  })
+
+  it('parses a self-service invitation without account credentials in the link', () => {
+    const value = 'wherehouse://join?server=https%3A%2F%2Fhome.example&invite=invite_secret'
+    expect(parseJoinUri(value)).toEqual({ server: 'https://home.example', token: 'invite_secret' })
+    expect(isJoinUri(value)).toBe(true)
+    expect(value).not.toContain('password')
   })
 
   it.each([

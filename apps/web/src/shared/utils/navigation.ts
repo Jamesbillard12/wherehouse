@@ -1,5 +1,5 @@
 export type SettingsSection = 'account' | 'workspaces' | 'storage' | 'network-storage' | 'backups' | 'system' | 'preferences' | 'privacy' | 'about'
-export type DashboardView = 'overview' | 'items' | 'locations' | 'settings'
+export type DashboardView = 'overview' | 'items' | 'locations' | 'checkouts' | 'settings'
 
 export function settingsSectionFromLocation(): SettingsSection {
   const section = location.pathname.split('/')[2]
@@ -9,5 +9,6 @@ export function settingsSectionFromLocation(): SettingsSection {
 export function viewFromLocation(): DashboardView {
   if (location.pathname === '/items') return 'items'
   if (location.pathname === '/locations') return 'locations'
+  if (location.pathname === '/checkouts') return 'checkouts'
   return location.pathname.startsWith('/settings') ? 'settings' : 'overview'
 }

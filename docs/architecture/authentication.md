@@ -48,3 +48,13 @@ device ID, and revocation time, never a credential.
 `PUBLIC_BASE_URL` must be the URL reachable by the companion. Self-hosted deployments may use a
 LAN or `.local` URL; cloud deployments should use their public HTTPS API URL. Loopback hosts such as
 `localhost` and `127.0.0.1` are rejected by the companion because they identify the phone itself.
+
+## Self-service borrower invitations
+
+Owner pairing remains unchanged and creates a device for the owner who created the pairing session.
+Self-service onboarding uses a separate `wherehouse://join` invitation. Its high-entropy token is
+stored hashed, scoped to one workspace/profile/email, expires after 24 hours, is revocable, and is
+consumed under a row lock. The claimant must authenticate the existing invited account or create that
+exact invited account. Claiming atomically links the existing `BorrowerProfile`, adds a borrower
+membership, consumes the invitation, and creates a device whose user is the claimant and whose
+workspace is the invitation workspace. Clients cannot supply either identity.

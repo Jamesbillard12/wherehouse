@@ -8,6 +8,9 @@ from app.models.auth import (
 )
 from app.models.core import (
     Area,
+    BorrowerInvitation,
+    BorrowerProfile,
+    Checkout,
     Container,
     ContainerPlacement,
     ContainerRelationship,
@@ -30,6 +33,9 @@ from app.models.core import (
 __all__ = [
     "AppInstance",
     "Area",
+    "BorrowerInvitation",
+    "BorrowerProfile",
+    "Checkout",
     "Container",
     "ContainerPlacement",
     "ContainerRelationship",

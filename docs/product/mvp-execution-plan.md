@@ -33,7 +33,8 @@ separate claims. Unknown physical/operational results remain unvalidated, not im
 | Application capabilities/actor context | Partially implemented | Create/update/delete/move item, container nesting, and identifiers lead; typed frontend feature actions now remove quick-create navigation coupling, while other route-owned location CRUD remains |
 | Confirmations | Partially implemented | Reusable client UI exists; portable evidence/policy boundary is incomplete |
 | Audit attribution | Not implemented | Realtime is not audit; required before external automated writes, not necessarily tag |
-| Categories/tags, checkout/return, history | Deferred from MVP | No substantial current implementation |
+| Checkout/return | Implemented, needs physical validation | Stable borrower identity, self-service invitation/device claim, authorization, history, web/mobile workflows, and concurrency constraints are implemented; physical QR and cross-device validation remain |
+| Categories/tags, movement/activity history | Deferred from MVP | No substantial current implementation |
 
 ## Phase summary
 

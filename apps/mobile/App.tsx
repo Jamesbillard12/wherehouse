@@ -15,9 +15,11 @@ import {
 import {
   forgetPairedServer,
   isPairingUri,
+  isJoinUri,
   loadStoredPairing,
   markPairedServerRevoked,
   pairDevice,
+  claimSelfService,
   savePairedServer,
   type PairedServer,
 } from './src/services/pairing'
@@ -39,6 +41,7 @@ import { AddItemScreen } from './src/screens/AddItemScreen'
 import { ItemsScreen } from './src/screens/ItemsScreen'
 import { EditItemScreen } from './src/screens/EditItemScreen'
 import { ScanSessionScreen } from './src/screens/ScanSessionScreen'
+import { CheckoutsScreen } from './src/screens/CheckoutsScreen'
 import { failedItemCount, pendingItemCount, quarantinePendingItemsAfterCredentialRemoval, queueItem, recentLocations, syncPendingItems } from './src/services/itemQueue'
 import type { ItemDraft, ItemLocationChoice, ItemUpdateDraft } from './src/types/itemDraft'
 import { containerLocationChoice, itemLocationChoices, placementLocationChoice } from './src/utils/itemLocations'
@@ -255,11 +258,11 @@ export default function App() {
     })
   }, [pairedServer])
 
-  async function pair() {
+  async function pair(password?: string, displayName?: string) {
     setBusy(true)
     setError(null)
     try {
-      setPairedServer(await pairDevice(pairingUri, `${Platform.OS} companion`))
+      setPairedServer(isJoinUri(pairingUri) ? await claimSelfService(pairingUri, password ?? '', displayName ?? '', `${Platform.OS} companion`) : await pairDevice(pairingUri, `${Platform.OS} companion`))
       setRevokedConnection(null)
       setPairingUri('')
     } catch (reason) {
@@ -560,7 +563,7 @@ export default function App() {
           showsVerticalScrollIndicator={false}
         >
           <AppHeader connected={Boolean(pairedServer)} />
-          <Text style={styles.title}>{pairedServer ? activeTab === 'containers' ? 'Locations' : activeTab === 'items' ? 'Items' : activeTab === 'more' ? 'Settings' : 'Companion ready' : 'Connect companion'}</Text>
+          <Text style={styles.title}>{pairedServer ? activeTab === 'containers' ? 'Locations' : activeTab === 'items' ? 'Items' : activeTab === 'checkouts' ? 'Checkouts' : activeTab === 'more' ? 'Settings' : 'Companion ready' : 'Connect companion'}</Text>
           <Text style={styles.subtitle}>
             {pairedServer ? activeTab === 'containers' ? 'Browse areas, zones, containers, and everything stored inside.' : activeTab === 'items' ? 'Find and update your household inventory.' : activeTab === 'more' ? `Manage ${pairedServer.instanceName}, your account, and this app.` : 'Your household will stay close, even when the signal does not.' : 'Pair this phone with your household to get started.'}
           </Text>
@@ -568,12 +571,13 @@ export default function App() {
             <ActivityIndicator style={styles.activity} color="#166534" size="large" />
           ) : pairedServer && activeTab === 'home' ? <HomeScreen error={error} failedCount={failedCount} inventory={inventory} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onBrowse={openLocations} onNfc={() => void readNfc()} onRefresh={() => void refreshInventory()} onScan={() => void openScanSession()} pendingCount={pendingCount} server={pairedServer} syncing={syncing} />
             : pairedServer && activeTab === 'items' ? <ItemsScreen error={error} workspaceId={pairedServer.workspaceId} inventory={inventory} onEdit={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onOpenContainer={(container) => { setSelectedLocation(containerLocationChoice(container, inventory)); setActiveTab('containers') }} onRefresh={() => void refreshInventory()} search={searchInventory} syncing={syncing} />
+            : pairedServer && activeTab === 'checkouts' ? <CheckoutsScreen inventory={inventory} server={pairedServer} />
             : pairedServer && activeTab === 'more' ? <SettingsScreen onForget={() => void forget()} onSwitch={switchWorkspace} server={pairedServer} />
             : pairedServer ? <LocationsScreen error={error} inventory={inventory} onAddItem={(location) => { setAddItemLocation(location); setActiveTab('add-item') }} onChangeLocation={openLocations} onOpenItem={(item) => { setEditItemLocation(undefined); setEditingItem(item) }} onRefresh={() => void refreshInventory()} onSelect={setSelectedLocation} onWriteNfc={async (containerId) => { const container = inventory.containers.find((entry) => entry.id === containerId); if (container) await writeContainerNfc(container) }} selected={selectedLocation} syncing={syncing} />
-              : <PairingScreen error={error ?? (revokedConnection ? 'This device no longer has access to its household. Pair it again to reconnect.' : null)} onChange={setPairingUri} onPair={() => void pair()} onScan={() => void openScanner('pairing')} value={pairingUri} />}
+              : <PairingScreen error={error ?? (revokedConnection ? 'This device no longer has access to its household. Pair it again to reconnect.' : null)} onChange={setPairingUri} onPair={(password, displayName) => void pair(password, displayName)} onScan={() => void openScanner('pairing')} value={pairingUri} />}
         </ScrollView>
         {pairedServer ? (
-          <BottomNavigation activeTab={activeTab} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onLocations={openLocations} onNfc={() => void readNfc()} onScan={() => void openScanSession()} onSelect={(tab) => { setActiveTab(tab); if (tab === 'items') void refreshInventory() }} />
+          <BottomNavigation activeTab={activeTab} onAddItem={() => { setAddItemLocation(undefined); setActiveTab('add-item') }} onCheckouts={() => setActiveTab('checkouts')} onLocations={openLocations} onNfc={() => void readNfc()} onScan={() => void openScanSession()} onSelect={(tab) => { setActiveTab(tab); if (tab === 'items') void refreshInventory() }} />
         ) : null}
         {pairedServer ? <LocationSelectorSheet inventory={inventory} onClose={() => setLocationSelectorOpen(false)} onSelect={selectLocation} syncing={syncing} visible={locationSelectorOpen} /> : null}
         <ConfirmModal
