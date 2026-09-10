@@ -2,7 +2,7 @@
 
 Record date, commit, image/checksum, Pi model/RAM, boot medium, image version, operator, commands,
 timings, and observed result for every row. Automated evidence never completes a physical row. As of
-2026-09-03, all physical rows below are **not run**.
+2026-09-10, all physical rows below are **not run**.
 
 For a key-enabled test image, include these first-boot checks:
 
