@@ -43,9 +43,14 @@ describe('CheckoutsView', () => {
     const user = userEvent.setup()
     render(<CheckoutsView isOwner token="token" workspace={{ id: 'workspace-1', name: 'Home' } as never} />)
 
-    expect(await screen.findByRole('tab', { name: 'Checkout' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('tab', { name: 'Check out' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Your checkout' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'In progress' })).toBeVisible()
     expect(screen.getByRole('tab', { name: 'Returns' })).toBeVisible()
     expect(screen.getByRole('tab', { name: 'History' })).toBeVisible()
+    await user.click(screen.getByRole('tab', { name: 'In progress' }))
+    expect(screen.getByText('No checkouts in progress')).toBeVisible()
+    expect(screen.queryByText('Your checkout is empty')).not.toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: 'Borrowers' }))
 
     expect(screen.getByRole('tab', { name: 'Borrowers' })).toHaveAttribute('aria-selected', 'true')
