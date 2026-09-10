@@ -119,7 +119,7 @@ describe('Dashboard settings navigation', () => {
 
   it('keeps the current page when sidebar item creation is cancelled', async () => {
     render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Create new' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add new' }))
     await userEvent.click(screen.getByRole('menuitem', { name: /Item/ }))
     expect(location.pathname).toBe('/overview')
     expect(screen.getByText('Quick create')).toBeInTheDocument()
@@ -132,7 +132,7 @@ describe('Dashboard settings navigation', () => {
   it('opens area creation from the sidebar create menu', async () => {
     render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Create new' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add new' }))
     expect(screen.getByRole('menuitem', { name: /Zone/ })).toBeDisabled()
     expect(screen.getByRole('menuitem', { name: /Container/ })).toBeDisabled()
     await userEvent.click(screen.getByRole('menuitem', { name: /Area/ }))
@@ -143,7 +143,7 @@ describe('Dashboard settings navigation', () => {
 
   it('creates an item without navigating away from the current page', async () => {
     render(<Dashboard workspace={workspace} workspaces={[workspace]} isOwner onCreateWorkspace={vi.fn()} onSelect={vi.fn()} onSignOut={vi.fn()} token="token" user={user} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Create new' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add new' }))
     await userEvent.click(screen.getByRole('menuitem', { name: /Item/ }))
     await userEvent.type(await screen.findByRole('textbox', { name: 'Name' }), 'New Item')
     await userEvent.click(screen.getByRole('button', { name: 'Create item' }))

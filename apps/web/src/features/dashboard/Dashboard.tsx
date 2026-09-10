@@ -319,7 +319,7 @@ function DashboardContent({
           </Button>
         </div>
         <div className="sidebar-create" ref={quickCreateRef}>
-          <Button aria-expanded={quickCreateOpen} aria-haspopup="menu" aria-label="Create new" className="sidebar-create-button" onClick={() => setQuickCreateOpen((open) => !open)} title="Create new"><Plus aria-hidden="true" /></Button>
+          <Button aria-expanded={quickCreateOpen} aria-haspopup="menu" aria-label="Add new" className="sidebar-create-button" onClick={() => setQuickCreateOpen((open) => !open)} title="Add new"><Plus aria-hidden="true" /><span>Add new</span></Button>
           {quickCreateOpen ? <div className="sidebar-create-menu" role="menu">
             <Button onClick={() => createLocation('area')} role="menuitem"><MapPin aria-hidden="true" /><span><strong>Area</strong><small>Add a major location</small></span></Button>
             <Button disabled={!overview.areas.length} onClick={() => createLocation('zone')} role="menuitem"><Package aria-hidden="true" /><span><strong>Zone</strong><small>{overview.areas.length ? 'Add to the selected area' : 'Create an area first'}</small></span></Button>
