@@ -96,6 +96,10 @@ class EnableRemoteAdminRequest(BaseModel):
     public_key: str = Field(min_length=32, max_length=8192)
 
 
+class UpdatePolicyRequest(BaseModel):
+    policy: str = Field(pattern="^(off|security|all)$")
+
+
 @router.get("/system/update")
 async def update_status(principal: PrincipalDep) -> dict:
     try:
@@ -118,6 +122,17 @@ async def check_update(principal: PrincipalDep, session: SessionDep) -> dict:
 async def install_update(principal: PrincipalDep, session: SessionDep) -> dict:
     await require_instance_owner(principal, session)
     return await update_request("install")
+
+
+@router.get("/system/update/policy")
+async def update_policy(principal: PrincipalDep) -> dict:
+    return await appliance_request("update_policy.status")
+
+
+@router.put("/system/update/policy")
+async def set_update_policy(body: UpdatePolicyRequest, principal: PrincipalDep, session: SessionDep) -> dict:
+    await require_instance_owner(principal, session)
+    return await appliance_request("update_policy.set", {"policy": body.policy})
 
 
 @router.get("/system/storage")

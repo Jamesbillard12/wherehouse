@@ -178,6 +178,8 @@ class FirstBootTests(unittest.TestCase):
             ops.validate_manifest(dict(manifest, migrationPolicy="destructive"), "1.0.0")
         with self.assertRaisesRegex(RuntimeError, "validation scenario"):
             ops.validate_manifest(dict(manifest, validationScenario="shell"), "1.0.0")
+        with self.assertRaisesRegex(RuntimeError, "metadata must be complete"):
+            ops.validate_manifest(dict(manifest, updaterVersion="1.0.0"), "1.0.0")
 
     def test_download_is_atomic_and_rejects_partial_content(self):
         class Response:
@@ -204,6 +206,50 @@ class FirstBootTests(unittest.TestCase):
             state = json.loads((root / "config/update-state.json").read_text())
             self.assertEqual("downloading", state["phase"])
             self.assertEqual(42, state["progress"])
+
+    def test_update_policy_is_conservative_persistent_and_security_is_explicitly_paused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual("off", ops.read_update_policy(root)["policy"])
+            saved = ops.write_update_policy(root, "security")
+            self.assertFalse(saved["securityClassificationAvailable"])
+            self.assertIn("paused", saved["message"])
+            self.assertEqual("security", ops.read_update_policy(root)["policy"])
+            with self.assertRaisesRegex(RuntimeError, "off, security, or all"):
+                ops.write_update_policy(root, "nightly")
+
+    def test_client_disconnect_does_not_escape_response_writer(self):
+        connection = MagicMock()
+        connection.sendall.side_effect = BrokenPipeError()
+        ops.send_response(connection, {"ok": True, "status": {"phase": "checking"}})
+        connection.sendall.assert_called_once()
+
+    def test_accepted_operation_status_is_persisted_for_reconnect(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(ops.threading, "Thread") as thread:
+            root = Path(directory)
+            ops.start_update(root, root / "public.pem")
+            first = ops.read_state(root)
+            reconnected = ops.read_state(root)
+            self.assertEqual(first["operationId"], reconnected["operationId"])
+            self.assertEqual("checking", reconnected["phase"])
+            self.assertIsNotNone(reconnected["acceptedAt"])
+            thread.return_value.start.assert_called_once()
+
+    def test_updater_is_staged_and_atomically_activated_for_next_service_start(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory); root = base / "data"; install = base / "opt"
+            release_dir = root / "releases/1.2.0"; release_dir.mkdir(parents=True)
+            source = base / "new-updater"
+            source.write_text("#!/usr/bin/env python3\nprint('new')\n")
+            with ops.tarfile.open(release_dir / "wherehouse-updater.tar", "w") as bundle:
+                bundle.add(source, arcname="wherehouse-ops")
+            target = install / "deploy/raspberry-pi/wherehouse-ops"
+            target.parent.mkdir(parents=True); target.write_text("old")
+            with patch.object(ops, "INSTALL_DIR", install):
+                ops.activate_updater(root, "1.2.0", {"updaterVersion": "1.2.0"})
+            self.assertIn("print('new')", target.read_text())
+            self.assertEqual(0o755, target.stat().st_mode & 0o777)
+            self.assertEqual("1.2.0", (root / "config/updater-version").read_text().strip())
 
     def test_manifest_discovery_rejects_unsupported_installed_schema(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(
@@ -257,6 +303,34 @@ class FirstBootTests(unittest.TestCase):
             self.assertEqual("1.0.0", ops.parse_env(root / "config/appliance.env")["WHEREHOUSE_VERSION"])
             tag_calls = [call for call in run.call_args_list if call.args[0][:2] == ["docker", "tag"]]
             self.assertEqual(4, len(tag_calls))
+
+    def test_successful_update_reports_backup_and_preserves_appliance_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); release_dir = root / "releases/1.1.0"
+            release_dir.mkdir(parents=True); (release_dir / "wherehouse-runtime.tar").touch()
+            (release_dir / "release.json").write_text(json.dumps({
+                "validationScenario": "normal", "maximumSchemaRevision": 13
+            }))
+            config = root / "config"; config.mkdir()
+            (config / "appliance.env").write_text(
+                "APPLIANCE_IMAGE_VERSION=1.0.0\nWHEREHOUSE_VERSION=1.0.0\n"
+                "DROPBOX_CLIENT_ID=preserve-me\nPRIMARY_STORAGE_UUID=abcd-1234\n"
+            )
+            (config / "remote-admin-state.json").write_text('{"enabled": true}\n')
+            completed = MagicMock(returncode=0, stdout="sha256:previous\n")
+            with patch.object(ops, "validate_storage"), patch.object(
+                ops.subprocess, "run", return_value=completed
+            ), patch.object(ops, "compose", return_value=completed), patch.object(
+                ops, "verify_http_services"
+            ), patch.object(ops, "retain_releases"):
+                ops.install_release(root, "1.1.0")
+            state = ops.read_state(root)
+            self.assertEqual("succeeded", state["backupStatus"])
+            self.assertTrue(state["applianceHealthy"])
+            values = ops.parse_env(config / "appliance.env")
+            self.assertEqual("preserve-me", values["DROPBOX_CLIENT_ID"])
+            self.assertEqual("abcd-1234", values["PRIMARY_STORAGE_UUID"])
+            self.assertEqual('{"enabled": true}\n', (config / "remote-admin-state.json").read_text())
 
 
 if __name__ == "__main__":

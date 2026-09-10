@@ -15,6 +15,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tarfile
 import tempfile
 import threading
 import time
@@ -48,6 +49,11 @@ SSH_SUDOERS = Path("/etc/sudoers.d/90-wherehouse-admin")
 SSH_RUNTIME_DIR = Path("/run/sshd")
 SSH_HOST_KEY_DIR = Path("/etc/ssh")
 REMOTE_ADMIN_STATE_NAME = "remote-admin-state.json"
+UPDATE_POLICY_STATE_NAME = "update-policy.json"
+UPDATE_POLICIES = {"off", "security", "all"}
+ACTIVE_UPDATE_PHASES = {"checking", "downloading", "verifying", "backing_up", "installing",
+                        "migrating", "restarting", "validating", "rolling_back",
+                        "health_check", "rollback"}
 
 
 def utc_now() -> str:
@@ -82,7 +88,10 @@ def read_state(root: Path) -> dict:
         return {"currentVersion": current, "targetVersion": None, "latestVersion": None,
                 "updateAvailable": False, "channel": SUPPORTED_CHANNEL, "phase": "idle",
                 "progress": 0, "message": "WhereHouse is up to date", "errorCode": None,
-                "errorMessage": None, "rollbackPerformed": False, "lastCheckedAt": None}
+                "errorMessage": None, "diagnosticDetail": None,
+                "rollbackPerformed": False, "applianceHealthy": None,
+                "backupStatus": "not_applicable", "operationId": None,
+                "updaterVersion": current, "lastCheckedAt": None}
     return json.loads(path.read_text())
 
 
@@ -92,6 +101,30 @@ def write_state(root: Path, **changes) -> dict:
     state["updatedAt"] = utc_now()
     atomic_write(state_path(root), json.dumps(state, indent=2, sort_keys=True) + "\n")
     return state
+
+
+def read_update_policy(root: Path) -> dict:
+    path = root / "config" / UPDATE_POLICY_STATE_NAME
+    if not path.exists():
+        policy = "off"
+    else:
+        policy = json.loads(path.read_text()).get("policy")
+        if policy not in UPDATE_POLICIES:
+            raise RuntimeError("Stored automatic update policy is invalid")
+    message = ("Security-only automatic updates are paused because signed releases do not yet "
+               "provide trustworthy security classification") if policy == "security" else (
+               "All signed application updates install automatically" if policy == "all" else
+               "Automatic updates are off")
+    return {"policy": policy, "securityClassificationAvailable": False, "message": message}
+
+
+def write_update_policy(root: Path, policy: object) -> dict:
+    if not isinstance(policy, str) or policy not in UPDATE_POLICIES:
+        raise RuntimeError("Automatic update policy must be off, security, or all")
+    atomic_write(root / "config" / UPDATE_POLICY_STATE_NAME,
+                 json.dumps({"schemaVersion": 1, "policy": policy,
+                             "updatedAt": utc_now()}, indent=2, sort_keys=True) + "\n")
+    return read_update_policy(root)
 
 
 def validate_ssh_public_key(value: object) -> tuple[str, str]:
@@ -219,6 +252,17 @@ def validate_manifest(data: object, appliance_version: str) -> dict:
         raise RuntimeError("Release size or reboot policy is unsupported")
     if data["signatureAlgorithm"] != "rsa-sha256":
         raise RuntimeError("Release signature algorithm is unsupported")
+    updater_fields = ("updaterVersion", "updaterUrl", "updaterSha256", "updaterSize")
+    supplied_updater_fields = [field for field in updater_fields if field in data]
+    if supplied_updater_fields and len(supplied_updater_fields) != len(updater_fields):
+        raise RuntimeError("Release updater metadata must be complete")
+    if supplied_updater_fields:
+        semver(data["updaterVersion"])
+        updater_url = parse.urlparse(data["updaterUrl"])
+        if (updater_url.scheme != "https" or not updater_url.netloc or updater_url.username or
+                updater_url.password or not re.fullmatch(r"[0-9a-f]{64}", data["updaterSha256"]) or
+                type(data["updaterSize"]) is not int or data["updaterSize"] <= 0):
+            raise RuntimeError("Release updater metadata is invalid")
     datetime.fromisoformat(data["publishedAt"].replace("Z", "+00:00"))
     return dict(data, _version=version, _minimum_current=minimum_current)
 
@@ -317,7 +361,47 @@ def download_release(root: Path, manifest: dict, signed_manifest: Path) -> Path:
     shutil.copy2(signed_manifest.with_name("release.json.sig"), release_dir / "release.json.sig")
     atomic_write(release_dir / "wherehouse-runtime.tar.sha256",
                  f"{manifest['runtimeSha256']}  wherehouse-runtime.tar\n", 0o644)
+    if manifest.get("updaterUrl"):
+        updater = release_dir / "wherehouse-updater.tar"
+        download(manifest["updaterUrl"], updater, manifest["updaterSize"])
+        if sha256(updater) != manifest["updaterSha256"]:
+            updater.unlink(missing_ok=True)
+            raise RuntimeError("Updater checksum verification failed")
     return archive
+
+
+def activate_updater(root: Path, release: str, manifest: dict) -> None:
+    """Atomically activate a staged updater only after application validation."""
+    archive = root / "releases" / release / "wherehouse-updater.tar"
+    if not archive.exists():
+        return
+    version = manifest.get("updaterVersion")
+    if not version:
+        raise RuntimeError("Downloaded updater has no version")
+    with tarfile.open(archive, "r:") as bundle:
+        members = bundle.getmembers()
+        if [member.name for member in members] != ["wherehouse-ops"] or not members[0].isfile():
+            raise RuntimeError("Updater bundle contains unsupported files")
+        extracted = bundle.extractfile(members[0])
+        if extracted is None:
+            raise RuntimeError("Updater bundle is unreadable")
+        content = extracted.read()
+    if not content.startswith(b"#!/usr/bin/env python3\n"):
+        raise RuntimeError("Updater bundle is invalid")
+    updater_path = INSTALL_DIR / "deploy/raspberry-pi/wherehouse-ops"
+    descriptor, temporary = tempfile.mkstemp(dir=updater_path.parent, prefix=".wherehouse-ops.")
+    try:
+        os.fchmod(descriptor, 0o755)
+        with os.fdopen(descriptor, "wb") as target:
+            target.write(content)
+            target.flush()
+            os.fsync(target.fileno())
+        # The running process keeps its open executable; systemd uses this new inode next start.
+        os.replace(temporary, updater_path)
+        atomic_write(root / "config/updater-version", version + "\n", 0o644)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 class LifecycleLock:
@@ -730,10 +814,15 @@ def install_release(root: Path, release: str) -> None:
     manifest = json.loads((archive.parent / "release.json").read_text())
     # Database migrations can be irreversible. Preserve a verified recovery artifact first.
     write_state(root, targetVersion=release, phase="backing_up", progress=40,
-                message="Creating verified backup")
-    subprocess.run(
-        [str(INSTALL_DIR / "deploy/raspberry-pi/wherehouse-backup"), "create"], check=True
-    )
+                message="Creating verified backup", backupStatus="in_progress")
+    try:
+        subprocess.run(
+            [str(INSTALL_DIR / "deploy/raspberry-pi/wherehouse-backup"), "create"], check=True
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        write_state(root, backupStatus="unavailable" if isinstance(exc, FileNotFoundError) else "failed")
+        raise
+    write_state(root, backupStatus="succeeded")
     previous = {}
     for image in ("wherehouse-api:local", "wherehouse-web:local"):
         result = subprocess.run(
@@ -762,28 +851,48 @@ def install_release(root: Path, release: str) -> None:
         atomic_write(env_path, "".join(f"{key}={value}\n" for key, value in env.items()))
         write_state(root, phase="restarting", progress=82, message="Restarting services")
         compose(root, "up", "-d", "--wait", check=True)
-        write_state(root, phase="health_check", progress=92, message="Verifying installation")
+        write_state(root, phase="validating", progress=92, message="Verifying installation")
         verify_http_services()
         if manifest.get("validationScenario") == "fail-health":
             raise subprocess.CalledProcessError(1, ["signed-failure-drill", "health"])
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as exc:
+        failed_phase = read_state(root).get("phase")
+        write_state(root, phase="rolling_back", progress=96, message="Restoring previous application")
         env["WHEREHOUSE_VERSION"] = previous_version
         atomic_write(env_path, "".join(f"{key}={value}\n" for key, value in env.items()))
         for image, image_id in previous.items():
             subprocess.run(["docker", "tag", image_id, image], check=True)
-        compose(root, "up", "-d", check=False)
+        rollback_result = compose(root, "up", "-d", check=False)
+        rollback_healthy = rollback_result.returncode == 0
+        if rollback_healthy:
+            try:
+                verify_http_services()
+            except subprocess.CalledProcessError:
+                rollback_healthy = False
         write_state(root, phase="failed", progress=100, message="Update failed; previous application restored",
-                    errorCode="install_failed", errorMessage="Installation failed. Use the pre-update backup if the database is incompatible.",
-                    rollbackPerformed=True)
+                    errorCode=f"{failed_phase}_failed",
+                    errorMessage="The update failed and the previous application was restored." if rollback_healthy else
+                                 "The update failed and automatic recovery could not confirm a healthy appliance.",
+                    diagnosticDetail=f"phase={failed_phase}; command={exc.cmd[0] if exc.cmd else 'unknown'}; exit={exc.returncode}",
+                    rollbackPerformed=True, applianceHealthy=rollback_healthy, completedAt=utc_now())
         raise RuntimeError(
             "Update health validation failed. Previous containers were restored, but a database "
             "migration may prevent application rollback; follow the documented backup restore path."
         )
     atomic_write(root / "releases/current", release + "\n")
+    updater_error = None
+    try:
+        activate_updater(root, release, manifest)
+    except (OSError, RuntimeError, tarfile.TarError):
+        updater_error = "The application updated, but the host updater could not be activated. Contact support before the next update."
     write_state(root, currentVersion=release, targetVersion=None, latestVersion=release,
                 updateAvailable=False, phase="completed", progress=100,
-                message="WhereHouse is up to date", errorCode=None, errorMessage=None,
-                rollbackPerformed=False)
+                message="WhereHouse is up to date" if updater_error is None else "Application updated; updater activation needs support",
+                errorCode=None if updater_error is None else "updater_activation_failed",
+                errorMessage=updater_error,
+                rollbackPerformed=False, applianceHealthy=True, completedAt=utc_now(),
+                updaterVersion=(manifest.get("updaterVersion") or read_state(root).get("updaterVersion")
+                                if updater_error is None else read_state(root).get("updaterVersion")))
     retain_releases(root)
 
 
@@ -803,15 +912,13 @@ def recover_interrupted_update(root: Path) -> None:
     for partial in (root / "releases").glob("**/*.partial"):
         partial.unlink(missing_ok=True)
     state = read_state(root)
-    if state.get("phase") in {
-        "checking", "downloading", "verifying", "backing_up", "installing",
-        "migrating", "restarting", "health_check", "rollback",
-    }:
+    if state.get("phase") in ACTIVE_UPDATE_PHASES:
         write_state(root, phase="failed", progress=100,
                     message="Update was interrupted; current installation requires verification",
                     errorCode="update_interrupted",
                     errorMessage="The appliance restarted during an update. Check service health before retrying.",
-                    rollbackPerformed=False)
+                    rollbackPerformed=False, applianceHealthy=None, completedAt=utc_now(),
+                    diagnosticDetail=f"interrupted_phase={state.get('phase')}")
 
 
 def perform_update(root: Path, public_key: Path) -> None:
@@ -822,23 +929,26 @@ def perform_update(root: Path, public_key: Path) -> None:
                 return
             download_release(root, manifest, path)
             install_release(root, manifest["version"])
-    except Exception as exc:
+    except Exception:
         state = read_state(root)
         if state.get("phase") != "failed":
-            write_state(root, phase="failed", progress=100, message="Update failed",
-                        errorCode="update_failed",
+            failed_phase = state.get("phase", "unknown")
+            write_state(root, phase="failed", progress=100,
+                        message=f"Update failed while {failed_phase.replace('_', ' ')}",
+                        errorCode=f"{failed_phase}_failed",
                         errorMessage="The update could not be completed. Review appliance logs before retrying.",
-                        rollbackPerformed=False)
+                        diagnosticDetail=f"phase={failed_phase}", rollbackPerformed=False,
+                        completedAt=utc_now())
         raise
 
 
 def start_update(root: Path, public_key: Path) -> None:
-    if read_state(root).get("phase") in {
-        "checking", "downloading", "verifying", "backing_up", "installing",
-        "migrating", "restarting", "health_check", "rollback",
-    }:
+    if read_state(root).get("phase") in ACTIVE_UPDATE_PHASES:
         raise RuntimeError("Another appliance lifecycle operation is already running")
-    write_state(root, phase="checking", message="Starting update", progress=0)
+    write_state(root, phase="checking", message="Starting update", progress=0,
+                operationId=str(uuid.uuid4()), acceptedAt=utc_now(), completedAt=None,
+                errorCode=None, errorMessage=None, diagnosticDetail=None,
+                rollbackPerformed=False, applianceHealthy=None, backupStatus="not_applicable")
     thread = threading.Thread(target=lambda: _background_update(root, public_key), daemon=True)
     thread.start()
 
@@ -848,6 +958,13 @@ def _background_update(root: Path, public_key: Path) -> None:
         perform_update(root, public_key)
     except Exception as exc:
         print(f"wherehouse-ops: background update failed: {exc}", file=sys.stderr)
+
+
+def send_response(connection: socket.socket, response: dict) -> None:
+    try:
+        connection.sendall((json.dumps(response) + "\n").encode())
+    except (BrokenPipeError, ConnectionResetError, TimeoutError):
+        return
 
 
 def appliance_status(root: Path) -> dict:
@@ -883,6 +1000,8 @@ def serve(root: Path, socket_path: Path, public_key: Path) -> None:
     # account permission to trigger privileged lifecycle/storage operations.
     os.chmod(socket_path, 0o660)
     server.listen(8)
+    if read_update_policy(root)["policy"] == "all":
+        start_update(root, public_key)
     while True:
         connection, _ = server.accept()
         with connection:
@@ -921,6 +1040,10 @@ def serve(root: Path, socket_path: Path, public_key: Path) -> None:
                         root, True, payload.get("publicKey"))}
                 elif command == "remote_admin.disable":
                     response = {"ok": True, "status": configure_remote_admin(root, False)}
+                elif command == "update_policy.status":
+                    response = {"ok": True, "status": read_update_policy(root)}
+                elif command == "update_policy.set":
+                    response = {"ok": True, "status": write_update_policy(root, payload.get("policy"))}
                 else:
                     response = {"ok": False, "error": "Unsupported operation"}
             except Exception as exc:
@@ -930,7 +1053,7 @@ def serve(root: Path, socket_path: Path, public_key: Path) -> None:
                                 errorMessage="The update could not be checked. Verify appliance release configuration and network access.",
                                 rollbackPerformed=False)
                 response = {"ok": False, "error": str(exc)}
-            connection.sendall((json.dumps(response) + "\n").encode())
+            send_response(connection, response)
 
 
 def load_images(root: Path) -> None:

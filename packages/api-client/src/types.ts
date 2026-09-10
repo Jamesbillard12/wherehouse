@@ -111,8 +111,8 @@ export type RemoteAdministrationStatus = {
 }
 
 export type UpdatePhase = 'idle' | 'checking' | 'available' | 'downloading' | 'verifying' |
-  'backing_up' | 'installing' | 'migrating' | 'restarting' | 'health_check' |
-  'completed' | 'failed' | 'rollback'
+  'backing_up' | 'installing' | 'migrating' | 'restarting' | 'validating' |
+  'completed' | 'failed' | 'rolling_back' | 'health_check' | 'rollback'
 
 export type ApplianceUpdateStatus = {
   currentVersion: string
@@ -129,8 +129,19 @@ export type ApplianceUpdateStatus = {
   lastCheckedAt: string | null
   errorCode: string | null
   errorMessage: string | null
+  diagnosticDetail?: string | null
   rollbackPerformed: boolean
+  applianceHealthy?: boolean | null
+  backupStatus?: 'not_applicable' | 'in_progress' | 'succeeded' | 'failed' | 'unavailable'
+  operationId?: string | null
+  updaterVersion?: string
   serviceAvailable: boolean
+}
+
+export type AutomaticUpdatePolicy = {
+  policy: 'off' | 'security' | 'all'
+  securityClassificationAvailable: boolean
+  message: string
 }
 
 export type Device = {

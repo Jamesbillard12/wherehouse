@@ -201,6 +201,7 @@ class ImageBuilderTests(unittest.TestCase):
         self.assertIn("sha256sum -c", workflow)
         self.assertIn("has no signed release.json", workflow)
         self.assertIn("already exists; refusing overwrite", workflow)
+        self.assertIn("GH_REPO: ${{ github.repository }}", workflow)
         self.assertIn('gh release upload "$RELEASE_TAG"', workflow)
         self.assertIn('-f publish=true', package)
         self.assertIn("Explicit release version required", package)

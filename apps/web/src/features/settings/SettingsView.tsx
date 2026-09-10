@@ -7,6 +7,8 @@ import {
   getSystemStatus,
   getUpdateStatus,
   installUpdate,
+  getAutomaticUpdatePolicy,
+  setAutomaticUpdatePolicy,
   getStorageStatus,
   prepareStorage,
   migrateStorage,
@@ -27,6 +29,7 @@ import {
   type SystemStatus,
   type ApplianceStorageStatus,
   type RemoteAdministrationStatus,
+  type AutomaticUpdatePolicy,
 } from "@wherehouse/api-client";
 import {
   CircleUserRound,
@@ -47,6 +50,7 @@ import { type FormEvent, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { ConfirmDialog } from "../../components/wherehouse/ConfirmDialog";
 import { PageHeader } from "../../components/wherehouse/PageHeader";
@@ -144,7 +148,7 @@ export function SettingsView({
 
 const activeUpdatePhases = new Set<ApplianceUpdateStatus["phase"]>([
   "checking", "downloading", "verifying", "backing_up", "installing",
-  "migrating", "restarting", "health_check", "rollback",
+  "migrating", "restarting", "validating", "rolling_back", "health_check", "rollback",
 ]);
 
 function useStorageStatus(token: string) {
@@ -259,14 +263,24 @@ export function SoftwareUpdate({ isOwner, token }: { isOwner: boolean; token: st
   const [error, setError] = useState<string | null>(null);
   const [confirmingInstall, setConfirmingInstall] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [policy, setPolicy] = useState<AutomaticUpdatePolicy | null>(null);
+  const [savingPolicy, setSavingPolicy] = useState(false);
   const refresh = () => getUpdateStatus(token).then((value) => {
     setStatus(value); setError(null); return value;
   }).catch((reason) => { setError(message(reason)); return null; });
   useEffect(() => {
     void refresh();
+    if (isOwner) void getAutomaticUpdatePolicy(token).then(setPolicy).catch((reason) => setError(message(reason)));
     const timer = window.setInterval(() => void refresh(), 3000);
     return () => window.clearInterval(timer);
-  }, [token]);
+  }, [isOwner, token]);
+  async function changePolicy(value: AutomaticUpdatePolicy["policy"] | null) {
+    if (!value) return;
+    setSavingPolicy(true);
+    try { setPolicy(await setAutomaticUpdatePolicy(token, value)); setError(null); }
+    catch (reason) { setError(message(reason)); }
+    finally { setSavingPolicy(false); }
+  }
   async function check() {
     try { setStatus(await checkForUpdate(token)); setError(null); }
     catch (reason) { setError(message(reason)); }
@@ -292,13 +306,27 @@ export function SoftwareUpdate({ isOwner, token }: { isOwner: boolean; token: st
         {status.releaseNotes ? <div><strong>Release notes</strong><p className="muted">{status.releaseNotes}</p></div> : null}
         <p className="muted">Channel: {status.channel}{status.runtimeSize ? ` · Download ${formatBytes(status.runtimeSize)}` : ""}<br />
           {status.lastCheckedAt ? `Last checked ${formatDate(status.lastCheckedAt)}` : "Not checked yet"}</p>
-        {status.errorMessage ? <StatusMessage tone="error">{status.errorMessage}{status.rollbackPerformed ? " Previous application images were restored." : ""}</StatusMessage> : null}
+        {status.errorMessage ? <StatusMessage tone="error"><strong>{status.message}</strong><br />{status.errorMessage}
+          {status.rollbackPerformed ? " Previous application images were restored." : ""}
+          {status.applianceHealthy === false ? " The appliance is not confirmed healthy; contact WhereHouse support and do not retry repeatedly." :
+           status.rollbackPerformed ? " The appliance is healthy; retry later or contact support if the failure repeats." :
+           " Check the network and storage shown above, retry once, then contact WhereHouse support if it fails again."}
+          {status.diagnosticDetail ? <><br /><small>Support detail: {status.diagnosticDetail}</small></> : null}</StatusMessage> : null}
+        {status.backupStatus && status.backupStatus !== "not_applicable" ? <p className="muted">Pre-update backup: {status.backupStatus.replace("_", " ")}</p> : null}
       </> : null}
       <p className="muted">WhereHouse may be unavailable briefly while the update is installed. The update continues if this browser disconnects.</p>
       {isOwner ? <div className="backup-destination-actions">
         <Button disabled={busy || status?.serviceAvailable === false} onClick={() => void check()} variant="outline">Check for Updates</Button>
         <Button disabled={busy || status?.serviceAvailable === false || !status?.updateAvailable} onClick={() => setConfirmingInstall(true)}>Update Now</Button>
       </div> : <p className="muted">Only household owners can install appliance updates.</p>}
+      {isOwner && policy ? <div>
+        <label>Automatic updates</label>
+        <Select disabled={savingPolicy} onValueChange={(value) => void changePolicy(value)} value={policy.policy}>
+          <SelectTrigger aria-label="Automatic updates"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="off">Off</SelectItem><SelectItem value="security">Security only</SelectItem><SelectItem value="all">All updates</SelectItem></SelectContent>
+        </Select>
+        <p className="muted">{policy.message}</p>
+      </div> : null}
     </div>
     {error && !confirmingInstall ? <StatusMessage tone="error">{error}</StatusMessage> : null}
     <ConfirmDialog busy={busy} confirmLabel="Install update" description="WhereHouse may be unavailable briefly. Installation continues if this browser disconnects, and a verified backup is required before the update proceeds." error={error} onCancel={() => { setConfirmingInstall(false); setError(null); }} onConfirm={install} open={confirmingInstall} title={`Install ${status?.latestVersion ?? "this update"}?`} />
