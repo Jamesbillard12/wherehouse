@@ -35,3 +35,5 @@ dist/
 # .NET
 **/bin/
 **/obj/
+# Raspberry Pi build artifacts
+work/
