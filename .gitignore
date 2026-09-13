@@ -31,3 +31,7 @@ uploads/
 /backups/
 /backup-staging/
 dist/
+
+# .NET
+**/bin/
+**/obj/
