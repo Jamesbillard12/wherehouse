@@ -1,5 +1,5 @@
-using WhereHouse.DeviceService.Devices;
 using System.Text.Json.Serialization;
+using WhereHouse.DeviceService.Devices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,15 +21,34 @@ app.MapGet("/health", () =>
     };
 });
 
-app.MapGet("/devices", () =>
+app.MapGet("/devices", (ConnectionType? connectionType) =>
 {
     List<DiscoveredDevice> devices =
     [
-        new("usb-brother-1", "Garage Printer", ConnectionType.Usb, "Brother", "QL-800"),
-        new("network-brother-1", "Attic Printer", ConnectionType.Network, "Brother", "QA-820NWB"),
-        new( "unknown-usb-1", "Unknown USB Device", ConnectionType.Usb, null, null )
+        new(
+            "usb-brother-1",
+            "Garage Printer",
+            ConnectionType.Usb,
+            "Brother",
+            "QL-800"
+        ),
+        new(
+            "network-brother-1",
+            "Attic Printer",
+            ConnectionType.Network,
+            "Brother",
+            "QL-820NWB"
+        )
     ];
-    return devices;
+
+    IEnumerable<DiscoveredDevice> query = devices;
+
+    if (connectionType is not null)
+    {
+        query = query.Where(device => device.ConnectionType == connectionType);
+    }
+
+    return query.OrderBy(device => device.Name).ToList();
 });
 
 app.Run();
