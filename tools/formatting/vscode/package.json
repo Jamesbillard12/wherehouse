@@ -1,0 +1,12 @@
+{
+  "name": "vertical-format",
+  "displayName": "WhereHouse Vertical Formatting",
+  "description": "Repository formatting for Python, JavaScript, TypeScript, and C#.",
+  "version": "0.1.0",
+  "publisher": "wherehouse",
+  "engines": { "vscode": "^1.96.0" },
+  "categories": ["Formatters"],
+  "main": "./extension.cjs",
+  "activationEvents": ["onLanguage:csharp", "onLanguage:python", "onLanguage:javascript", "onLanguage:javascriptreact", "onLanguage:typescript", "onLanguage:typescriptreact"],
+  "capabilities": { "untrustedWorkspaces": { "supported": false } }
+}
