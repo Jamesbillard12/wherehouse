@@ -4,14 +4,39 @@ namespace WhereHouse.DeviceService.Discovery;
 
 public class FakeDiscoveryProvider : IDeviceDiscoveryProvider
 {
+    private readonly ILogger<FakeDiscoveryProvider> _logger;
+
+    public FakeDiscoveryProvider(
+        ILogger<FakeDiscoveryProvider> logger
+    )
+    {
+        _logger = logger;
+    }
     public async Task<IReadOnlyList<DiscoveredDevice>> DiscoverAsync(
         CancellationToken cancellationToken
     )
     {
-        await Task.Delay(
-            500,
-            cancellationToken
+        _logger.LogInformation(
+            "Starting fake device discovery"
         );
+
+        try
+        {
+            await Task.Delay(
+                500,
+                cancellationToken
+            );
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning(
+                "Fake device discovery was cancelled"
+            );
+
+            throw;
+        }
+
+
         IReadOnlyList<DiscoveredDevice> devices = [
             new(
             "usb-brother-1",
@@ -27,6 +52,10 @@ public class FakeDiscoveryProvider : IDeviceDiscoveryProvider
             "QL-820NWB"
         )
         ];
+        _logger.LogInformation(
+            "Fake device discovery found {DeviceCount} devices",
+            devices.Count
+        );
         return devices;
     }
 }
