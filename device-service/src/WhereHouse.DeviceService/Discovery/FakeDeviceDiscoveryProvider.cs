@@ -10,26 +10,9 @@ public class FakeDiscoveryProvider : IDeviceDiscoveryProvider
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        IReadOnlyList<DiscoveredDevice> devices =
-        [
-            new(
-            "usb-brother-1",
-            "Garage Printer",
-            ConnectionType.Usb,
-            "Brother",
-            "QL-800"
-        ),
-            new(
-            "network-brother-1",
-            "Attic Printer",
-            ConnectionType.Network,
-            "Brother",
-            "QL-820NWB"
-        )
+        IReadOnlyList<DiscoveredDevice> devices = [
+            new( "usb-brother-1", "Garage Printer", ConnectionType.Usb, "Brother", "QL-800" ), new( "network-brother-1", "Attic Printer", ConnectionType.Network, "Brother", "QL-820NWB" )
         ];
-
-        return Task.FromResult(
-            devices
-        );
+        return Task.FromResult(devices);
     }
 }
